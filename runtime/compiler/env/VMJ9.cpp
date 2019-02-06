@@ -1366,6 +1366,250 @@ TR_J9VMBase::getClassFromJavaLangClass(uintptrj_t objectPointer)
    return (TR_OpaqueClassBlock*)J9VM_J9CLASS_FROM_HEAPCLASS(_vmThread, objectPointer);
    }
 
+/**
+ * \brief
+ *    Return data type for a class.
+ */
+TR::DataType TR_J9VMBase::classDataType(TR_OpaqueClassBlock* clazz)
+   {
+   return dataTypeForJ9Type(j9TypeForClass(clazz));
+   }
+
+/**
+ * \brief
+ *    Return signature for primitive J9Type.
+ */
+char* TR_J9VMBase::signatureForPrimitive(J9Type j9type)
+   {
+   switch (j9type)
+      {
+      case J9BOOLEAN:
+         return "Z";
+      case J9BYTE:
+         return "B";
+      case J9CHAR:
+         return "C";
+      case J9SHORT:
+         return "S";
+      case J9INT:
+         return "I";
+      case J9LONG:
+         return "J";
+      case J9FLOAT:
+         return "F";
+      case J9DOUBLE:
+         return "D";
+      default:
+         TR_ASSERT(false, "Not primitive");
+      }
+
+   return NULL;
+   }
+
+/**
+ * \brief
+ *    Return JIT data type for a J9Type.
+ */
+TR::DataType TR_J9VMBase::dataTypeForJ9Type(J9Type j9type)
+   {
+   switch (j9type)
+      {
+      case J9VOID:
+         return TR::NoType;
+      case J9BOOLEAN:
+      case J9BYTE:
+      case J9CHAR:
+      case J9SHORT:
+      case J9INT:
+         return TR::Int32;
+      case J9LONG:
+         return TR::Int64;
+      case J9FLOAT:
+         return TR::Float;
+      case J9DOUBLE:
+         return TR::Double;
+      case J9ADDRESS:
+         return TR::Address;
+      default:
+         TR_ASSERT(false, "Unknown type");
+      }
+
+   return TR::NoType;
+   }
+
+/**
+ * \brief
+ *    Return J9Type for `clazz`.
+ */
+J9Type TR_J9VMBase::j9TypeForClass(TR_OpaqueClassBlock* clazz)
+   {
+   J9Class* j9clazz = (J9Class*)clazz;
+
+   if (j9clazz == jitConfig->javaVM->booleanReflectClass)
+      return J9BOOLEAN;
+   else if (j9clazz == jitConfig->javaVM->byteReflectClass)
+      return J9BYTE;
+   else if (j9clazz == jitConfig->javaVM->charReflectClass)
+      return J9CHAR;
+   else if (j9clazz == jitConfig->javaVM->shortReflectClass)
+      return J9SHORT;
+   else if (j9clazz == jitConfig->javaVM->intReflectClass)
+      return J9INT;
+   else if (j9clazz == jitConfig->javaVM->longReflectClass)
+      return J9LONG;
+   else if (j9clazz == jitConfig->javaVM->floatReflectClass)
+      return J9FLOAT;
+   else if (j9clazz == jitConfig->javaVM->doubleReflectClass)
+      return J9DOUBLE;
+   else if (j9clazz == jitConfig->javaVM->voidReflectClass)
+      return J9VOID;
+   else
+      return J9ADDRESS;
+   }
+
+/**
+ * \brief
+ *    Check if converting a value of a type to another type is widening primitive conversion.
+ *
+ * \parm fromClazz
+ *    The type to convert from.
+ *
+ * \parm toClazz
+ *    The type to convert to.
+ *
+ * \return
+ *    True if the conversion is widening primitive conversion, otherwise false.
+ */
+bool TR_J9VMBase::isWideningPrimitiveConversion(TR_OpaqueClassBlock* fromClazz, TR_OpaqueClassBlock* toClazz)
+   {
+   if (fromClazz == toClazz)
+      return false;
+
+   if (!isPrimitiveClass(fromClazz) || !isPrimitiveClass(toClazz))
+      return false;
+
+   J9Type fromJ9Type = j9TypeForClass(fromClazz);
+   J9Type toJ9Type = j9TypeForClass(toClazz);
+
+   if (fromJ9Type == J9BOOLEAN || toJ9Type == J9BOOLEAN || toJ9Type == J9CHAR)
+      return false;
+
+   if (fromJ9Type == J9CHAR && toJ9Type == J9SHORT)
+      return false;
+
+   if (fromJ9Type < toJ9Type)
+      return true;
+
+   return false;
+   }
+
+/**
+ * \brief
+ *    Check if `clazz` is java type of `void`
+ */
+bool
+TR_J9VMBase::isVoid(TR_OpaqueClassBlock* clazz)
+   {
+   return ((J9Class*) clazz) == jitConfig->javaVM->voidReflectClass;
+   }
+
+bool
+TR_J9VMBase::isJavaLangVoid(TR_OpaqueClassBlock* clazz)
+   {
+   return ((J9Class*) clazz) == J9VMJAVALANGVOID(jitConfig->javaVM);
+   }
+/**
+ * \brief
+ *    Check if a `clazz` is java wrapper class.
+ */
+bool
+TR_J9VMBase::isWrapperClass(TR_OpaqueClassBlock* clazz)
+   {
+   J9Class* j9clazz = (J9Class*)clazz;
+
+   if (j9clazz == J9VMJAVALANGBOOLEAN_OR_NULL(jitConfig->javaVM)
+       || j9clazz == J9VMJAVALANGBYTE_OR_NULL(jitConfig->javaVM)
+       || j9clazz == J9VMJAVALANGCHARACTER_OR_NULL(jitConfig->javaVM)
+       || j9clazz == J9VMJAVALANGSHORT_OR_NULL(jitConfig->javaVM)
+       || j9clazz == J9VMJAVALANGINTEGER_OR_NULL(jitConfig->javaVM)
+       || j9clazz == J9VMJAVALANGLONG_OR_NULL(jitConfig->javaVM)
+       || j9clazz == J9VMJAVALANGFLOAT_OR_NULL(jitConfig->javaVM)
+       || j9clazz == J9VMJAVALANGDOUBLE_OR_NULL(jitConfig->javaVM))
+      return true;
+
+   return false;
+   }
+
+/**
+ * \brief
+ *    Get the primitive class of given wrapper class.
+ *
+ * \parm clazz
+ *    The wrapper class whose corresponding primitive class is requested.
+ *
+ * \return
+ *    The corresponding primitive class of `clazz`.
+ */
+TR_OpaqueClassBlock*
+TR_J9VMBase::getPrimitiveClassOfWrapperClass(TR_OpaqueClassBlock* clazz)
+   {
+   if (clazz == getSystemClassFromClassName("java/lang/Boolean",strlen("java/lang/Boolean")))
+      return (TR_OpaqueClassBlock*)jitConfig->javaVM->booleanReflectClass;
+   else if (clazz == getSystemClassFromClassName("java/lang/Byte",strlen("java/lang/Byte")))
+      return (TR_OpaqueClassBlock*)jitConfig->javaVM->byteReflectClass;
+   else if (clazz == getSystemClassFromClassName("java/lang/Character",strlen("java/lang/Character")))
+      return (TR_OpaqueClassBlock*)jitConfig->javaVM->charReflectClass;
+   else if (clazz == getSystemClassFromClassName("java/lang/Short",strlen("java/lang/Short")))
+      return (TR_OpaqueClassBlock*)jitConfig->javaVM->shortReflectClass;
+   else if (clazz == getSystemClassFromClassName("java/lang/Integer",strlen("java/lang/Integer")))
+      return (TR_OpaqueClassBlock*)jitConfig->javaVM->intReflectClass;
+   else if (clazz == getSystemClassFromClassName("java/lang/Long",strlen("java/lang/Long")))
+      return (TR_OpaqueClassBlock*)jitConfig->javaVM->longReflectClass;
+   else if (clazz == getSystemClassFromClassName("java/lang/Float",strlen("java/lang/Float")))
+      return (TR_OpaqueClassBlock*)jitConfig->javaVM->floatReflectClass;
+   else if (clazz == getSystemClassFromClassName("java/lang/Double",strlen("java/lang/Double")))
+      return (TR_OpaqueClassBlock*)jitConfig->javaVM->doubleReflectClass;
+
+   TR_ASSERT(false, "Clazz 0x%p is not a wrapper class of primitive", clazz);
+   return NULL;
+   }
+
+/**
+ * \brief
+ *    Get the wrapper class of given primitive class.
+ *
+ * \parm clazz
+ *    The primitive class whose wrapper class is requested.
+ *
+ * \return
+ *    The wrapper class of `clazz`.
+ */
+TR_OpaqueClassBlock*
+TR_J9VMBase::getWrapperClassOfPrimitive(TR_OpaqueClassBlock* clazz)
+   {
+   J9Class* j9clazz = (J9Class*)clazz;
+
+   if (j9clazz == jitConfig->javaVM->booleanReflectClass)
+      return getSystemClassFromClassName("java/lang/Boolean",strlen("java/lang/Boolean"));
+   else if (j9clazz == jitConfig->javaVM->byteReflectClass)
+      return getSystemClassFromClassName("java/lang/Byte",strlen("java/lang/Byte"));
+   else if (j9clazz == jitConfig->javaVM->charReflectClass)
+      return getSystemClassFromClassName("java/lang/Character",strlen("java/lang/Character"));
+   else if (j9clazz == jitConfig->javaVM->shortReflectClass)
+      return getSystemClassFromClassName("java/lang/Short",strlen("java/lang/Short"));
+   else if (j9clazz == jitConfig->javaVM->intReflectClass)
+      return getSystemClassFromClassName("java/lang/Integer",strlen("java/lang/Integer"));
+   else if (j9clazz == jitConfig->javaVM->longReflectClass)
+      return getSystemClassFromClassName("java/lang/Long",strlen("java/lang/Long"));
+   else if (j9clazz == jitConfig->javaVM->floatReflectClass)
+      return getSystemClassFromClassName("java/lang/Float",strlen("java/lang/Float"));
+   else if (j9clazz == jitConfig->javaVM->doubleReflectClass)
+      return getSystemClassFromClassName("java/lang/Double",strlen("java/lang/Double"));
+
+   TR_ASSERT(false, "Clazz 0x%p is not a primitive class", clazz);
+   return NULL;
+   }
+
 uintptrj_t
 TR_J9VMBase::getConstantPoolFromMethod(TR_OpaqueMethodBlock *method)
    {
@@ -4755,6 +4999,24 @@ TR_J9VMBase::methodType_descriptor(uintptrj_t methodType)
    return getReferenceField(
       methodType,
       "methodDescriptor", "Ljava/lang/String;");
+   }
+
+uintptrj_t
+TR_J9VMBase::methodType_returnType(uintptrj_t methodType)
+   {
+   TR_ASSERT(haveAccess(), "methodType_descriptor requires VM access");
+   return getReferenceField(
+      methodType,
+      "returnType", "Ljava/lang/Class;");
+   }
+
+uintptrj_t
+TR_J9VMBase::methodType_arguments(uintptrj_t methodType)
+   {
+   TR_ASSERT(haveAccess(), "methodType_descriptor requires VM access");
+   return getReferenceField(
+      methodType,
+      "arguments", "[Ljava/lang/Class;");
    }
 
 static uint8_t *bypassBaseAddress(uintptrj_t mutableCallSite, TR_J9VMBase *fej9)

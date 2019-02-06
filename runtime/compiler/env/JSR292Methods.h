@@ -28,6 +28,7 @@
 #define JSR292_placeholderSig "(I)I"
 
 #define JSR292_MethodHandle   "java/lang/invoke/MethodHandle"
+#define JSR292_MethodType   "java/lang/invoke/MethodType"
 #define JSR292_invokeExactTargetAddress    "invokeExactTargetAddress"
 #define JSR292_invokeExactTargetAddressSig "()J"
 #define JSR292_getType                     "type"
