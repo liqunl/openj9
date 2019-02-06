@@ -458,7 +458,7 @@ bool J9::TransformUtil::foldFinalFieldsIn(TR_OpaqueClassBlock *clazz, char *clas
       }
 
    static char *enableAggressiveFolding = feGetEnv("TR_EnableAggressiveStaticFinalFieldFolding");
-   if (enableAggressiveFolding
+   if (!enableAggressiveFolding
       && isStatic
       && comp->fej9()->isClassInitialized(clazz))
       {

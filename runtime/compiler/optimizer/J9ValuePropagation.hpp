@@ -58,6 +58,9 @@ class ValuePropagation : public OMR::ValuePropagation
    bool isKnownStringObject(TR::VPConstraint *constraint);
    TR_YesNoMaybe isStringObject(TR::VPConstraint *constraint);
    void processAsTypeCall(TR::Node* node);
+   void processAsTypeCallNew(TR::Node* node);
+   void convertArguments(TR::TreeTop* invokeExactTree, uintptrj_t fromType, uintptrj_t toType);
+   TR::TreeTop* convertReturnValue(TR::TreeTop* invokeExactTree, uintptrj_t fromMethodType, uintptrj_t toMethodType, bool isGlobal);
 
    virtual void getParmValues();
 

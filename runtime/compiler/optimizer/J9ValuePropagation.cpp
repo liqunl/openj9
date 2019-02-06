@@ -45,6 +45,7 @@
 #include "runtime/RuntimeAssumptions.hpp"
 #include "env/J9JitMemory.hpp"
 #include "optimizer/HCRGuardAnalysis.hpp"
+#include "env/JSR292Methods.h"
 
 #define OPT_DETAILS "O^O VALUE PROPAGATION: "
 
@@ -120,7 +121,7 @@ J9::ValuePropagation::transformCallToIconstWithHCRGuard(TR::TreeTop *callTree, i
    int16_t calleeIndex = comp()->getCurrentInlinedSiteIndex();
    TR::Node *compareNode= TR_VirtualGuard::createHCRGuard(comp(), calleeIndex, callNode, NULL, calleeSymbol, calleeSymbol->getResolvedMethod()->classOfMethod());
 
-   // ifTree is a duplicate of the callTree, create temps for the children to avoid commoning
+   // ifTree is a duplicate allTree
    J9::TransformUtil::createTempsForCall(this, callTree);
    TR::TreeTop *compareTree = TR::TreeTop::create(comp(), compareNode);
    TR::TreeTop *ifTree = TR::TreeTop::create(comp(),callTree->getNode()->duplicateTree());
@@ -247,6 +248,493 @@ J9::ValuePropagation::isKnownStringObject(TR::VPConstraint *constraint)
    return isStringObject(constraint) == TR_yes
           && constraint->isNonNullObject()
           && (constraint->isConstString() || constraint->getKnownObject());
+   }
+
+static TR::TreeTop*
+findInvokeExactForAsTypeCall(TR::TreeTop* asTypeTree)
+   {
+   TR::TreeTop* lastTT = asTypeTree->getEnclosingBlock()->getExit();
+   TR::Node* asTypeCall = asTypeTree->getNode()->getFirstChild();
+   for (TR::TreeTop* tt = asTypeTree->getNextTreeTop(); tt != lastTT; tt = tt->getNextTreeTop())
+      {
+      if (tt->getNode()->getNumChildren() == 1)
+         {
+         TR::Node* node = tt->getNode()->getFirstChild();
+         if (node && node->getOpCode().isCallIndirect()  && !node->getSymbol()->castToMethodSymbol()->isHelper())
+            {
+            TR::ResolvedMethodSymbol* symbol = node->getSymbol()->getResolvedMethodSymbol();
+            TR::RecognizedMethod rm = symbol->getRecognizedMethod();
+            if (rm == TR::java_lang_invoke_MethodHandle_invokeExact
+                && node->getFirstArgument() == asTypeCall)
+               return tt;
+            }
+         }
+      }
+
+   return NULL;
+   }
+
+// Check if one type can be converted to another type
+static TR_YesNoMaybe
+typesAreConvertible(TR::Compilation* comp, TR_J9VMBase* fej9, TR_OpaqueClassBlock* fromClazz, TR_OpaqueClassBlock* toClazz)
+   {
+   int32_t fromClassNameLength;
+   char* fromClassName = fej9->getClassNameChars(fromClazz, fromClassNameLength);
+
+   int32_t toClassNameLength;
+   char* toClassName = fej9->getClassNameChars(toClazz, toClassNameLength);
+
+   traceMsg(comp, "converting from %.*s to %.*s\n", fromClassNameLength, fromClassName, toClassNameLength, toClassName);
+
+   if (fromClazz == toClazz)
+      return TR_yes;
+
+   bool fromIsPrimitive = fej9->isPrimitiveClass(fromClazz);
+   bool toIsPrimitive = fej9->isPrimitiveClass(toClazz);
+
+   if (fromIsPrimitive && toIsPrimitive)
+      {
+      if (fej9->isWideningPrimitiveConversion(fromClazz, toClazz))
+         return TR_yes;
+      else
+         return TR_no;
+      }
+
+   if (toIsPrimitive)
+      {
+      // check if is unboxing + widening primitive conversion
+      // fromClazz has to be reference type { Object, Number, Boolean, Byte, Integer, etc }
+      // If fromClazz is a super class of the wrapper class of toClazz, types may be convertible
+      TR_OpaqueClassBlock* toWrapperClazz = fej9->getWrapperClassOfPrimitive(toClazz);
+      // liqun: what's the meaning of yes no maybe here
+      // more like if we can apply certain conversion at compile time, maybe the function name should
+      // be adjusted?
+      if (!toWrapperClazz)
+         return TR_no;
+
+      if (fromClazz == toWrapperClazz)
+         return TR_yes;
+
+      TR_YesNoMaybe result = fej9->isInstanceOf(toWrapperClazz, fromClazz, true, false);
+      if (result != TR_no)
+         return result;
+
+      // check if is widening primitive conversion
+      if (fej9->isWrapperClass(fromClazz))
+         {
+         TR_OpaqueClassBlock* fromUnwrappedClazz =  fej9->getPrimitiveClassOfWrapperClass(fromClazz);
+         if (fej9->isWideningPrimitiveConversion(fromUnwrappedClazz, toClazz))
+            return TR_yes;
+         }
+
+      return TR_no;
+      }
+
+   // toClazz is reference type
+   // check if is boxing conversion, widening reference conversion
+   // toClazz has to be the wrapper type of fromClazz, Object or Number
+   if (fromIsPrimitive)
+      {
+      TR_OpaqueClassBlock* fromWrapperClazz = fej9->getWrapperClassOfPrimitive(fromClazz);
+      if (!fromWrapperClazz)
+         return TR_no;
+
+      if (toClazz == fromWrapperClazz)
+         return TR_yes;
+
+      return fej9->isInstanceOf(fromWrapperClazz, toClazz, true, true);
+      }
+
+   return TR_maybe;
+
+   if (fej9->isJavaLangVoid(fromClazz))
+      return TR_yes;
+
+   // Both classes are reference type
+   return fej9->isInstanceOf(fromClazz, toClazz, true, true);
+   }
+
+static TR_YesNoMaybe
+returnTypesAreConvertibleBetweenMethodTypes(TR::Compilation* comp, TR_J9VMBase* fej9, uintptrj_t fromMethodType, uintptrj_t toMethodType)
+   {
+   TR_ASSERT(fej9->haveAccess(), "returnTypesAreConvertibleBetweenMethodTypes requires VM access");
+   TR_OpaqueClassBlock* fromClazz = fej9->getClassFromJavaLangClass(fej9->methodType_returnType(fromMethodType));
+   TR_OpaqueClassBlock* toClazz = fej9->getClassFromJavaLangClass(fej9->methodType_returnType(toMethodType));
+
+   // Converting to void, just ignore the return result
+   // Converting from void, null for Object, constant 0 for primitive
+   if (fej9->isVoid(fromClazz) || fej9->isVoid(toClazz))
+      return TR_yes;
+
+   return typesAreConvertible(comp, fej9, fromClazz, toClazz);
+   }
+
+static TR_YesNoMaybe
+argumentsAreConvertibleBetweenMethodTypes(TR::Compilation* comp, TR_J9VMBase* fej9, uintptrj_t fromMethodType, uintptrj_t toMethodType)
+   {
+   TR_ASSERT(fej9->haveAccess(), "argumentsAreConvertibleBetweenMethodTypes requires VM access");
+   uintptrj_t fromArgArray = fej9->methodType_arguments(fromMethodType);
+   uintptrj_t toArgArray = fej9->methodType_arguments(toMethodType);
+
+   intptrj_t fromArgNum = fej9->getArrayLengthInElements(fromArgArray);
+   intptrj_t toArgNum = fej9->getArrayLengthInElements(toArgArray);
+
+   if (fromArgNum != toArgNum)
+      return TR_no;
+
+   TR_YesNoMaybe result = TR_yes;
+
+   for (int i=0; i< fromArgNum; i++)
+      {
+      TR_OpaqueClassBlock* fromArgClazz = fej9->getClassFromJavaLangClass(fej9->getReferenceElement(fromArgArray, i));
+      TR_OpaqueClassBlock* toArgClazz = fej9->getClassFromJavaLangClass(fej9->getReferenceElement(toArgArray, i));
+      TR_YesNoMaybe tmpResult = typesAreConvertible(comp, fej9, fromArgClazz, toArgClazz);
+      if (tmpResult == TR_no)
+         return TR_no;
+      else if (tmpResult == TR_maybe)
+         result = TR_maybe;
+      }
+
+   return result;
+   }
+
+static TR_YesNoMaybe
+canInvokeMethodHandleWithType(TR::Compilation* comp, TR_J9VMBase* fej9, uintptrj_t methodHandle, uintptrj_t newType)
+   {
+   TR_ASSERT(fej9->haveAccess(), "canInvokeMethodHandleWithType requires VM access");
+   uintptrj_t mhType = fej9->methodHandle_type(methodHandle);
+
+   if (mhType == newType)
+      return TR_yes;
+
+   TR_YesNoMaybe returnTypesConvertible = returnTypesAreConvertibleBetweenMethodTypes(comp, fej9, mhType, newType);
+   TR_YesNoMaybe argumentsConvertible = argumentsAreConvertibleBetweenMethodTypes(comp, fej9, newType, mhType);
+
+   if (returnTypesConvertible == TR_no
+       || argumentsConvertible == TR_no)
+      return TR_no;
+   else if (returnTypesConvertible == TR_yes
+            && argumentsConvertible == TR_yes)
+      return TR_yes;
+
+   return TR_maybe;
+   }
+
+static TR::SymbolReference*
+methodSymRefForBoxingConversion(TR::Compilation* comp, TR_OpaqueClassBlock* fromClazz)
+   {
+   TR_J9VMBase* fej9 = comp->fej9();
+   TR_ASSERT(fej9->isPrimitiveClass(fromClazz), "fromClazz 0x%p is not a primitive class", fromClazz);
+   // Find the method of the valueOf(X)Ljava/lang/Y;
+   TR_OpaqueClassBlock* fromWrapperClass = fej9->getWrapperClassOfPrimitive(fromClazz);
+   int32_t fromWrapperClassNameLength;
+   char* fromWrapperClassName = fej9->getClassNameChars(fromWrapperClass, fromWrapperClassNameLength);
+   J9Type fromJ9Type = fej9->j9TypeForClass(fromClazz);
+   char* fromClassSig = fej9->signatureForPrimitive(fromJ9Type);
+   char valueOfMethodSig[40];
+   sprintf(valueOfMethodSig, "(%s)L%.*s;", fromClassSig, fromWrapperClassNameLength, fromWrapperClassName);
+   TR_OpaqueMethodBlock *valueOf = fej9->getMethodFromClass(fromWrapperClass, "valueOf", valueOfMethodSig, NULL /*pass NULL to skip visibility check*/);
+
+   TR_ASSERT(valueOf, "Can't find boxing methods");
+
+   TR::SymbolReference *valueOfSymRef = comp->getSymRefTab()->findOrCreateMethodSymbol(JITTED_METHOD_INDEX,
+                                                                                       -1,
+                                                                                       fej9->createResolvedMethod(comp->trMemory(), valueOf),
+                                                                                       TR::MethodSymbol::Static);
+
+   return valueOfSymRef;
+   }
+
+// Unboxing and widening primitive conversion
+static TR::SymbolReference*
+methodSymRefForUnboxingConversion(TR::Compilation* comp, TR_OpaqueClassBlock* fromClazz, TR_OpaqueClassBlock* toClazz)
+   {
+   TR_J9VMBase* fej9 = comp->fej9();
+   char methodName[30], methodSignature[50];
+   J9Type toJ9Type = fej9->j9TypeForClass(toClazz);
+   char* targetType = fej9->signatureForPrimitive(toJ9Type);
+   TR_OpaqueClassBlock* javaLangNumber = fej9->getSystemClassFromClassName("java/lang/Number", strlen("java/lang/Number"));
+   if (javaLangNumber && fej9->isInstanceOf(fromClazz, javaLangNumber, false, true) == TR_yes)
+      {
+      sprintf(methodName, "number2%s", targetType);
+      sprintf(methodSignature, "(Ljava/lang/Number;)%s", targetType);
+      }
+   else
+      {
+      sprintf(methodName, "object2%s", targetType);
+      sprintf(methodSignature, "(Ljava/lang/Object;)%s", targetType);
+      }
+   TR::SymbolReference *methodSymRef = comp->getSymRefTab()->methodSymRefFromName(comp->getMethodSymbol(),
+                                                                                  "java/lang/invoke/ConvertHandle$FilterHelpers",
+                                                                                  methodName,
+                                                                                  methodSignature,
+                                                                                  TR::MethodSymbol::Static);
+   TR_ASSERT(methodSymRef, "Can't find conversion methods");
+   return methodSymRef;
+   }
+
+static TR::Node*
+boxingOrUnboxingConversion(TR::Compilation* comp, TR::Node* originatingByteCodeNode, TR::Node* fromNode, TR_OpaqueClassBlock* fromClazz, TR_OpaqueClassBlock* toClazz)
+   {
+   TR::DataType fromType = comp->fej9()->classDataType(fromClazz);
+   TR::DataType toType = comp->fej9()->classDataType(toClazz);
+   TR::SymbolReference *methodSymRef = NULL;
+   if (toType == TR::Address/*is boxing conversion*/)
+      methodSymRef = methodSymRefForBoxingConversion(comp, fromClazz);
+   else
+      methodSymRef = methodSymRefForUnboxingConversion(comp, fromClazz, toClazz);
+
+   TR::Node* convertedNode = TR::Node::createWithSymRef(originatingByteCodeNode,
+                                                        methodSymRef->getSymbol()->castToMethodSymbol()->getMethod()->directCallOpCode(),
+                                                        1,
+                                                        fromNode,
+                                                        methodSymRef);
+   return convertedNode;
+   }
+
+static TR::TreeTop*
+createCheckCast(TR::Compilation* comp, TR::Node* originatingByteCodeNode, TR::Node* objectNode, TR_OpaqueClassBlock* toClazz)
+   {
+   TR::Node *toClazzLoad = TR::Node::createWithSymRef(originatingByteCodeNode,
+                                                      TR::loadaddr,
+                                                      0,
+                                                      comp->getSymRefTab()->findOrCreateClassSymbol(comp->getMethodSymbol(), -1, toClazz));
+   TR::Node* checkcast = TR::Node::create(originatingByteCodeNode, TR::checkcast, 2, objectNode, toClazzLoad);
+   checkcast->setSymbolReference(comp->getSymRefTab()->findOrCreateCheckCastSymbolRef(comp->getMethodSymbol()));
+   return TR::TreeTop::create(comp, checkcast);
+   }
+
+static void
+traceConversion(TR::Compilation* comp, TR::Node* nodeToBeConverted, TR_OpaqueClassBlock* fromClazz, TR_OpaqueClassBlock* toClazz)
+   {
+   int32_t fromClazzNameLength;
+   char* fromClazzName = comp->fej9()->getClassNameChars(fromClazz, fromClazzNameLength);
+   int32_t toClazzNameLength;
+   char* toClazzName = comp->fej9()->getClassNameChars(toClazz, toClazzNameLength);
+   traceMsg(comp, "Trying to convert node %p n%dn from %.*s to %.*s\n", nodeToBeConverted, nodeToBeConverted->getGlobalIndex(), fromClazzNameLength, fromClazzName, toClazzNameLength, toClazzName);
+   }
+
+TR::TreeTop*
+J9::ValuePropagation::convertReturnValue(TR::TreeTop* invokeExactTree, uintptrj_t fromMethodType, uintptrj_t toMethodType, bool isGlobal)
+   {
+   TR_J9VMBase* fej9 = comp()->fej9();
+   TR_OpaqueClassBlock* fromClazz = fej9->getClassFromJavaLangClass(fej9->methodType_returnType(fromMethodType));
+   TR_OpaqueClassBlock* toClazz = fej9->getClassFromJavaLangClass(fej9->methodType_returnType(toMethodType));
+   TR::DataType fromType = fej9->classDataType(fromClazz);
+   TR::DataType toType = fej9->classDataType(toClazz);
+   TR::Node* invokeExactCall = invokeExactTree->getNode()->getFirstChild();
+   bool enableTrace = trace();
+
+   if (enableTrace)
+      traceConversion(comp(), invokeExactCall, fromClazz, toClazz);
+
+   if (fromClazz == toClazz
+       || fej9->isVoid(toClazz)
+       || (fromType == toType && fromType != TR::Address))
+      {
+      return invokeExactTree;
+      }
+   else if (fromType == TR::Address && toType == TR::Address)
+      {
+      if (fej9->isInstanceOf(fromClazz, toClazz, false, true) != TR_yes)
+         {
+         dumpOptDetails(comp(), "%sAdd checkcast on result of call node %p n%dn\n", OPT_DETAILS, invokeExactCall, invokeExactCall->getGlobalIndex());
+         invokeExactTree->insertAfter(createCheckCast(comp(), invokeExactCall, invokeExactCall, toClazz));
+         }
+
+      return invokeExactTree;
+      }
+   else if (fej9->isVoid(fromClazz) && !isGlobal && !lastTimeThrough())
+      {
+      // The transformation will introduce node with constant value which will result in global constraint
+      if (enableTrace)
+         traceMsg(comp(), "Converting void to non-void and transformation is driven by local constraints, defer it to the last time through\n");
+      return NULL;
+      }
+
+   // An explicit conversion is needed
+   TR::Node* convertedResult = NULL;
+   TR::Node* duplicatedCall = invokeExactCall->duplicateTree(false /*duplicateChildren*/);
+   TR::TreeTop* duplicatedCallTree = TR::TreeTop::create(comp(), TR::Node::create(invokeExactCall, TR::treetop, 1, duplicatedCall));
+   invokeExactTree->insertBefore(duplicatedCallTree);
+
+   if (fej9->isWideningPrimitiveConversion(fromClazz, toClazz))
+      {
+      TR::ILOpCodes conversionOpCode = TR::ILOpCode::getProperConversion(fromType, toType, false);
+      TR_ASSERT(conversionOpCode != TR::BadILOp, "Could not get proper conversion");
+      convertedResult = TR::Node::create(invokeExactCall, conversionOpCode, 1, duplicatedCallTree->getNode()->getFirstChild());
+      }
+   else if (fej9->isVoid(fromClazz))
+      {
+      // Converting from void, null for Object, const 0 for primitive
+      convertedResult = TR::Node::createConstZeroValue(invokeExactCall, toType);
+      }
+   else
+      {
+      // Boxing or unboxing conversion
+      convertedResult =  boxingOrUnboxingConversion(comp(), invokeExactCall, duplicatedCallTree->getNode()->getFirstChild(), fromClazz, toClazz);
+      TR::TreeTop::create(comp(), duplicatedCallTree /*precedingTreeTop*/, TR::Node::create(invokeExactCall, TR::treetop, 1, convertedResult));
+      }
+
+   dumpOptDetails(comp(), "%sTransform the original call node %p n%dn to a passthrough of converted result %p n%dn\n", OPT_DETAILS, invokeExactCall, invokeExactCall->getGlobalIndex(), convertedResult, convertedResult->getGlobalIndex());
+   TR::TransformUtil::transformCallNodeToPassThrough(this, invokeExactCall, NULL, convertedResult);
+
+   return duplicatedCallTree;
+   }
+
+// The two types have to be mutually convertable when calling this function
+void
+J9::ValuePropagation::convertArguments(TR::TreeTop* invokeExactTree, uintptrj_t fromMethodType, uintptrj_t toMethodType)
+   {
+   TR_J9VMBase* fej9 = comp()->fej9();
+   TR::Node* invokeExactCall = invokeExactTree->getNode()->getFirstChild();
+   uintptrj_t fromArgArray = fej9->methodType_arguments(fromMethodType);
+   uintptrj_t toArgArray = fej9->methodType_arguments(toMethodType);
+   int32_t receiverArgIndex = invokeExactCall->getFirstArgumentIndex();
+   bool enableTrace = trace();
+
+   // Go through all the arguments except receiver, insert trees to convert them to desired type
+   for (int i = 1; i < invokeExactCall->getNumArguments(); i++)
+      {
+      TR::Node* child = invokeExactCall->getArgument(i);
+      TR_OpaqueClassBlock* fromClazz = fej9->getClassFromJavaLangClass(fej9->getReferenceElement(fromArgArray, i-1));
+      TR_OpaqueClassBlock* toClazz = fej9->getClassFromJavaLangClass(fej9->getReferenceElement(toArgArray, i-1));
+      TR::DataType fromType = fej9->classDataType(fromClazz);
+      TR::DataType toType = fej9->classDataType(toClazz);
+
+      if (enableTrace)
+         traceConversion(comp(), child, fromClazz, toClazz);
+
+      if (fromClazz == toClazz
+          || (fromType == toType && fromType != TR::Address))
+         continue;
+      else if (fromType == TR::Address && toType == TR::Address)
+         {
+         if (fej9->isInstanceOf(fromClazz, toClazz, false, true) != TR_yes)
+            invokeExactTree->insertBefore(createCheckCast(comp(), invokeExactCall, child, toClazz));
+         continue;
+         }
+      else
+         {
+         // Need to convert the child
+         TR::Node* convertedChild = NULL;
+         if (fej9->isWideningPrimitiveConversion(fromClazz, toClazz))
+            {
+            // widening primitive conversion
+            TR::ILOpCodes conversionOpCode = TR::ILOpCode::getProperConversion(fromType, toType, false);
+            convertedChild = TR::Node::create(invokeExactCall, conversionOpCode, 1, child);
+            }
+         else if (fromType == TR::Address || toType == TR::Address)
+            {
+            convertedChild =  boxingOrUnboxingConversion(comp(), invokeExactCall, child, fromClazz, toClazz);
+            invokeExactTree->insertBefore(TR::TreeTop::create(comp(), TR::Node::create(invokeExactCall, TR::treetop, 1, convertedChild)));
+            }
+
+         // Replace child with the converted one
+         invokeExactCall->setAndIncChild(i + receiverArgIndex, convertedChild);
+         child->recursivelyDecReferenceCount();
+         }
+      }
+   }
+
+static void
+devirtualizeInvokeExact(TR::Compilation* comp, TR::Node* node, uintptrj_t* mhLocation)
+   {
+   TR::SymbolReference* symRef = node->getSymbolReference();
+   TR::ResolvedMethodSymbol* owningMethod = symRef->getOwningMethodSymbol(comp);
+   TR_ResolvedMethod* resolvedMethod = comp->fej9()->createMethodHandleArchetypeSpecimen(comp->trMemory(), mhLocation, owningMethod->getResolvedMethod());
+   TR::SymbolReference *specimenSymRef = comp->getSymRefTab()->findOrCreateMethodSymbol(owningMethod->getResolvedMethodIndex(), -1, resolvedMethod, TR::MethodSymbol::ComputedVirtual);
+   dumpOptDetails(comp, "%sSubstituting more specific method symbol on %p: %s\n", OPT_DETAILS, node, specimenSymRef->getName(comp->getDebug()));
+   TR::Node::recreateWithSymRef(node, specimenSymRef->getSymbol()->castToMethodSymbol()->getMethod()->indirectCallOpCode(), specimenSymRef);
+   }
+
+void
+J9::ValuePropagation::processAsTypeCallNew(TR::Node* node)
+   {
+   const char *signature = node->getSymbol()->getResolvedMethodSymbol()->getResolvedMethod()->signature(comp()->trMemory(), stackAlloc);
+
+   TR::ResolvedMethodSymbol* symbol = node->getSymbol()->getResolvedMethodSymbol();
+   TR_ResolvedMethod* calledMethod = symbol->getResolvedMethod();
+   const char* comSig = comp()->signature();
+   const char* thisMethodSig = calledMethod->owningMethod()->signature(comp()->trMemory(), stackAlloc);
+   const char* hotness = comp()->getHotnessName();
+   const char* formatString = "asType/%s/%d/(%s %s)/(%s)";
+   int32_t inlineDepth = comp()->getInlineDepth();
+
+   TR_J9VMBase* fej9 = comp()->fej9();
+   TR::Node* mh = node->getArgument(0);
+   TR::Node* mt = node->getArgument(1);
+   bool mhConstraintGlobal, mtConstraintGlobal;
+   TR::VPConstraint* mhConstraint = getConstraint(mh, mhConstraintGlobal);
+   TR::VPConstraint* mtConstraint = getConstraint(mt, mtConstraintGlobal);
+   TR_OpaqueClassBlock* methodHandleClass = fej9->getSystemClassFromClassName(JSR292_MethodHandle, strlen(JSR292_MethodHandle));
+   TR_OpaqueClassBlock* methodTypeClass = fej9->getSystemClassFromClassName(JSR292_MethodType, strlen(JSR292_MethodType));
+   if (mhConstraint
+       && mtConstraint
+       && mhConstraint->getKnownObject()
+       && mhConstraint->isNonNullObject()
+       && mtConstraint->getKnownObject()
+       && mtConstraint->isNonNullObject()
+       && mhConstraint->getClass()
+       && mtConstraint->getClass()
+       && fej9->isInstanceOf(mhConstraint->getClass(), methodHandleClass, true, true) == TR_yes
+       && fej9->isInstanceOf(mtConstraint->getClass(), methodTypeClass, true, true) == TR_yes)
+      {
+      uintptrj_t* mhLocation = getObjectLocationFromConstraint(mhConstraint);
+      uintptrj_t* mtLocation = getObjectLocationFromConstraint(mtConstraint);
+
+      TR::VMAccessCriticalSection asType(comp(),
+                                                  TR::VMAccessCriticalSection::tryToAcquireVMAccess);
+      if (!asType.hasVMAccess())
+         return;
+      uintptrj_t mhObject = fej9->getStaticReferenceFieldAtAddress((uintptrj_t)mhLocation);
+      uintptrj_t mtInMh = fej9->methodHandle_type(mhObject);
+      uintptrj_t mtObject = fej9->getStaticReferenceFieldAtAddress((uintptrj_t)mtLocation);
+
+      if (trace())
+         traceMsg(comp(), "mhLocation %p mtLocation %p mhObject %p mtObject %p\n", mhLocation, mtLocation, mhObject, mtObject);
+
+      if (canInvokeMethodHandleWithType(comp(), fej9, mhObject, mtObject) == TR_no)
+         {
+         TR::DebugCounter::incStaticDebugCounter(comp(), TR::DebugCounter::debugCounterName(comp(), formatString, "cannotfold", inlineDepth, comSig, hotness, thisMethodSig));
+         if (trace())
+            traceMsg(comp(), "Callsite type and receiver MethodHandle type are not compatible, can't fold asType\n");
+         return;
+         }
+
+      if (!performTransformation(comp(), "%sTransforming %s on node %p to a PassThrough with child %p\n", OPT_DETAILS, signature, node, mh))
+         return;
+
+
+      if (mtInMh != mtObject)
+         {
+         // Look for invokeExact call and transform the call
+         TR::TreeTop* invokeExactTree = findInvokeExactForAsTypeCall(_curTree);
+         if (!invokeExactTree)
+            return;
+
+         TR::TreeTop* newCallTree = convertReturnValue(invokeExactTree, mtInMh, mtObject, mhConstraintGlobal && mtConstraintGlobal);
+         // Can't transform in this pass
+         if (!newCallTree)
+            return;
+
+         convertArguments(newCallTree, mtObject, mtInMh);
+         devirtualizeInvokeExact(comp(), newCallTree->getNode()->getFirstChild(), mhLocation);
+         TR::DebugCounter::incStaticDebugCounter(comp(), TR::DebugCounter::debugCounterName(comp(), formatString, "foldwithconversion", inlineDepth, comSig, hotness, thisMethodSig));
+         }
+      else
+         TR::DebugCounter::incStaticDebugCounter(comp(), TR::DebugCounter::debugCounterName(comp(), formatString, "fold", inlineDepth, comSig, hotness, thisMethodSig));
+
+      // Transform asType call
+      TR::TransformUtil::transformCallNodeToPassThrough(this, node, _curTree, mh);
+      addBlockOrGlobalConstraint(node, mhConstraint, mhConstraintGlobal && mtConstraintGlobal);
+      TR::DebugCounter::incStaticDebugCounter(comp(), TR::DebugCounter::debugCounterName(comp(), "constrainCall/(%s)", signature));
+
+      comp()->dumpMethodTrees("liqun: after transform asType");
+      return;
+      }
+   else
+      TR::DebugCounter::incStaticDebugCounter(comp(), TR::DebugCounter::debugCounterName(comp(), formatString, "noconstraint", inlineDepth, comSig, hotness, thisMethodSig));
    }
 
 void
@@ -702,7 +1190,7 @@ J9::ValuePropagation::constrainRecognizedMethod(TR::Node *node)
       switch (rm)
          {
          case TR::java_lang_invoke_MethodHandle_asType:
-            processAsTypeCall(node);
+            processAsTypeCallNew(node);
             break;
          case TR::java_lang_invoke_PrimitiveHandle_initializeClassIfRequired:
             {
