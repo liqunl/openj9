@@ -4820,7 +4820,7 @@ TR_J9JSR292InlinerPolicy::checkIfTargetInlineable(TR_CallTarget* target, TR_Call
       //we are ourselves an archetype specimen, so we can inline other archetype speciman
       return InlineableTarget;
       }
-   else if (comp->getMethodHotness() >= hot)
+   else if (comp->getMethodHotness() >= warm)
       {
       // We are not an archetype specimen
       // but because we're hot (or greater) we are allowed to inline JSR292 methods
