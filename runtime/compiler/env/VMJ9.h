@@ -69,6 +69,20 @@ namespace TR { class Compilation; }
 namespace TR { class StaticSymbol; }
 namespace TR { class ParameterSymbol; }
 
+   typedef enum
+      {
+      J9BOOLEAN,
+      J9BYTE,
+      J9CHAR,
+      J9SHORT,
+      J9INT,
+      J9LONG,
+      J9FLOAT,
+      J9DOUBLE,
+      J9VOID,
+      J9ADDRESS
+      } J9Type;
+
 // XLC cannot determine uintptr_t is equivalent to uint32_t
 // or uint64_t, so make it clear with this test
 template <typename T> struct TR_ProfiledValue;
@@ -247,6 +261,8 @@ public:
    virtual bool isInterfaceClass(TR_OpaqueClassBlock * clazzPointer);
    virtual bool isEnumClass(TR_OpaqueClassBlock * clazzPointer, TR_ResolvedMethod *method);
    virtual bool isPrimitiveClass(TR_OpaqueClassBlock *clazz);
+   virtual bool isWrapperClass(TR_OpaqueClassBlock* clazz);
+   virtual bool isVoid(TR_OpaqueClassBlock *clazz);
    virtual bool isPrimitiveArray(TR_OpaqueClassBlock *);
    virtual bool isReferenceArray(TR_OpaqueClassBlock *);
    virtual bool hasFinalizer(TR_OpaqueClassBlock * classPointer);
@@ -551,6 +567,14 @@ public:
    virtual TR_OpaqueClassBlock *getClassFromJavaLangClass(uintptrj_t objectPointer);
    virtual TR_OpaqueClassBlock * getSystemClassFromClassName(const char * name, int32_t length, bool callSiteVettedForAOT=false) { return 0; }
 
+   virtual TR_OpaqueClassBlock* getWrapperClassOfPrimitive(TR_OpaqueClassBlock* clazz);
+   virtual TR_OpaqueClassBlock* getPrimitiveClassOfWrapperClass(TR_OpaqueClassBlock* clazz);
+   virtual char*                signatureForPrimitive(J9Type j9type);
+   virtual bool                 isWideningPrimitiveConversion(TR_OpaqueClassBlock* fromClazz, TR_OpaqueClassBlock* toClazz);
+   virtual J9Type               j9TypeForClass(TR_OpaqueClassBlock* clazz);
+   virtual TR::DataType         dataTypeForJ9Type(J9Type j9type);
+   virtual TR::DataType         classDataType(TR_OpaqueClassBlock *clazz);
+
    virtual uintptrj_t         getOffsetOfLastITableFromClassField();
    virtual uintptrj_t         getOffsetOfInterfaceClassFromITableField();
    virtual int32_t            getITableEntryJitVTableOffset();  // Must add this to the negation of an itable entry to get a jit vtable offset
@@ -734,6 +758,8 @@ public:
    virtual void *      methodHandle_jitInvokeExactThunk(uintptrj_t methodHandle);
    virtual uintptrj_t  methodHandle_type(uintptrj_t methodHandle);
    virtual uintptrj_t  methodType_descriptor(uintptrj_t methodType);
+   virtual uintptrj_t  methodType_returnType(uintptrj_t methodType);
+   virtual uintptrj_t  methodType_arguments(uintptrj_t methodType);
    virtual uintptrj_t *mutableCallSite_bypassLocation(uintptrj_t mutableCallSite);
    virtual uintptrj_t *mutableCallSite_findOrCreateBypassLocation(uintptrj_t mutableCallSite);
 

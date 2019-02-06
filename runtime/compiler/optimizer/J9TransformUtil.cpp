@@ -426,8 +426,8 @@ static void *dereferenceStructPointerChain(void *baseStruct, TR::Node *baseNode,
 bool J9::TransformUtil::foldFinalFieldsIn(TR_OpaqueClassBlock *clazz, char *className, int32_t classNameLength, bool isStatic, TR::Compilation *comp)
    {
    TR::SimpleRegex *classRegex = comp->getOptions()->getClassesWithFoldableFinalFields();
-   if (classRegex)
-      return TR::SimpleRegex::match(classRegex, className);
+   if (classRegex && TR::SimpleRegex::match(classRegex, className))
+      return true;
    else if (classNameLength >= 17 && !strncmp(className, "java/lang/invoke/", 17))
       return true; // We can ONLY do this opt to fields that are never victimized by setAccessible
    else if (classNameLength >= 30 && !strncmp(className, "java/lang/String$UnsafeHelpers", 30))
@@ -464,7 +464,7 @@ bool J9::TransformUtil::foldFinalFieldsIn(TR_OpaqueClassBlock *clazz, char *clas
       }
 
    static char *enableAggressiveFolding = feGetEnv("TR_EnableAggressiveStaticFinalFieldFolding");
-   if (enableAggressiveFolding
+   if (!enableAggressiveFolding
       && isStatic
       && comp->fej9()->isClassInitialized(clazz))
       {
