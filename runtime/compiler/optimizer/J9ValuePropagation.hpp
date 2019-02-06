@@ -57,6 +57,7 @@ class ValuePropagation : public OMR::ValuePropagation
    uintptrj_t* getObjectLocationFromConstraint(TR::VPConstraint *constraint);
    bool isKnownStringObject(TR::VPConstraint *constraint);
    TR_YesNoMaybe isStringObject(TR::VPConstraint *constraint);
+   void processAsTypeCall(TR::Node* node);
 
    virtual void getParmValues();
 
