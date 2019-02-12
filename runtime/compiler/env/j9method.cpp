@@ -8626,7 +8626,7 @@ TR_J9ByteCodeIlGenerator::walkReferenceChain(TR::Node *node, uintptrj_t receiver
          {
          if (comp()->getOption(TR_TraceILGen))
             traceMsg(comp(), "  walkReferenceChain hit unresolved symref %s; aborting\n", symRef->getName(comp()->getDebug()));
-         comp()->failCompilation<TR::ILGenFailure>("Symbol reference is unresolved");
+         comp()->failCompilation<TR::RecoverableILGenException>("Symbol reference is unresolved while walkReferenceChain");
          }
       TR::Symbol *sym = symRef->getSymbol();
       TR_ASSERT(sym->isShadow() && symRef->getCPIndex() > 0, "walkReferenceChain expecting field load; found load of %s", comp()->getDebug()->getName(symRef));
