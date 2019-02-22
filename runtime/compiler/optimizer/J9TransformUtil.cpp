@@ -1294,7 +1294,7 @@ J9::TransformUtil::transformIndirectLoadChainImpl(TR::Compilation *comp, TR::Nod
       {
       if (comp->getOption(TR_TraceOptDetails))
          {
-         traceMsg(comp, "Abort transformIndirectLoadChain - cannot dereference at compile time!\n");
+         traceMsg(comp, "Abort transformIndirectLoadChain - cannot dereference at compile time! node %p\n", node);
          }
       return false;
       }
