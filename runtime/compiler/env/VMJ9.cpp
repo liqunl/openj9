@@ -4221,8 +4221,8 @@ bool TR_J9VMBase::isFinalFieldPointingAtJ9Class(TR::SymbolReference *symRef, TR:
 static bool foldFinalFieldsIn(char *className, int32_t classNameLength, TR::Compilation *comp)
    {
    TR::SimpleRegex *classRegex = comp->getOptions()->getClassesWithFoldableFinalFields();
-   if (classRegex)
-      return TR::SimpleRegex::match(classRegex, className);
+   if (classRegex && TR::SimpleRegex::match(classRegex, className))
+      return true;
    else if (classNameLength >= 17 && !strncmp(className, "java/lang/invoke/", 17))
       return true; // We can ONLY do this opt to fields that are never victimized by setAccessible
    else if (classNameLength >= 30 && !strncmp(className, "java/lang/String$UnsafeHelpers", 30))
