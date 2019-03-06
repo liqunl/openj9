@@ -1130,7 +1130,8 @@ TR_J9ByteCodeIlGenerator::prependEntryCode(TR::Block * firstBlock)
    TR::Node * methodEnterHook = 0;
 
    static const char* disableMethodHookForCallees = feGetEnv("TR_DisableMethodHookForCallees");
-   if ((fej9()->isMethodTracingEnabled(_methodSymbol->getResolvedMethod()->getPersistentIdentifier()) ||
+   static const char* disableMethodHookForJITMethods = feGetEnv("TR_DisableMethodHookForJITMethods");
+   if ( !disableMethodHookForJITMethods && (fej9()->isMethodTracingEnabled(_methodSymbol->getResolvedMethod()->getPersistentIdentifier()) ||
         TR::Compiler->vm.canMethodEnterEventBeHooked(comp()))
          && (isOutermostMethod() || !disableMethodHookForCallees))
       {
