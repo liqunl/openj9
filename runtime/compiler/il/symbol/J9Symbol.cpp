@@ -138,12 +138,12 @@
        {r(TR::Symbol::Java_lang_StringBuilder_value,                  "java/lang/StringBuilder", "value", "[B")},
        {r(TR::Symbol::Java_lang_StringBuilder_value,                  "java/lang/StringBuilder", "value", "[C")},
        {r(TR::Symbol::Java_lang_Throwable_stackTrace,                 "java/lang/Throwable", "stackTrace", "[Ljava/lang/StackTraceElement;")},
+       {r(TR::Symbol::Java_lang_invoke_BruteArgumentMoverHandle_extraL0,  "java/lang/invoke/BruteArgumentMoverHandle", "extra_L0", "Ljava/lang/Object;")},
+       {r(TR::Symbol::Java_lang_invoke_BruteArgumentMoverHandle_extraL1,  "java/lang/invoke/BruteArgumentMoverHandle", "extra_L1", "Ljava/lang/Object;")},
        {r(TR::Symbol::Java_lang_invoke_DynamicInvokerHandle_site,     "java/lang/invoke/DynamicInvokerHandle", "site", "Ljava/lang/invoke/CallSite;")},
        {r(TR::Symbol::Java_lang_invoke_MutableCallSite_target,        "java/lang/invoke/MutableCallSite", "target", "Ljava/lang/invoke/MethodHandle;")},
        {r(TR::Symbol::Java_lang_invoke_MutableCallSiteDynamicInvokerHandle_mutableSite,"java/lang/invoke/MutableCallSiteDynamicInvokerHandle", "mutableSite", "Ljava/lang/invoke/MutableCallSite;")},
        {r(TR::Symbol::Java_lang_invoke_MethodHandle_thunks,           "java/lang/invoke/MethodHandle", "thunks", "Ljava/lang/invoke/ThunkTuple;")},
-       {r(TR::Symbol::Java_lang_invoke_MethodHandle_rawModifiers,     "java/lang/invoke/MethodHandle", "rawModifiers", "I")},         // JTC 83328: Delete once VM changes promote.  Moved to PrimitiveHandle
-       {r(TR::Symbol::Java_lang_invoke_MethodHandle_defc,             "java/lang/invoke/MethodHandle", "defc", "Ljava/lang/Class;")}, // JTC 83328: Delete once VM changes promote.  Moved to PrimitiveHandle
        {r(TR::Symbol::Java_lang_invoke_PrimitiveHandle_rawModifiers,  "java/lang/invoke/PrimitiveHandle", "rawModifiers", "I")},
        {r(TR::Symbol::Java_lang_invoke_PrimitiveHandle_defc,          "java/lang/invoke/PrimitiveHandle", "defc", "Ljava/lang/Class;")},
        {r(TR::Symbol::Java_util_Hashtable_elementCount,               "java/util/Hashtable", "count", "I")},

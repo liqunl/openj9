@@ -146,12 +146,12 @@ public:
       Java_lang_StringBuilder_count,
       Java_lang_StringBuilder_value,
       Java_lang_Throwable_stackTrace,
+      Java_lang_invoke_BruteArgumentMoverHandle_extraL0,
+      Java_lang_invoke_BruteArgumentMoverHandle_extraL1,
       Java_lang_invoke_DynamicInvokerHandle_site,
       Java_lang_invoke_MutableCallSite_target,
       Java_lang_invoke_MutableCallSiteDynamicInvokerHandle_mutableSite,
       Java_lang_invoke_MethodHandle_thunks,
-      Java_lang_invoke_MethodHandle_rawModifiers, // JTC 83328: Delete once VM changes promote.  Moved to PrimitiveHandle
-      Java_lang_invoke_MethodHandle_defc,         // JTC 83328: Delete once VM changes promote.  Moved to PrimitiveHandle
       Java_lang_invoke_PrimitiveHandle_rawModifiers,
       Java_lang_invoke_PrimitiveHandle_defc,
       Java_util_Hashtable_elementCount,
