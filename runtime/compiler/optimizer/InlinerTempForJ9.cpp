@@ -2437,9 +2437,16 @@ TR_J9InlinerPolicy::skipHCRGuardForCallee(TR_ResolvedMethod *callee)
 
    // Certain JSR292 methods are also ignored here as they are internal to the JIT and therefore cannot be
    // redefined
-   TR::RecognizedMethod mandatoryRM = callee->convertToMethod()->getMandatoryRecognizedMethod();
-   if (mandatoryRM == TR::java_lang_invoke_MethodHandle_invokeExactTargetAddress)
-      return true;
+   TR::RecognizedMethod mandatoryRM = callee->convertToMethod()->getRecognizedMethod();
+   switch (mandatoryRM)
+      {
+      case TR::java_lang_invoke_MethodHandle_invokeExactTargetAddress:
+      case TR::java_lang_invoke_ArgumentMoverHandle_extra:
+      case TR::java_lang_invoke_BruteArgumentMoverHandle_extra:
+         return true;
+      default:
+         break;
+      }
 
    // VarHandle operation methods are also ignored here as they are implementation detail and are not expected to be redefined.
    if (TR_J9MethodBase::isVarHandleOperationMethod(mandatoryRM))
