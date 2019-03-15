@@ -4818,12 +4818,14 @@ TR_J9JSR292InlinerPolicy::checkIfTargetInlineable(TR_CallTarget* target, TR_Call
    TR_ResolvedMethod * resolvedMethod = target->_calleeSymbol ? target->_calleeSymbol->getResolvedMethod():target->_calleeMethod;
    if (!isJSR292Method(resolvedMethod))
       {
+      /*
       if (callsite->_callerResolvedMethod->convertToMethod()->isArchetypeSpecimen()) // leaf java method
          {
          traceMsg(comp, "inline leaf java method target %p\n", target);
          return static_cast<TR_InlinerFailureReason> (comp->fej9()->checkInlineableTarget(target, callsite));
          }
       else
+      */
       return DontInline_Callee;
       }
 
