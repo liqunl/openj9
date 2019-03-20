@@ -343,6 +343,9 @@ TR_J9InlinerPolicy::alwaysWorthInlining(TR_ResolvedMethod * calleeMethod, TR::No
    if (isJSR292SmallGetterMethod(calleeMethod))
       return true;
 
+   if (isJSR292SmallHelperMethod(calleeMethod))
+      return true;
+
    if (TR_J9MethodBase::isVarHandleOperationMethod(calleeMethod->convertToMethod()->getMandatoryRecognizedMethod()))
       return true;
 
@@ -4781,12 +4784,27 @@ bool TR_J9InlinerPolicy::isJSR292AlwaysInlineableMethod(TR_ResolvedMethod *resol
    if (isJSR292SmallGetterMethod(resolvedMethod))
       return true;
 
+   if (isJSR292SmallHelperMethod(resolvedMethod))
+      return true;
+
    switch (method)
       {
       // single-level "leaf" handles
       case TR::java_lang_invoke_DirectHandle_invokeExact:
       case TR::java_lang_invoke_InterfaceHandle_invokeExact:
       case TR::java_lang_invoke_VirtualHandle_invokeExact:
+         return true;
+      }
+   return false;
+   }
+
+bool TR_J9InlinerPolicy::isJSR292SmallHelperMethod(TR_ResolvedMethod *resolvedMethod)
+   {
+   TR::RecognizedMethod method =  resolvedMethod->getRecognizedMethod();
+   switch (method)
+      {
+      case TR::java_lang_invoke_ConvertHandleFilterHelpers_object2J:
+      case TR::java_lang_invoke_ConvertHandleFilterHelpers_number2J:
          return true;
       }
    return false;
