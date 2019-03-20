@@ -249,6 +249,10 @@ class TR_J9InlinerPolicy : public OMR_InlinerPolicy
        *     This query defines a group of methods that are small getters in the java/lang/invoke package
        */
       static bool isJSR292SmallGetterMethod(TR_ResolvedMethod *resolvedMethod);
+      /** \brief
+       *     This query defines a group of methods that are small helpers in the java/lang/invoke package
+       */
+      static bool isJSR292SmallHelperMethod(TR_ResolvedMethod *resolvedMethod);
    };
 
 class TR_J9JSR292InlinerPolicy : public TR_J9InlinerPolicy

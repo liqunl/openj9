@@ -944,6 +944,8 @@
    java_lang_invoke_ComputedCalls_dispatchDirect,
    java_lang_invoke_ComputedCalls_dispatchJ9Method,
    java_lang_invoke_ComputedCalls_dispatchVirtual,
+   java_lang_invoke_ConvertHandleFilterHelpers_object2J,
+   java_lang_invoke_ConvertHandleFilterHelpers_number2J,
    java_lang_invoke_DirectHandle_compiledEntryPoint,
    java_lang_invoke_DirectHandle_nullCheckIfRequired,
    java_lang_invoke_DirectHandle_directCall,
