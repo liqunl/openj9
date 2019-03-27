@@ -1334,15 +1334,14 @@ bool J9::ValuePropagation::tryFoldStaticFinalFieldAt(TR::TreeTop* tree, TR::Node
       return false;
       }
 
-   if (skipFinalFieldFoldingInBlock(comp(), tree->getEnclosingBlock())
-       || safeToAddFearPointAt(tree) != TR_yes
-       || TR::TransformUtil::canFoldStaticFinalField(comp(), fieldNode) != TR_maybe)
+   TR::SymbolReference* symRef = fieldNode->getSymbolReference();
+   if (symRef->hasKnownObjectIndex())
       {
       return false;
       }
 
-   TR::SymbolReference* symRef = fieldNode->getSymbolReference();
-   if (symRef->hasKnownObjectIndex())
+   if (skipFinalFieldFoldingInBlock(comp(), tree->getEnclosingBlock())
+       || TR::TransformUtil::canFoldStaticFinalField(comp(), fieldNode) != TR_maybe)
       {
       return false;
       }
@@ -1363,7 +1362,18 @@ bool J9::ValuePropagation::tryFoldStaticFinalFieldAt(TR::TreeTop* tree, TR::Node
 
    if (isStaticFinalFieldWorthFolding(comp(), declaringClass, fieldSignature, fieldSigLength))
       {
-      if (TR::TransformUtil::foldStaticFinalFieldAssumingProtection(comp(), fieldNode))
+      if (safeToAddFearPointAt(tree) != TR_yes)
+         {
+         TR::DebugCounter::prependDebugCounter(comp(),
+                                               TR::DebugCounter::debugCounterName(comp(),
+                                                                                  "staticFinalFieldFolding/notsafe/(field %.*s)/(%s %s)",
+                                                                                  fieldNameLen,
+                                                                                  fieldName,
+                                                                                  comp()->signature(),
+                                                                                  comp()->getHotnessName(comp()->getMethodHotness())),
+                                                                                  tree->getNextTreeTop());
+         }
+      else if (TR::TransformUtil::foldStaticFinalFieldAssumingProtection(comp(), fieldNode))
          {
          // Add class to assumption table
          comp()->addClassForStaticFinalFieldModification(declaringClass);
@@ -1392,6 +1402,17 @@ bool J9::ValuePropagation::tryFoldStaticFinalFieldAt(TR::TreeTop* tree, TR::Node
                                                                                   tree->getNextTreeTop());
 
          return true;
+         }
+      else
+         {
+         TR::DebugCounter::prependDebugCounter(comp(),
+                                               TR::DebugCounter::debugCounterName(comp(),
+                                                                                  "staticFinalFieldFolding/cannotfold/(field %.*s)/(%s %s)",
+                                                                                  fieldNameLen,
+                                                                                  fieldName,
+                                                                                  comp()->signature(),
+                                                                                  comp()->getHotnessName(comp()->getMethodHotness())),
+                                                                                  tree->getNextTreeTop());
          }
       }
    else
