@@ -3360,7 +3360,11 @@ int TR_J9VMBase::checkInlineableTarget (TR_CallTarget* target, TR_CallSite* call
          TR_J9MethodBase::isVarHandleOperationMethod(resolvedMethod->getRecognizedMethod())
          )
          {
-         if ( resolvedMethod->getRecognizedMethod() == TR::java_lang_invoke_MethodHandle_invokeExactTargetAddress ||
+         static bool checkInlineableTargetFixOn = feGetEnv("TR_checkInlineableTarget") ? true : false;
+         if (checkInlineableTargetFixOn && resolvedMethod->convertToMethod()->isArchetypeSpecimen())
+            {
+            }
+         else if ( resolvedMethod->getRecognizedMethod() == TR::java_lang_invoke_MethodHandle_invokeExactTargetAddress ||
              resolvedMethod->getRecognizedMethod() == TR::java_lang_invoke_MutableCallSite_getTarget ||
              TR_J9MethodBase::isVarHandleOperationMethod(resolvedMethod->getRecognizedMethod()) ||
              resolvedMethod->getRecognizedMethod() == TR::java_lang_invoke_DirectHandle_invokeExact ||
