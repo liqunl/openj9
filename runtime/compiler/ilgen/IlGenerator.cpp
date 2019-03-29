@@ -3241,6 +3241,13 @@ void TR_J9ByteCodeIlGenerator::expandMethodHandleInvokeCall(TR::TreeTop *tree)
    int32_t oldBCIndex = _bcIndex;
    _bcIndex = callNode->getByteCodeIndex();
 
+   const char* comSig = comp()->signature();
+   const char* thisMethodSig = comp()->getMethodSymbol()->getResolvedMethod()->signature(comp()->trMemory(), stackAlloc);
+   const char* hotness = comp()->getHotnessName();
+   const char* formatString = "methodhandle/%s/%d/(%s %s)/(%s)";
+   int32_t inlineDepth = comp()->getInlineDepth();
+   bool notPeeking = !comp()->isPeekingMethod();
+
    // Preserve the NULLCHK
    //
    TR::TransformUtil::separateNullCheck(comp(), tree, comp()->getOption(TR_TraceILGen));
@@ -3261,21 +3268,29 @@ void TR_J9ByteCodeIlGenerator::expandMethodHandleInvokeCall(TR::TreeTop *tree)
        _invokeHandleCalls->isSet(_bcIndex))
       {
       expandInvokeHandle(tree);
+      if (notPeeking)
+         TR::DebugCounter::incStaticDebugCounter(comp(), TR::DebugCounter::debugCounterName(comp(), formatString, "invokehandle", inlineDepth, comSig, hotness, thisMethodSig));
       }
    else if (_invokeHandleGenericCalls &&
             _invokeHandleGenericCalls->isSet(_bcIndex))
       {
       expandInvokeHandleGeneric(tree);
+      if (notPeeking)
+         TR::DebugCounter::incStaticDebugCounter(comp(), TR::DebugCounter::debugCounterName(comp(), formatString, "invokehandleGeneric", inlineDepth, comSig, hotness, thisMethodSig));
       }
    else if (_invokeDynamicCalls &&
             _invokeDynamicCalls->isSet(_bcIndex))
       {
       expandInvokeDynamic(tree);
+      if (notPeeking)
+         TR::DebugCounter::incStaticDebugCounter(comp(), TR::DebugCounter::debugCounterName(comp(), formatString, "invokeDynamic", inlineDepth, comSig, hotness, thisMethodSig));
       }
    else if (_ilGenMacroInvokeExactCalls &&
             _ilGenMacroInvokeExactCalls->isSet(_bcIndex))
       {
       expandInvokeExact(tree);
+      if (notPeeking)
+         TR::DebugCounter::incStaticDebugCounter(comp(), TR::DebugCounter::debugCounterName(comp(), formatString, "invokeExactILGenMacro", inlineDepth, comSig, hotness, thisMethodSig));
       }
    else
       {
