@@ -202,6 +202,14 @@ int32_t TR_VarHandleTransformer::perform()
             TR::Node *varHandle = node->getChild(1); // The first child is vft
             TR::TreeTop *newTreeTop = tt;
 
+            if (!comp()->isPeekingMethod())
+               TR::DebugCounter::incStaticDebugCounter(comp(), TR::DebugCounter::debugCounterName(comp(),
+                  "varhandle/inline depth %d/(compiled method %s %s)/%s",
+                  comp()->getInlineDepth(),
+                  comp()->signature(),
+                  comp()->getHotnessName(),
+                  comp()->getMethodSymbol()->getResolvedMethod()->signature(comp()->trMemory(), stackAlloc)));
+
             // Preserve the checks on the call tree
             if (callTree->getNode()->getOpCode().isCheck())
                {
