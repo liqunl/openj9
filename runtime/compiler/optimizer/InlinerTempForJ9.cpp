@@ -4986,7 +4986,9 @@ TR_J9InlinerUtil::computePrexInfo(TR_CallTarget *target)
             //
             if (priorKnowledge < KNOWN_OBJECT)
                {
-               argInfo->set(0, new (inliner()->trStackMemory()) TR_PrexArgument(target->_guard->_mutableCallSiteEpoch, comp()));
+               TR_PrexArgument *prexArg = new (inliner()->trStackMemory()) TR_PrexArgument(target->_guard->_mutableCallSiteEpoch, comp());
+               prexArg->setTypeInfoFromGuard();
+               argInfo->set(0, prexArg);
                if (tracePrex)
                   {
                   TR::Node *call     = site->_callNode;
