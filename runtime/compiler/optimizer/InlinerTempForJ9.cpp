@@ -351,6 +351,9 @@ TR_J9InlinerPolicy::alwaysWorthInlining(TR_ResolvedMethod * calleeMethod, TR::No
          break;
       }
 
+   if (calleeMethod->convertToMethod()->isArchetypeSpecimen())
+      return true;
+
    switch (calleeMethod->getRecognizedMethod())
       {
       case TR::sun_misc_Unsafe_getAndAddLong:
@@ -2126,7 +2129,7 @@ TR_J9InlinerPolicy::tryToInline(TR_CallTarget * calltarget, TR_CallStack * callS
       }
 
 
-   if (toInline) switch (calltarget->_calleeMethod->getRecognizedMethod())
+   if (false && toInline) switch (calltarget->_calleeMethod->getRecognizedMethod())
       {
       case TR::java_lang_invoke_MethodHandle_invokeExact:
          heuristicTrace(tracer(),"calltarget %p is an invokeExact, tryToinline is returning true");
@@ -5077,6 +5080,9 @@ static char* classSignature (TR_Method* m, TR::Compilation* comp) //tracer helpe
 
 TR::Node* TR_PrexArgInfo::getCallNode (TR::ResolvedMethodSymbol* methodSymbol, TR_CallSite* callsite, TR_InlinerTracer* tracer) 
    {
+   if (callsite->_callNode)
+      return callsite->_callNode;
+
    for (TR::TreeTop* tt = methodSymbol->getFirstTreeTop(); tt; tt=tt->getNextTreeTop())
       {
       if (tt->getNode()->getNumChildren()>0 && 
