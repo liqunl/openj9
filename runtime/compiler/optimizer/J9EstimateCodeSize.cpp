@@ -1036,13 +1036,13 @@ TR_J9EstimateCodeSize::realEstimateCodeSize(TR_CallTarget *calltarget, TR_CallSt
 
    bool wasPeekingSuccessfull = false;
 
-   if (nph.doPeeking() && recurseDown)
+   static const bool dontForcePeekingForThunk = feGetEnv("TR_DontForcePeekingForThunk") ? true : false;
+   if (nph.doPeeking() && recurseDown || (!dontForcePeekingForThunk && calltarget->_calleeMethod->convertToMethod()->isArchetypeSpecimen()))
       {
 
       heuristicTrace(tracer(), "*** Depth %d: ECS CSI -- needsPeeking is true for calltarget %p",
       _recursionDepth, calltarget);
 
-      methodSymbol = TR::ResolvedMethodSymbol::create(comp()->trHeapMemory(),calltarget->_calleeMethod,comp());
       bool ilgenSuccess = (NULL != methodSymbol->getResolvedMethod()->genMethodILForPeekingEvenUnderMethodRedefinition(methodSymbol, comp(), false, NULL));
       if (ilgenSuccess)
          {
@@ -1355,6 +1355,63 @@ TR_J9EstimateCodeSize::realEstimateCodeSize(TR_CallTarget *calltarget, TR_CallSt
       TR_prevArgs pca;
       TR::Block *currentInlinedBlock = NULL;
       TR_J9ByteCode bc = bci.first(), nextBC;
+
+      if (wasPeekingSuccessfull
+          && comp()->getOrCreateKnownObjectTable()
+          && calltarget->_calleeMethod->convertToMethod()->isArchetypeSpecimen())
+         {
+         TR::NodeChecklist visited(comp());
+         for (TR::TreeTop* tt = methodSymbol->getFirstTreeTop(); tt; tt = tt->getNextTreeTop())
+            {
+            if (tt->getNode()->getNumChildren()>0 &&
+                tt->getNode()->getFirstChild()->getOpCode().isCall())
+               {
+               TR::Node* parent = tt->getNode();
+               currentInlinedBlock = tt->getEnclosingBlock();
+               TR::Node* callNode = tt->getNode()->getFirstChild();
+               TR::SymbolReference* symRef =  callNode->getSymbolReference();
+               if (!callNode->getSymbolReference()->isUnresolved() && !visited.contains(callNode))
+                  {
+                  visited.add(callNode);
+                  TR_ResolvedMethod* resolvedMethod = callNode->getSymbol()->getResolvedMethodSymbol()->getResolvedMethod();
+                  TR::RecognizedMethod rm = resolvedMethod->getRecognizedMethod();
+                  if (rm == TR::java_lang_invoke_DirectHandle_nullCheckIfRequired ||
+                      rm == TR::java_lang_invoke_PrimitiveHandle_initializeClassIfRequired ||
+                      rm == TR::java_lang_invoke_MethodHandle_invokeExactTargetAddress)
+                     {
+                     continue;
+                     }
+
+                  int32_t i= callNode->getByteCodeInfo().getByteCodeIndex();
+                  TR_CallSite *callsite = TR_CallSite::create(tt, parent, callNode,
+                                                            resolvedMethod->classOfMethod(), symRef, resolvedMethod,
+                                                            comp(), comp()->trMemory() , heapAlloc, calltarget->_calleeMethod, _recursionDepth, false);
+
+                  TR_PrexArgInfo *argInfo = calltarget->_ecsPrexArgInfo;
+
+                  callsite->_callerBlock = currentInlinedBlock;
+                  if (isInlineable(&callStack, callsite))
+                     {
+                     callSites[i] = callsite;
+                     inlineableCallExists = true;
+
+                     if (!currentInlinedBlock->isCold())
+                          nonColdCallExists = true;
+                     }
+                  else
+                     {
+                     //support counters
+                     calltarget->addDeadCallee(callsite);
+                     }
+
+                  flags[i].set(isUnsanitizeable);
+                  }
+
+               }
+            }
+         }
+      else
+         {
       for (; bc != J9BCunknown; bc = bci.next())
          {
          TR_ResolvedMethod * resolvedMethod;
@@ -1376,6 +1433,85 @@ TR_J9EstimateCodeSize::realEstimateCodeSize(TR_CallTarget *calltarget, TR_CallSt
 
          switch (bc)
             {
+            case J9BCinvokedynamic:
+               {
+               if (thisOnStack)
+                  hasThisCalls = true;
+               cpIndex = bci.next2Bytes();
+               bool isInterface = false;
+               bool isIndirectCall = false;
+               TR_Method *interfaceMethod = 0;
+               TR::TreeTop *callNodeTreeTop = 0;
+               TR::Node *parent = 0;
+               TR::Node *callNode = 0;
+               TR::ResolvedMethodSymbol *resolvedSymbol = 0;
+
+               TR_ResolvedMethod * owningMethod = methodSymbol->getResolvedMethod();
+               TR::KnownObjectTable *knot = comp()->getOrCreateKnownObjectTable();
+               if (knot && !owningMethod->isUnresolvedCallSiteTableEntry(cpIndex))
+                  {
+                  isIndirectCall = true;
+                  uintptrj_t *entryLocation = (uintptrj_t*)owningMethod->callSiteTableEntryAddress(cpIndex);
+                  resolvedMethod = comp()->fej9()->createMethodHandleArchetypeSpecimen(comp()->trMemory(), entryLocation, owningMethod);
+                  bool allconsts= false;
+
+
+                  heuristicTrace(tracer(),"numberOfExplicitParameters = %d  pca.getNumPrevConstArgs = %d\n",resolvedMethod->numberOfExplicitParameters() ,pca.getNumPrevConstArgs(resolvedMethod->numberOfExplicitParameters()));
+                  if ( resolvedMethod->numberOfExplicitParameters() > 0 && resolvedMethod->numberOfExplicitParameters() <= pca.getNumPrevConstArgs(resolvedMethod->numberOfExplicitParameters()))
+                     allconsts = true;
+
+
+                  TR_CallSite *callsite;
+
+                  callsite = new (comp()->trHeapMemory()) TR_J9MethodHandleCallSite( callStack._method, callNodeTreeTop,   parent,
+                                                                                    callNode, interfaceMethod, resolvedMethod->classOfMethod(),
+                                                                                    (int32_t) resolvedMethod->virtualCallSelector(cpIndex), cpIndex, resolvedMethod,
+                                                                                    resolvedSymbol, isIndirectCall, isInterface, newBCInfo, comp(),
+                                                                                    _recursionDepth, allconsts);
+
+
+                  TR_PrexArgInfo *argInfo = calltarget->_ecsPrexArgInfo;
+
+                  if (wasPeekingSuccessfull)
+                     {
+                     TR_PrexArgInfo::propagateReceiverInfoIfAvailable(methodSymbol, callsite, argInfo, tracer());
+                     if (tracer()->heuristicLevel())
+                        {
+                        alwaysTrace(tracer(), "propagateReceiverInfoIfAvailable :");
+                        if (callsite->_ecsPrexArgInfo)
+                           tracer()->dumpPrexArgInfo(callsite->_ecsPrexArgInfo);
+                        }
+                     }
+
+                  callsite->_callerBlock = currentInlinedBlock;
+                  if (isInlineable(&callStack, callsite))
+                     {
+                     callSites[i] = callsite;
+                     inlineableCallExists = true;
+
+                     if (!currentInlinedBlock->isCold())
+                          nonColdCallExists = true;
+
+                     if (wasPeekingSuccessfull)
+                        {
+                        TR_PrexArgInfo::propagateArgsFromCaller(methodSymbol, callsite, argInfo, tracer());
+                        if (tracer()->heuristicLevel())
+                           {
+                           alwaysTrace(tracer(), "propagateArgs :");
+                           if (callsite->numTargets() && callsite->getTarget(0)->_ecsPrexArgInfo)
+                              tracer()->dumpPrexArgInfo(callsite->getTarget(0)->_ecsPrexArgInfo);
+                           }
+                        }
+                     }
+                  else
+                     //support counters
+                     calltarget->addDeadCallee(callsite);
+
+                  }
+               }
+               flags[i].set(isUnsanitizeable);
+               break;
+
             case J9BCinvokevirtual:
                {
                if (thisOnStack)
@@ -1753,6 +1889,8 @@ TR_J9EstimateCodeSize::realEstimateCodeSize(TR_CallTarget *calltarget, TR_CallSt
               for (int kk = 0; kk < callSites[i]->numTargets(); kk++)
                  callSites[i]->getTarget(kk)->_originatingBlock = currentInlinedBlock;
               }
+
+           }
            }
       _hasNonColdCalls = nonColdCallExists;
 
@@ -1834,7 +1972,9 @@ TR_J9EstimateCodeSize::realEstimateCodeSize(TR_CallTarget *calltarget, TR_CallSt
          	break;
          }
 
-      if (isCandidate)
+      if (calltarget->_calleeMethod->convertToMethod()->isArchetypeSpecimen())
+         _optimisticSize += 0;
+      else if (isCandidate)
          _optimisticSize += calltarget->_partialSize;
       else
          _optimisticSize += calltarget->_fullSize;
@@ -2092,6 +2232,8 @@ TR_J9EstimateCodeSize::realEstimateCodeSize(TR_CallTarget *calltarget, TR_CallSt
             if (callSites[i]->numTargets()) //only add a callSite once, even though it may have more than one call target.
                {
                calltarget->addCallee(callSites[i]);
+               if (!callSites[i]->_initialCalleeMethod || !callSites[i]->_initialCalleeMethod->convertToMethod()->isArchetypeSpecimen())
+                  {
                heuristicTrace(tracer(), "Depth %d: Subtracting %d from optimistic and real size to account for eliminating call", _recursionDepth, bci.estimatedCodeSize());
                if (_optimisticSize > bci.estimatedCodeSize())
                   _optimisticSize -= bci.estimatedCodeSize(); // subtract what we added before for the size of the call instruction
@@ -2099,6 +2241,7 @@ TR_J9EstimateCodeSize::realEstimateCodeSize(TR_CallTarget *calltarget, TR_CallSt
                   _realSize -= bci.estimatedCodeSize();
                }
             }
+         }
          }
 
 	auto partialSizeBeforeAdjustment = calltarget->_partialSize;
@@ -2126,7 +2269,11 @@ TR_J9EstimateCodeSize::realEstimateCodeSize(TR_CallTarget *calltarget, TR_CallSt
 
       /****************** PHASE 5: Figure out if We're really going to do a partial Inline and add whatever we do to the realSize. *******************/
 
-      if (isPartialInliningCandidate(calltarget, &callBlocks))
+      if (calltarget->_calleeMethod->convertToMethod()->isArchetypeSpecimen())
+         {
+         heuristicTrace(tracer(), "*** Depth %d: ECS end for target %p signature %s. It is a archetype specimen", _recursionDepth, calltarget, callerName);
+         }
+      else if (isPartialInliningCandidate(calltarget, &callBlocks))
          {
          if (comp()->getOption(TR_TraceBFGeneration))
             traceMsg(comp(), "Call Target %s is a partial inline Candidate with a partial size of %d",callerName,calltarget->_partialSize);

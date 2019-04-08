@@ -136,6 +136,7 @@ TR_EstimateCodeSize::isInlineable(TR_CallStack * prevCallStack, TR_CallSite *cal
                                 _recursionDepth, callsite, callsite->_byteCodeIndex, tracer()->traceSignature(callsite));
 
       _isLeaf = false;
+      traceMsg(comp(), "liqun: dead callsite %p\n", callsite->_parent);
       return false;
       }
 
@@ -147,12 +148,18 @@ TR_EstimateCodeSize::isInlineable(TR_CallStack * prevCallStack, TR_CallSite *cal
    heuristicTrace(tracer(),"Depth %d: Found %d targets to inline for callsite %p bc index %d. Signature %s",
                             _recursionDepth, callsite->numTargets(),callsite, callsite->_byteCodeIndex, tracer()->traceSignature(callsite));
 
+   traceMsg(comp(), "liqun: callsite inlineable %p\n", callsite->_parent);
    return true;
    }
 
 bool
 TR_EstimateCodeSize::returnCleanup(int32_t anerrno)
    {
+   if (anerrno !=0 )
+      traceMsg(comp(), "liqun: error return code %d\n", anerrno);
+   else
+      traceMsg(comp(), "liqun: success return code %d\n", anerrno);
+
    _error = anerrno;
    if (_mayHaveVirtualCallProfileInfo)
       _inliner->comp()->decInlineDepth(true);
