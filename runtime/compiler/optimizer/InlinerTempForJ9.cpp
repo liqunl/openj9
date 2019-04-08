@@ -346,6 +346,9 @@ TR_J9InlinerPolicy::alwaysWorthInlining(TR_ResolvedMethod * calleeMethod, TR::No
    if (isJSR292SmallHelperMethod(calleeMethod))
       return true;
 
+   if (calleeMethod->convertToMethod()->isArchetypeSpecimen())
+      return true;
+
    if (TR_J9MethodBase::isVarHandleOperationMethod(calleeMethod->convertToMethod()->getMandatoryRecognizedMethod()))
       return true;
 
@@ -2132,7 +2135,7 @@ TR_J9InlinerPolicy::tryToInline(TR_CallTarget * calltarget, TR_CallStack * callS
       }
 
 
-   if (toInline) switch (calltarget->_calleeMethod->getRecognizedMethod())
+   if (false && toInline) switch (calltarget->_calleeMethod->getRecognizedMethod())
       {
       case TR::java_lang_invoke_MethodHandle_invokeExact:
          heuristicTrace(tracer(),"calltarget %p is an invokeExact, tryToinline is returning true");
@@ -4755,7 +4758,7 @@ TR_InlinerFailureReason
    if (false && isJSR292Method(resolvedMethod) &&
       !isJSR292AlwaysInlineableMethod(resolvedMethod))
       return DontInline_Callee;
-   else if (comp->ilGenRequest().details().isMethodHandleThunk() &&
+   else if (false && comp->ilGenRequest().details().isMethodHandleThunk() &&
             static_cast<J9::MethodHandleThunkDetails &>(comp->ilGenRequest().details()).isShareable())
       {
       // We are trying to inline a non-JSR292 method and we are a shareable thunk, say NO
@@ -5232,6 +5235,9 @@ static char* classSignature (TR_Method* m, TR::Compilation* comp) //tracer helpe
 
 TR::Node* TR_PrexArgInfo::getCallNode (TR::ResolvedMethodSymbol* methodSymbol, TR_CallSite* callsite, TR_InlinerTracer* tracer)
    {
+   if (callsite->_callNode)
+      return callsite->_callNode;
+
    for (TR::TreeTop* tt = methodSymbol->getFirstTreeTop(); tt; tt=tt->getNextTreeTop())
       {
       if (tt->getNode()->getNumChildren()>0 &&

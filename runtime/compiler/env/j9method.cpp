@@ -1207,6 +1207,12 @@ TR_ResolvedJ9MethodBase::isCold(TR::Compilation * comp, bool isIndirectCall, TR:
       return false;
       }
 
+   if (rm == TR::java_lang_invoke_MethodHandle_invokeExact)
+      return false;
+
+   if (convertToMethod()->isArchetypeSpecimen())
+      return false;
+
    if (true)
       {
       // these methods are never interpreted, so don't bother
