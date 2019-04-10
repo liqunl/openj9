@@ -1348,7 +1348,26 @@ J9::SymbolReferenceTable::addParameters(TR::ResolvedMethodSymbol * methodSymbol)
    ListIterator<TR::ParameterSymbol> parms(&methodSymbol->getParameterList());
    for (TR::ParameterSymbol * p = parms.getFirst(); p; p = parms.getNext())
       {
-      TR::SymbolReference *symRef = new (trHeapMemory()) TR::SymbolReference(self(), p, index, p->getSlot());
+      TR_ResolvedMethod *method = methodSymbol->getResolvedMethod();
+      TR::KnownObjectTable::Index knownObjectIndex = TR::KnownObjectTable::UNKNOWN;
+      if (!methodSymbol->isStatic() && p->getSlot() == 0)
+         {
+         if (method->convertToMethod()->isArchetypeSpecimen())
+            {
+            TR::KnownObjectTable *knot = methodSymbol->comp()->getOrCreateKnownObjectTable();
+            if (knot)
+               knownObjectIndex = knot->getExistingIndexAt(method->getMethodHandleLocation());
+            }
+         }
+
+      TR::SymbolReference *symRef = NULL;
+      if (knownObjectIndex == TR::KnownObjectTable::UNKNOWN)
+         symRef = new (trHeapMemory()) TR::SymbolReference(self(), p, index, p->getSlot());
+      else
+         symRef = createTempSymRefWithKnownObject(p, index, p->getSlot(), knownObjectIndex);
+
+      if (knownObjectIndex != TR::KnownObjectTable::UNKNOWN)
+         traceMsg(comp(), "add know obj parm for peeking refNum #%d\n", symRef->getReferenceNumber());
       methodSymbol->setParmSymRef(p->getSlot(), symRef);
       if (!parmSlotCameFromExpandingAnArchetypeArgPlaceholder(p->getSlot(), methodSymbol, trMemory()))
          methodSymbol->getAutoSymRefs(p->getSlot()).add(symRef);
