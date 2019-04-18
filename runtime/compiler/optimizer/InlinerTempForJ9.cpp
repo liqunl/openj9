@@ -4741,7 +4741,7 @@ TR_J9InlinerPolicy::checkIfTargetInlineable(TR_CallTarget* target, TR_CallSite* 
       return static_cast<TR_InlinerFailureReason> (comp->fej9()->checkInlineableTarget(target, callsite));
 
    TR_ResolvedMethod * resolvedMethod = target->_calleeSymbol ? target->_calleeSymbol->getResolvedMethod():target->_calleeMethod;
-   if (isJSR292Method(resolvedMethod) &&
+   if (false && isJSR292Method(resolvedMethod) &&
       !isJSR292AlwaysInlineableMethod(resolvedMethod))
       return DontInline_Callee;
    else if (comp->ilGenRequest().details().isMethodHandleThunk() &&
