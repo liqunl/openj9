@@ -75,6 +75,7 @@
 #include "runtime/J9Profiler.hpp"
 #include "optimizer/UnsafeFastPath.hpp"
 #include "optimizer/VarHandleTransformer.hpp"
+#include "optimizer/JSR292Opts.hpp"
 
 
 static const OptimizationStrategy J9EarlyGlobalOpts[] =
@@ -780,6 +781,8 @@ J9::Optimizer::Optimizer(TR::Compilation *comp, TR::ResolvedMethodSymbol *method
       new (comp->allocator()) TR::OptimizationManager(self(), TR::SwitchAnalyzer::create, OMR::switchAnalyzer);
    _opts[OMR::varHandleTransformer] =
       new (comp->allocator()) TR::OptimizationManager(self(), TR_VarHandleTransformer::create, OMR::varHandleTransformer);
+   _opts[OMR::jsr292Opts] =
+      new (comp->allocator()) TR::OptimizationManager(self(), TR_JSR292Opts::create, OMR::jsr292Opts);
    _opts[OMR::unsafeFastPath] =
       new (comp->allocator()) TR::OptimizationManager(self(), TR_UnsafeFastPath::create, OMR::unsafeFastPath);
    _opts[OMR::trivialStoreSinking] =

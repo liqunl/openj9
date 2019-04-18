@@ -49,6 +49,7 @@ j9jit_files(
 	optimizer/JProfilingValue.cpp
 	optimizer/JProfilingRecompLoopTest.cpp
 	optimizer/JitProfiler.cpp
+	optimizer/JSR292Opts.cpp
 	optimizer/LiveVariablesForGC.cpp
 	optimizer/LoopAliasRefiner.cpp
 	optimizer/MonitorElimination.cpp
