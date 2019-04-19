@@ -3578,13 +3578,73 @@ TR_J9ByteCodeIlGenerator::genIfTwoOperand(TR::ILOpCodes nodeop)
 int32_t
 TR_J9ByteCodeIlGenerator::genIfImpl(TR::ILOpCodes nodeop)
    {
-   _methodSymbol->setHasBranches(true);
    int32_t branchBC = _bcIndex + next2BytesSigned();
    int32_t fallThruBC = _bcIndex + 3;
 
    TR::Node * second = pop();
    TR::Node * first = pop();
 
+   if (branchBC > _bcIndex && first->getOpCode().isLoadConst() && second->getOpCode().isLoadConst())
+      {
+      int64_t v1,v2;
+      bool branchTaken;
+      switch (nodeop)
+         {
+         case TR::ifacmpeq:
+            v1 = first->getAddress();
+            v2 = second->getAddress();
+            branchTaken = v1 == v2;
+            break;
+         case TR::ifacmpne:
+            v1 = first->getAddress();
+            v2 = second->getAddress();
+            branchTaken = v1 != v2;
+            break;
+         case TR::ificmpeq:
+            v1 = first->getInt();
+            v2 = second->getInt();
+            branchTaken = v1 == v2;
+            break;
+         case TR::ificmpne:
+            v1 = first->getInt();
+            v2 = second->getInt();
+            branchTaken = v1 != v2;
+            break;
+         case TR::ificmplt:
+            v1 = first->getInt();
+            v2 = second->getInt();
+            branchTaken = v1 < v2;
+            break;
+         case TR::ificmpgt:
+            v1 = first->getInt();
+            v2 = second->getInt();
+            branchTaken = v1 > v2;
+            break;
+         case TR::ificmple:
+            v1 = first->getInt();
+            v2 = second->getInt();
+            branchTaken = v1 <= v2;
+            break;
+         case TR::ificmpge:
+            v1 = first->getInt();
+            v2 = second->getInt();
+            branchTaken = v1 >= v2;
+            break;
+         }
+
+      if (branchTaken)
+         {
+         traceMsg(comp(), "liqun: taking the branch\n");
+         return branchBC;
+         }
+      else
+         {
+         traceMsg(comp(), "liqun: go to the fallthrough\n");
+         return fallThruBC;
+         }
+      }
+
+   _methodSymbol->setHasBranches(true);
    handlePendingPushSaveSideEffects(first);
    handlePendingPushSaveSideEffects(second);
 
