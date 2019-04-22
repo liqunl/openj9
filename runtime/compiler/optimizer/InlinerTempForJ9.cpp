@@ -4260,6 +4260,8 @@ TR_MultipleCallTargetInliner::exceedsSizeThreshold(TR_CallSite *callSite, int by
 
      frequency1 = comp()->convertNonDeterministicInput(comp()->fej9()->getIProfilerCallCount(bcInfo, comp()), MAX_BLOCK_COUNT + MAX_COLD_BLOCK_COUNT, randomGenerator(), 0);
      frequency2 = comp()->convertNonDeterministicInput(block->getFrequency(), MAX_BLOCK_COUNT + MAX_COLD_BLOCK_COUNT, randomGenerator(), 0);
+     if (frequency1 > frequency2 && callerResolvedMethod->convertToMethod()->isArchetypeSpecimen())
+        frequency2 = frequency1;
 
      if ((frequency1 <= 0) && ((0 <= frequency2) &&  (frequency2 <= MAX_COLD_BLOCK_COUNT)) &&
         !alwaysWorthInlining(calleeResolvedMethod, callNode))
@@ -4267,7 +4269,8 @@ TR_MultipleCallTargetInliner::exceedsSizeThreshold(TR_CallSite *callSite, int by
         isCold = true;
         }
 
-     debugTrace(tracer(), "exceedsSizeThreshold: Call with block_%d has frequency %d", block->getNumber(), frequency2);
+     debugTrace(tracer(), "exceedsSizeThreshold: Call with block_%d has frequency1 %d frequency2 %d ", block->getNumber(),frequency1, frequency2);
+     debugTrace(tracer(), "exceedsSizeThreshold: Call with block_%d has frequency1 orig %d frequency2 %d ", block->getNumber(), comp()->fej9()->getIProfilerCallCount(bcInfo, comp()), block->getFrequency());
 
      if (allowBiggerMethods() &&
          !comp()->getMethodSymbol()->doJSR292PerfTweaks() &&
