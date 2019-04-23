@@ -152,6 +152,7 @@ public:
       Java_lang_invoke_MutableCallSite_target,
       Java_lang_invoke_MutableCallSiteDynamicInvokerHandle_mutableSite,
       Java_lang_invoke_MethodHandle_thunks,
+      Java_lang_invoke_MethodHandle_type,
       Java_lang_invoke_PrimitiveHandle_rawModifiers,
       Java_lang_invoke_PrimitiveHandle_defc,
       Java_util_Hashtable_elementCount,

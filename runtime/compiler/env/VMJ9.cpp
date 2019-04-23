@@ -5290,6 +5290,12 @@ TR_J9VMBase::getVarHandleHandleTableOffset(TR::Compilation * comp)
    return uint32_t(J9VMJAVALANGINVOKEVARHANDLE_HANDLETABLE_OFFSET(vmThread()));
    }
 
+uint32_t
+TR_J9VMBase::getMethodHandleTypeOffset(TR::Compilation * comp)
+   {
+   return uint32_t(J9VMJAVALANGINVOKEMETHODHANDLE_TYPE_OFFSET(vmThread()));
+   }
+
 // set a 32 bit field that will be printed if the VM crashes
 // typically, this should be used to represent the state of the
 // compilation
