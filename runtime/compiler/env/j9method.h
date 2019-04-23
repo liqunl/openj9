@@ -119,6 +119,10 @@ public:
    static bool                   isVarHandleOperationMethod(TR::RecognizedMethod rm);
    virtual bool                  isVarHandleAccessMethod(TR::Compilation * = NULL);
 
+   static bool                   isKnownUnsafeCaller(TR::RecognizedMethod rm);
+   static bool                   isUnsafeCallerAccessingStaticField(TR::RecognizedMethod rm);
+   static bool                   isUnsafeCallerAccessingArrayElement(TR::RecognizedMethod rm);
+
    virtual bool                  isUnsafeWithObjectArg( TR::Compilation * comp = NULL);
    virtual bool                  isUnsafeCAS(TR::Compilation * = NULL);
    virtual uint32_t              numberOfExplicitParameters();

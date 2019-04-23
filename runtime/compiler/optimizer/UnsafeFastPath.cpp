@@ -633,27 +633,14 @@ int32_t TR_UnsafeFastPath::perform()
          bool isStatic = false;
          TR::RecognizedMethod callerMethod = methodSymbol->getRecognizedMethod();
          TR::RecognizedMethod calleeMethod = symbol->getRecognizedMethod();
-         if (TR_J9MethodBase::isVarHandleOperationMethod(callerMethod) &&
+         if (TR_J9MethodBase::isKnownUnsafeCaller(callerMethod) &&
              TR_J9MethodBase::isUnsafeGetPutWithObjectArg(calleeMethod))
             {
-            switch (callerMethod)
-               {
-               case TR::java_lang_invoke_StaticFieldVarHandle_StaticFieldVarHandleOperations_OpMethod:
+            if (TR_J9MethodBase::isUnsafeCallerAccessingStaticField(callerMethod))
                   isStatic = true;
-                  break;
-               default:
-                  break;
-               }
 
-            switch (callerMethod)
-               {
-               case TR::java_lang_invoke_ArrayVarHandle_ArrayVarHandleOperations_OpMethod:
-               case TR::java_lang_invoke_ByteArrayViewVarHandle_ByteArrayViewVarHandleOperations_OpMethod:
+            if (TR_J9MethodBase::isUnsafeCallerAccessingArrayElement(callerMethod))
                   isArrayOperation = true;
-                  break;
-               default:
-                  break;
-               }
 
             if (isArrayOperation)
                type = TR_J9MethodBase::unsafeDataTypeForArray(calleeMethod);

@@ -4752,6 +4752,30 @@ TR_ResolvedJ9Method::TR_ResolvedJ9Method(TR_OpaqueMethodBlock * aMethod, TR_Fron
             {
             setRecognizedMethodInfo(TR::java_lang_invoke_ByteArrayViewVarHandle_ByteArrayViewVarHandleOperations_OpMethod);
             }
+         else if (classNameLen == strlen(JSR292_StaticFieldGetterHandle)
+                  && !strncmp(className, JSR292_StaticFieldGetterHandle, classNameLen))
+            {
+            if (nameLen > 27 && !strncmp(name, "invokeExact_thunkArchetype_", 27))
+               setRecognizedMethodInfo(TR::java_lang_invoke_StaticFieldGetterHandle_invokeExact);
+            }
+         else if (classNameLen == strlen(JSR292_StaticFieldSetterHandle)
+                  && !strncmp(className, JSR292_StaticFieldSetterHandle, classNameLen))
+            {
+            if (nameLen > 27 && !strncmp(name, "invokeExact_thunkArchetype_", 27))
+               setRecognizedMethodInfo(TR::java_lang_invoke_StaticFieldSetterHandle_invokeExact);
+            }
+         else if (classNameLen == strlen(JSR292_FieldGetterHandle)
+                  && !strncmp(className, JSR292_FieldGetterHandle, classNameLen))
+            {
+            if (nameLen > 27 && !strncmp(name, "invokeExact_thunkArchetype_", 27))
+               setRecognizedMethodInfo(TR::java_lang_invoke_FieldGetterHandle_invokeExact);
+            }
+         else if (classNameLen == strlen(JSR292_FieldSetterHandle)
+                  && !strncmp(className, JSR292_FieldSetterHandle, classNameLen))
+            {
+            if (nameLen > 27 && !strncmp(name, "invokeExact_thunkArchetype_", 27))
+               setRecognizedMethodInfo(TR::java_lang_invoke_FieldSetterHandle_invokeExact);
+            }
          }
       }
    #if defined(TR_HOST_X86)
@@ -5764,6 +5788,56 @@ TR_J9MethodBase::isUnsafePut(TR::RecognizedMethod rm)
       case TR::sun_misc_Unsafe_putShortVolatile_jlObjectJS_V:
       case TR::sun_misc_Unsafe_putShort_JS_V:
       case TR::sun_misc_Unsafe_putShort_jlObjectJS_V:
+         return true;
+      default:
+         return false;
+      }
+   return false;
+   }
+
+
+bool
+TR_J9MethodBase::isKnownUnsafeCaller(TR::RecognizedMethod rm)
+   {
+   switch (rm)
+      {
+      case TR::java_lang_invoke_ArrayVarHandle_ArrayVarHandleOperations_OpMethod:
+      case TR::java_lang_invoke_StaticFieldVarHandle_StaticFieldVarHandleOperations_OpMethod:
+      case TR::java_lang_invoke_InstanceFieldVarHandle_InstanceFieldVarHandleOperations_OpMethod:
+      case TR::java_lang_invoke_ByteArrayViewVarHandle_ByteArrayViewVarHandleOperations_OpMethod:
+      case TR::java_lang_invoke_StaticFieldGetterHandle_invokeExact:
+      case TR::java_lang_invoke_StaticFieldSetterHandle_invokeExact:
+      case TR::java_lang_invoke_FieldGetterHandle_invokeExact:
+      case TR::java_lang_invoke_FieldSetterHandle_invokeExact:
+         return true;
+      default:
+         return false;
+      }
+   return false;
+   }
+
+bool
+TR_J9MethodBase::isUnsafeCallerAccessingStaticField(TR::RecognizedMethod rm)
+   {
+   switch (rm)
+      {
+      case TR::java_lang_invoke_StaticFieldVarHandle_StaticFieldVarHandleOperations_OpMethod:
+      case TR::java_lang_invoke_StaticFieldGetterHandle_invokeExact:
+      case TR::java_lang_invoke_StaticFieldSetterHandle_invokeExact:
+         return true;
+      default:
+         return false;
+      }
+   return false;
+   }
+
+bool
+TR_J9MethodBase::isUnsafeCallerAccessingArrayElement(TR::RecognizedMethod rm)
+   {
+   switch (rm)
+      {
+      case TR::java_lang_invoke_ArrayVarHandle_ArrayVarHandleOperations_OpMethod:
+      case TR::java_lang_invoke_ByteArrayViewVarHandle_ByteArrayViewVarHandleOperations_OpMethod:
          return true;
       default:
          return false;
