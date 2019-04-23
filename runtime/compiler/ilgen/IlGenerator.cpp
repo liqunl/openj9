@@ -2993,17 +2993,6 @@ void TR_J9ByteCodeIlGenerator::expandInvokeHandle(TR::TreeTop *tree)
    TR::Node * receiverHandle = callNode->getArgument(0);
    callNode->getByteCodeInfo().setDoNotProfile(true);
 
-   TR::SymbolReference *getTypeSymRef = comp()->getSymRefTab()->methodSymRefFromName(_methodSymbol, JSR292_MethodHandle, JSR292_getType, JSR292_getTypeSig, TR::MethodSymbol::Special); // TODO:JSR292: Too bad I can't do a more general lookup and let it optimize itself.  Virtual call doesn't seem to work
-   TR::Node* handleType = TR::Node::createWithSymRef(callNode, TR::acall, 1, receiverHandle, getTypeSymRef);
-   handleType->getByteCodeInfo().setDoNotProfile(true);
-   tree->insertBefore(TR::TreeTop::create(comp(), TR::Node::create(callNode, TR::treetop, 1, handleType)));
-
-   if (comp()->getOption(TR_TraceILGen))
-      {
-      traceMsg(comp(), "Inserted getType call n%dn %p\n", handleType->getGlobalIndex(), handleType);
-      }
-
-
    TR::Node* callSiteMethodType = loadCallSiteMethodType(callNode);
 
    if (callSiteMethodType->getSymbolReference()->isUnresolved())
@@ -3013,9 +3002,7 @@ void TR_J9ByteCodeIlGenerator::expandInvokeHandle(TR::TreeTop *tree)
       }
 
    // Generate zerochk
-   TR::Node* zerochkNode = TR::Node::createWithSymRef(callNode, TR::ZEROCHK, 1,
-                                                      TR::Node::create(callNode, TR::acmpeq, 2, callSiteMethodType, handleType),
-                                                      symRefTab()->findOrCreateMethodTypeCheckSymbolRef(_methodSymbol));
+   TR::Node* zerochkNode = genHandleTypeCheck(receiverHandle, callSiteMethodType);
    tree->insertBefore(TR::TreeTop::create(comp(), zerochkNode));
 
    if (comp()->getOption(TR_TraceILGen))
