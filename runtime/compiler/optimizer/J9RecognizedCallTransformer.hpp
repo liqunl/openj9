@@ -41,6 +41,7 @@ class RecognizedCallTransformer : public OMR::RecognizedCallTransformer
    virtual void transform(TR::TreeTop* treetop);
 
    private:
+   void processMethodHandleType(TR::TreeTop* treetop);
    void processIntrinsicFunction(TR::TreeTop* treetop, TR::Node* node, TR::ILOpCodes opcode);
    /** \brief
     *     Transforms java/lang/Class.IsAssignableFrom(Ljava/lang/Class;)Z into a JIT helper call TR_checkAssignable with equivalent
