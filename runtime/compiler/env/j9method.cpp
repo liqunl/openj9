@@ -3994,15 +3994,15 @@ TR_ResolvedJ9Method::TR_ResolvedJ9Method(TR_OpaqueMethodBlock * aMethod, TR_Fron
 
    static X BruteArgumentMoverHandleMethods[] =
       {
-      {  TR::java_lang_invoke_ArgumentMoverHandle_extra,         7, "extra_Z",        (int16_t)-1, "*"},
-      {  TR::java_lang_invoke_ArgumentMoverHandle_extra,         7, "extra_B",        (int16_t)-1, "*"},
-      {  TR::java_lang_invoke_ArgumentMoverHandle_extra,         7, "extra_C",        (int16_t)-1, "*"},
-      {  TR::java_lang_invoke_ArgumentMoverHandle_extra,         7, "extra_S",        (int16_t)-1, "*"},
-      {  TR::java_lang_invoke_ArgumentMoverHandle_extra,         7, "extra_I",        (int16_t)-1, "*"},
-      {  TR::java_lang_invoke_ArgumentMoverHandle_extra,         7, "extra_J",        (int16_t)-1, "*"},
-      {  TR::java_lang_invoke_ArgumentMoverHandle_extra,         7, "extra_F",        (int16_t)-1, "*"},
-      {  TR::java_lang_invoke_ArgumentMoverHandle_extra,         7, "extra_D",        (int16_t)-1, "*"},
-      {  TR::java_lang_invoke_ArgumentMoverHandle_extra,         7, "extra_L",        (int16_t)-1, "*"},
+      {  TR::java_lang_invoke_BruteArgumentMoverHandle_extra,       7, "extra_Z",        (int16_t)-1, "*"},
+      {  TR::java_lang_invoke_BruteArgumentMoverHandle_extra,       7, "extra_B",        (int16_t)-1, "*"},
+      {  TR::java_lang_invoke_BruteArgumentMoverHandle_extra,       7, "extra_C",        (int16_t)-1, "*"},
+      {  TR::java_lang_invoke_BruteArgumentMoverHandle_extra,       7, "extra_S",        (int16_t)-1, "*"},
+      {  TR::java_lang_invoke_BruteArgumentMoverHandle_extra,       7, "extra_I",        (int16_t)-1, "*"},
+      {  TR::java_lang_invoke_BruteArgumentMoverHandle_extra,       7, "extra_J",        (int16_t)-1, "*"},
+      {  TR::java_lang_invoke_BruteArgumentMoverHandle_extra,       7, "extra_F",        (int16_t)-1, "*"},
+      {  TR::java_lang_invoke_BruteArgumentMoverHandle_extra,       7, "extra_D",        (int16_t)-1, "*"},
+      {  TR::java_lang_invoke_BruteArgumentMoverHandle_extra,       7, "extra_L",        (int16_t)-1, "*"},
       {  TR::unknownMethod}
       };
 
