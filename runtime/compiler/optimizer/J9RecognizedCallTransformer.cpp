@@ -334,6 +334,26 @@ void J9::RecognizedCallTransformer::processUnsafeAtomicCall(TR::TreeTop* treetop
    unsafeCall->setSymbolReference(comp()->getSymRefTab()->findOrCreateCodeGenInlinedHelper(helper));
    }
 
+void J9::RecognizedCallTransformer::processMethodHandleType(TR::TreeTop* treetop)
+   {
+   TR::Node* callNode = treetop->getNode()->getFirstChild();
+   TR::SymbolReference* symRef = callNode->getSymbolReference();
+   if (symRef->isUnresolved())
+      return;
+
+   TR::TransformUtil::separateNullCheck(comp(), treetop, trace());
+   TR::Node* mh = callNode->getFirstArgument();
+   TR::TreeTop *anchorTT = TR::TreeTop::create(comp(), TR::Node::create(TR::treetop, 1, mh));
+   treetop->insertBefore(anchorTT);
+   callNode->removeAllChildren();
+
+   uint32_t typeOffset =  comp()->fej9()->getMethodHandleTypeOffset(comp());
+   TR::SymbolReference *typeSymRef = comp()->getSymRefTab()->findOrFabricateShadowSymbol(comp()->getMethodSymbol(), TR::Symbol::Java_lang_invoke_MethodHandle_type, TR::Address, typeOffset, false, false, true, "java/lang/invoke/MethodHandle.type Ljava/lang/invoke/MethodType;");
+   TR::Node::recreateWithSymRef(callNode, comp()->il.opCodeForIndirectLoad(TR::Address), typeSymRef);
+   callNode->setNumChildren(1);
+   callNode->setAndIncChild(0, mh);
+   }
+
 bool J9::RecognizedCallTransformer::isInlineable(TR::TreeTop* treetop)
    {
    auto node = treetop->getNode()->getFirstChild();
@@ -377,6 +397,9 @@ void J9::RecognizedCallTransformer::transform(TR::TreeTop* treetop)
    auto node = treetop->getNode()->getFirstChild();
    switch(node->getSymbol()->castToMethodSymbol()->getMandatoryRecognizedMethod())
       {
+      case TR::java_lang_invoke_MethodHandle_type:
+         processMethodHandleType(treetop);
+         break;
       case TR::sun_misc_Unsafe_getAndAddInt:
       case TR::sun_misc_Unsafe_getAndAddLong:
          processUnsafeAtomicCall(treetop, TR::SymbolReferenceTable::atomicFetchAndAddSymbol);
