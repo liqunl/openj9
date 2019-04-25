@@ -4119,7 +4119,7 @@ TR_J9ByteCodeIlGenerator::genInvokeDynamic(int32_t callSiteIndex)
    TR_ResolvedMethod * owningMethod = _methodSymbol->getResolvedMethod();
    if (!owningMethod->isUnresolvedCallSiteTableEntry(callSiteIndex))
       {
-      TR_ResolvedMethod *specimen = fej9()->createMethodHandleArchetypeSpecimen(trMemory(), (uintptrj_t*)owningMethod->callSiteTableEntryAddress(callSiteIndex), owningMethod);
+      TR_ResolvedMethod *specimen = fej9()->createMethodHandleArchetypeSpecimen(trMemory(), (uintptrj_t*)owningMethod->callSiteTableEntryAddress(callSiteIndex), owningMethod, true);
       if (specimen)
          symRef = symRefTab()->findOrCreateMethodSymbol(_methodSymbol->getResolvedMethodIndex(), -1, specimen, TR::MethodSymbol::ComputedVirtual);
       }
