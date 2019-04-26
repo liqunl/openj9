@@ -2465,6 +2465,14 @@ TR_J9InlinerPolicy::skipHCRGuardForCallee(TR_ResolvedMethod *callee)
       return true;
    else if (length == 32 && !strncmp(className, "java/lang/invoke/MutableCallSite", length))
       return true;
+   else if (length >= 30 && !strncmp(className, "java/lang/invoke/ConvertHandle", 30))
+      return true;
+   else if (length >= 29 && !strncmp(className, "java/lang/invoke/AsTypeHandle", 29))
+      return true;
+   else if (length >= 36 && !strncmp(className, "java/lang/invoke/ArgumentMoverHandle", 36))
+      return true;
+   else if (length >= 41 && !strncmp(className, "java/lang/invoke/BruteArgumentMoverHandle", 41))
+      return true;
 
    return false;
    }
