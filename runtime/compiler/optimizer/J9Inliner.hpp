@@ -70,6 +70,10 @@ class TR_MultipleCallTargetInliner : public TR_InlinerBase
 
       template <typename FunctObj>
       void recursivelyWalkCallTargetAndPerformAction(TR_CallTarget *ct, FunctObj &action);
+
+      TR_CallTarget* processCallTargetsForPartialInlineCallGraph(TR_CallTarget* calltarget);
+      bool inlinePartialCallGraph(TR_CallTarget* calltarget);
+
       //void generateNodeEstimate(TR_CallTarget *ct, TR::Compilation *comp);
 
       class generateNodeEstimate

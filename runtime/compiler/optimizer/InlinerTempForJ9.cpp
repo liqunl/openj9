@@ -3392,6 +3392,7 @@ bool TR_MultipleCallTargetInliner::inlineCallTargets(TR::ResolvedMethodSymbol *c
 
       totalWeight = 0;
       prev = 0;
+      TR_CallTarget* callTargetToChop = NULL;
       for (calltarget = _callTargets.getFirst(); calltarget; prev = calltarget, calltarget = calltarget->getNext())
          {
          int32_t tempTotalWeight = totalWeight + calltarget->_weight;
@@ -3401,37 +3402,18 @@ bool TR_MultipleCallTargetInliner::inlineCallTargets(TR::ResolvedMethodSymbol *c
 
             if ((tempTotalWeight > limit) && (calltarget->_weight > trivialWeightForLimit) && !forceInline(calltarget))
                {
-               if (prev)
-                  {
-                  heuristicTrace(tracer(), "Chopping the Tail off the list of targets we're inlining. New last target = %p Choping off at target %p", prev, calltarget);
-                  prev->setNext(0);
-                  }
-               else
-                  _callTargets.setFirst(0);
-
+               callTargetToChop = calltarget;
                break;
                }
             }
          totalWeight = tempTotalWeight;
-         }
-      //calltarget is assigned in the previous loop
-      //need to delete these call targets from their respective callsites now that we've chopped them out of the list
-      for (; calltarget; calltarget = calltarget->getNext())
-         {
-         if (calltarget)
-            calltarget->_myCallSite->removecalltarget(calltarget,tracer(),Trimmed_List_of_Callees);
-         }
-      if (comp()->getOption(TR_TraceAll) || tracer()->heuristicLevel())
-         {
-         tracer()->dumpCallGraphs(&_callTargets);
-         tracer()->dumpDeadCalls(&_deadCallSites);
          }
 
       prev = 0;
       int32_t estimatedNumberOfNodes = getCurrentNumberOfNodes();
       debugTrace(tracer(), "Initially, estimatedNumberOfNodes = %d\n", estimatedNumberOfNodes);
 
-      for (calltarget = _callTargets.getFirst(); calltarget; prev = calltarget, calltarget = calltarget->getNext())
+      for (calltarget = _callTargets.getFirst(); calltarget != callTargetToChop; prev = calltarget, calltarget = calltarget->getNext())
          {
          generateNodeEstimate myEstimate;
          recursivelyWalkCallTargetAndPerformAction(calltarget, myEstimate);
@@ -3445,24 +3427,20 @@ bool TR_MultipleCallTargetInliner::inlineCallTargets(TR::ResolvedMethodSymbol *c
             {
             heuristicTrace(tracer(),"Estimated number of nodes of %d exceeds nodeCountThreshold of %d. Trimming list:",(uint32_t)(estimatedNumberOfNodes*factor), _nodeCountThreshold);
 
-            if (prev)
-               {
-               heuristicTrace(tracer(),"Chopping the Tail off the list of targets we're inlining. New last target = %p Choping off at target %p",prev,calltarget);
-               prev->setNext(0);
-               }
-            else
-               _callTargets.setFirst(0);
-
+            callTargetToChop = calltarget;
             break;
             }
          }
-      //calltarget is assigned in the previous loop
-      //need to delete these call targets from their respective callsites now that we've chopped them out of the list
-      for(; calltarget; calltarget = calltarget->getNext())
+
+      TR_CallTarget* next = processCallTargetsForPartialInlineCallGraph(callTargetToChop);
+      if (prev)
          {
-         if(calltarget)
-            calltarget->_myCallSite->removecalltarget(calltarget,tracer(),Trimmed_List_of_Callees);
+         heuristicTrace(tracer(),"Chopping the Tail off the list of targets we're inlining. New last target = %p Choping off at target %p",prev,calltarget);
+         prev->setNext(next);
          }
+      else
+         _callTargets.setFirst(next);
+
       if (comp()->getOption(TR_TraceAll) || tracer()->heuristicLevel())
          {
          tracer()->dumpCallGraphs(&_callTargets);
@@ -4090,6 +4068,58 @@ void TR_MultipleCallTargetInliner::weighCallSite( TR_CallStack * callStack , TR_
 
 
    heuristicTrace(tracer(),"^^^ Done Weighing of all targets in CallSite %p callnode %p\n",callsite, callsite->_callNode);
+   }
+
+bool TR_MultipleCallTargetInliner::inlinePartialCallGraph(TR_CallTarget* calltarget)
+   {
+   TR_J9InlinerPolicy *j9inlinerPolicy = (TR_J9InlinerPolicy *) getPolicy();
+   if (j9inlinerPolicy->isJSR292Method(calltarget->_calleeMethod))
+      {
+      for (TR_CallSite* callsite = calltarget->_myCallees.getFirst(); callsite ;)
+         {
+         for (int32_t i = 0 ; i < callsite->numTargets() ; i++)
+            {
+            inlinePartialCallGraph(callsite->getTarget(i));
+            }
+         TR_CallSite* next = callsite->getNext();
+         if (callsite->numTargets() == 0)
+            {
+            calltarget->removeCallee(callsite);
+            }
+         callsite = next;
+         }
+      return true;
+      }
+
+   calltarget->_myCallSite->removecalltarget(calltarget, tracer(), Trimmed_List_of_Callees);
+
+   return false;
+   }
+
+TR_CallTarget* TR_MultipleCallTargetInliner::processCallTargetsForPartialInlineCallGraph(TR_CallTarget* calltarget)
+   {
+   if (!calltarget)
+      return NULL;
+
+   TR_CallTarget* head = calltarget;
+   calltarget = calltarget->getNext();
+   for (TR_CallTarget* prev = head; calltarget; calltarget = calltarget->getNext())
+      {
+      bool keepCallTarget = inlinePartialCallGraph(calltarget);
+      if (!keepCallTarget)
+         {
+         prev->setNext(calltarget->getNext());
+         }
+      else
+         {
+         prev = calltarget;
+         }
+      }
+
+   if (!inlinePartialCallGraph(head))
+      head = head->getNext();
+
+   return head;
    }
 
 //Note, this function is shared by all FE's.  If you are changing the heuristic for your FE only, you need to push this method into the various FE's FEInliner.cpp file.
