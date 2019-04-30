@@ -3095,11 +3095,6 @@ bool TR_J9VMBase::supressInliningRecognizedInitialCallee(TR_CallSite* callsite, 
       //
       switch (callNode->getSymbol()->getResolvedMethodSymbol()->getRecognizedMethod())
          {
-         case TR::java_lang_invoke_MethodHandle_doCustomizationLogic:
-         case TR::java_lang_invoke_MethodHandle_undoCustomizationLogic:
-            dontInlineRecognizedMethod = true;
-            break;
-
          // ByteArray Marshalling methods
          case TR::com_ibm_dataaccess_ByteArrayMarshaller_writeShort_:
          case TR::com_ibm_dataaccess_ByteArrayMarshaller_writeShortLength_:
