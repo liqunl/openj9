@@ -148,13 +148,32 @@ static bool isFinalFieldPointingAtRepresentableNativeStruct(TR::SymbolReference 
       }
    }
 
+static bool isKnownFabricatedJavaField(TR::SymbolReference *symRef, TR::Compilation *comp)
+   {
+   TR::Symbol *symbol = symRef->getSymbol();
+   if (symbol->isShadow() && symRef->getCPIndex() < 0)
+      {
+      switch (symbol->getRecognizedField())
+         {
+         case TR::Symbol::Java_lang_invoke_VarHandle_handleTable:
+         case TR::Symbol::Java_lang_invoke_MethodHandle_type:
+         case TR::Symbol::Java_lang_invoke_MethodHandle_thunks:
+         case TR::Symbol::Java_lang_invoke_ThunkTuple_invokeExactThunk:
+            return true;
+         default:
+            break;
+         }
+      }
+   return false;
+   }
+
 static bool isJavaField(TR::SymbolReference *symRef, TR::Compilation *comp)
    {
    TR::Symbol *symbol = symRef->getSymbol();
    if (symbol->isShadow() &&
        (symRef->getCPIndex() >= 0 ||
-        // java/lang/invoke/VarHandle.handleTable can be fabricated by VarHandleTransformer, thus does not have a valid cp index
-        symbol->getRecognizedField() == TR::Symbol::Java_lang_invoke_VarHandle_handleTable))
+        // fabricated field does not have a valid cp index
+        isKnownFabricatedJavaField(symRef, comp)))
       return true;
 
    return false;
@@ -201,7 +220,8 @@ static bool isArrayWithConstantElements(TR::SymbolReference *symRef, TR::Compila
    return false;
    }
 
-static bool isFabricatedVarHandleField(TR::SymbolReference *symRef, TR::Compilation *comp)
+static TR_OpaqueClassBlock*
+getKnownFabricatedFieldDeclaringClass(TR::SymbolReference *symRef, TR::Compilation *comp)
    {
    TR::Symbol *symbol = symRef->getSymbol();
    if (symbol->isShadow() && symRef->getCPIndex() < 0)
@@ -209,12 +229,17 @@ static bool isFabricatedVarHandleField(TR::SymbolReference *symRef, TR::Compilat
       switch (symbol->getRecognizedField())
          {
          case TR::Symbol::Java_lang_invoke_VarHandle_handleTable:
-            return true;
+            return comp->fej9()->getSystemClassFromClassName("java/lang/invoke/VarHandle", strlen("java/lang/invoke/VarHandle"));
+         case TR::Symbol::Java_lang_invoke_MethodHandle_type:
+         case TR::Symbol::Java_lang_invoke_MethodHandle_thunks:
+            return comp->fej9()->getSystemClassFromClassName("java/lang/invoke/MethodHandle", strlen("java/lang/invoke/MethodHandle"));
+         case TR::Symbol::Java_lang_invoke_ThunkTuple_invokeExactThunk:
+            return comp->fej9()->getSystemClassFromClassName("java/lang/invoke/ThunkTuple", strlen("java/lang/invoke/ThunkTuple"));
          default:
             break;
          }
       }
-   return false;
+   return NULL;
    }
 
 static bool verifyFieldAccess(void *curStruct, TR::SymbolReference *field, TR::Compilation *comp)
@@ -236,8 +261,8 @@ static bool verifyFieldAccess(void *curStruct, TR::SymbolReference *field, TR::C
 
       TR_OpaqueClassBlock *objectClass = fej9->getObjectClass((uintptrj_t)curStruct);
       TR_OpaqueClassBlock *fieldClass = NULL;
-      if (isFabricatedVarHandleField(field, comp))
-         fieldClass = fej9->getSystemClassFromClassName("java/lang/invoke/VarHandle", strlen("java/lang/invoke/VarHandle"));
+      if (isKnownFabricatedJavaField(field, comp))
+         fieldClass = getKnownFabricatedFieldDeclaringClass(field, comp);
       else
          fieldClass = field->getOwningMethod(comp)->getDeclaringClassFromFieldOrStatic(comp, field->getCPIndex());
 
