@@ -5193,7 +5193,7 @@ TR_J9VMBase::lookupMethodHandleThunkArchetype(uintptrj_t methodHandle)
    }
 
 TR_ResolvedMethod *
-TR_J9VMBase::createMethodHandleArchetypeSpecimen(TR_Memory *trMemory, TR_OpaqueMethodBlock *archetype, uintptrj_t *methodHandleLocation, TR_ResolvedMethod *owningMethod, bool isCustomThunk)
+TR_J9VMBase::createMethodHandleArchetypeSpecimen(TR_Memory *trMemory, TR_OpaqueMethodBlock *archetype, uintptrj_t *methodHandleLocation, TR_ResolvedMethod *owningMethod)
    {
    intptrj_t length;
    char *thunkableSignature;
@@ -5202,22 +5202,10 @@ TR_J9VMBase::createMethodHandleArchetypeSpecimen(TR_Memory *trMemory, TR_OpaqueM
       TR::VMAccessCriticalSection createMethodHandleArchetypeSpecimen(this);
       TR_ASSERT(archetype, "Explicitly provided archetype must not be null");
       TR_ASSERT(archetype == lookupMethodHandleThunkArchetype(*methodHandleLocation), "Explicitly provided archetype must be the right one");
-      uintptrj_t signatureString;
-      if (isCustomThunk)
-         {
-         signatureString = getReferenceField(getReferenceField(
-            *methodHandleLocation,
-            "type",             "Ljava/lang/invoke/MethodType;"),
-            "methodDescriptor", "Ljava/lang/String;");
-         }
-      else
-         {
-         signatureString = getReferenceField(getReferenceField(
+      uintptrj_t signatureString = getReferenceField(getReferenceField(
          *methodHandleLocation,
          "thunks",             "Ljava/lang/invoke/ThunkTuple;"),
          "thunkableSignature", "Ljava/lang/String;");
-         }
-
       length = getStringUTF8Length(signatureString);
       thunkableSignature = (char*)trMemory->allocateStackMemory(length+1);
       getStringUTF8(signatureString, thunkableSignature, length+1);
@@ -5230,13 +5218,13 @@ TR_J9VMBase::createMethodHandleArchetypeSpecimen(TR_Memory *trMemory, TR_OpaqueM
    }
 
 TR_ResolvedMethod *
-TR_J9VMBase::createMethodHandleArchetypeSpecimen(TR_Memory *trMemory, uintptrj_t *methodHandleLocation, TR_ResolvedMethod *owningMethod, bool isCustomThunk)
+TR_J9VMBase::createMethodHandleArchetypeSpecimen(TR_Memory *trMemory, uintptrj_t *methodHandleLocation, TR_ResolvedMethod *owningMethod)
    {
    TR::VMAccessCriticalSection createMethodHandleArchetypeSpecimenCS(this);
    TR_OpaqueMethodBlock *archetype = lookupMethodHandleThunkArchetype(*methodHandleLocation);
    TR_ResolvedMethod *result;
    if (archetype)
-      result = createMethodHandleArchetypeSpecimen(trMemory, archetype, methodHandleLocation, owningMethod, isCustomThunk);
+      result = createMethodHandleArchetypeSpecimen(trMemory, archetype, methodHandleLocation, owningMethod);
    else
       result = NULL;
 
