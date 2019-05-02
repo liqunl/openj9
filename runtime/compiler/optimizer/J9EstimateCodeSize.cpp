@@ -596,7 +596,13 @@ TR_J9EstimateCodeSize::realEstimateCodeSize(TR_CallTarget *calltarget, TR_CallSt
       tracer()->dumpPrexArgInfo(calltarget->_ecsPrexArgInfo);
       }
 
-   TR_InlinerDelimiter delimiter(tracer(), "estimateCodeSize");
+   TR_InlinerDelimiter delimiter(tracer(), "realEstimateCodeSize");
+
+   if (!recurseDown && calltarget->_calleeMethod->convertToMethod()->isArchetypeSpecimen())
+      {
+      heuristicTrace(tracer(), "recurseDown is false and is thunk, return\n");
+      return true;
+      }
 
    if (calltarget->_calleeMethod->numberOfExceptionHandlers() > 0)
       _hasExceptionHandlers = true;
