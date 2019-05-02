@@ -60,7 +60,7 @@ static bool specializeInvokeExactSymbol(TR::Node *callNode, TR::KnownObjectTable
    uintptrj_t              *refLocation    = knot->getPointerLocation(receiverIndex);
    TR::SymbolReference      *symRef         = callNode->getSymbolReference();
    TR::ResolvedMethodSymbol *owningMethod   = callNode->getSymbolReference()->getOwningMethodSymbol(comp);
-   TR_ResolvedMethod       *resolvedMethod = comp->fej9()->createMethodHandleArchetypeSpecimen(comp->trMemory(), refLocation, owningMethod->getResolvedMethod(), true);
+   TR_ResolvedMethod       *resolvedMethod = comp->fej9()->createMethodHandleArchetypeSpecimen(comp->trMemory(), refLocation, owningMethod->getResolvedMethod());
    if (resolvedMethod)
       {
       TR::SymbolReference      *specimenSymRef = comp->getSymRefTab()->findOrCreateMethodSymbol(owningMethod->getResolvedMethodIndex(), -1, resolvedMethod, TR::MethodSymbol::ComputedVirtual);

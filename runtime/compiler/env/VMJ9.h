@@ -764,8 +764,8 @@ public:
 
    virtual TR_OpaqueMethodBlock *lookupArchetype(TR_OpaqueClassBlock *clazz, char *name, char *signature);
    virtual TR_OpaqueMethodBlock *lookupMethodHandleThunkArchetype(uintptrj_t methodHandle);
-   virtual TR_ResolvedMethod    *createMethodHandleArchetypeSpecimen(TR_Memory *, uintptrj_t *methodHandleLocation, TR_ResolvedMethod *owningMethod = 0, bool isCustomThunk = false);
-   virtual TR_ResolvedMethod    *createMethodHandleArchetypeSpecimen(TR_Memory *, TR_OpaqueMethodBlock *archetype, uintptrj_t *methodHandleLocation, TR_ResolvedMethod *owningMethod = 0, bool isCustomThunk = false); // more efficient if you already know the archetype
+   virtual TR_ResolvedMethod    *createMethodHandleArchetypeSpecimen(TR_Memory *, uintptrj_t *methodHandleLocation, TR_ResolvedMethod *owningMethod = 0);
+   virtual TR_ResolvedMethod    *createMethodHandleArchetypeSpecimen(TR_Memory *, TR_OpaqueMethodBlock *archetype, uintptrj_t *methodHandleLocation, TR_ResolvedMethod *owningMethod = 0); // more efficient if you already know the archetype
 
    virtual uintptrj_t mutableCallSiteCookie(uintptrj_t mutableCallSite, uintptrj_t potentialCookie=0);
 
