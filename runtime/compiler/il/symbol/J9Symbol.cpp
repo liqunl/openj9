@@ -148,6 +148,7 @@
        {r(TR::Symbol::Java_lang_invoke_MethodType_arguments,          "java/lang/invoke/MethodType", "arguments", "[Ljava/lang/Class;")},
        {r(TR::Symbol::Java_lang_invoke_PrimitiveHandle_rawModifiers,  "java/lang/invoke/PrimitiveHandle", "rawModifiers", "I")},
        {r(TR::Symbol::Java_lang_invoke_PrimitiveHandle_defc,          "java/lang/invoke/PrimitiveHandle", "defc", "Ljava/lang/Class;")},
+       {r(TR::Symbol::Java_lang_invoke_PrimitiveHandle_vmSlot,        "java/lang/invoke/PrimitiveHandle", "vmSlot", "J")},
        {r(TR::Symbol::Java_lang_invoke_ThunkTuple_invokeExactThunk,   "java/lang/invoke/ThunkTuple", "invokeExactThunk", "J")},
        {r(TR::Symbol::Java_util_Hashtable_elementCount,               "java/util/Hashtable", "count", "I")},
        {r(TR::Symbol::Java_math_BigInteger_ZERO,                      "java/math/BigInteger", "ZERO", "Ljava/math/BigInteger;")},
@@ -192,18 +193,20 @@ J9::Symbol::searchRecognizedField(TR::Compilation * comp, TR_ResolvedMethod * ow
 
    int32_t  totalLen;
    char    *fieldName;
+   TR_OpaqueClassBlock *declaringClass = owningMethod->getDeclaringClassFromFieldOrStatic(comp, cpIndex);
+
    // $assertionDisabled fields are always foldable based on the Javadoc (setClassAssertionStatus
    // "This method has no effect if the named class has already been initialized. 
    // (Once a class is initialized, its assertion status cannot change.)"
    // So check if the field is final and check if it is this special field
    if (isStatic)
       {
-      TR_OpaqueClassBlock *clazz = owningMethod->getDeclaringClassFromFieldOrStatic(comp, cpIndex);
       fieldName = owningMethod->staticName(cpIndex, totalLen, comp->trMemory());  // totalLen = strlen("<class>" + "<field>" + "<sig>") + 3
       static char *assertionsDisabledStr = "$assertionsDisabled Z"; 
       //string will be of the form "<class>.$assertionsDisabled Z"
-      if (totalLen >= 22
-          && comp->fej9()->isClassInitialized(clazz)
+      if (declaringClass
+          && totalLen >= 22
+          && comp->fej9()->isClassInitialized(declaringClass)
           && strncmp(&(fieldName[totalLen - 22]), assertionsDisabledStr, 21) == 0)
          {
          traceMsg(comp, "Matched $assertionsDisabled Z\n");
@@ -216,8 +219,12 @@ J9::Symbol::searchRecognizedField(TR::Compilation * comp, TR_ResolvedMethod * ow
     */
    int32_t  classLen;
    char    *className; // Note: not Null-terminated!
-   className = owningMethod->classNameOfFieldOrStatic(cpIndex, classLen);  // classLen = strlen("<class>");
+   if (declaringClass)
+      className = comp->fej9()->getClassNameChars(declaringClass, classLen);
+   else
+      className = owningMethod->classNameOfFieldOrStatic(cpIndex, classLen);  // classLen = strlen("<class>");
 
+   traceMsg(comp, "Field class name %.*s\n", classLen, className);
 
    if (!className ||
        className[0] < minClassPrefix ||
