@@ -7110,7 +7110,8 @@ TR_ResolvedJ9Method::staticAttributes(TR::Compilation * comp, I_32 cpIndex, void
        *unresolvedInCP = isUnresolvedInCP;
 
    bool isColdOrReducedWarm = (comp->getMethodHotness() < warm) || (comp->getMethodHotness() == warm && comp->getOption(TR_NoOptServer));
-   bool doRuntimeResolveForEarlyCompilation = isUnresolvedInCP && isColdOrReducedWarm;
+   bool isMethodHandleThunk = comp->ilGenRequest().details().isMethodHandleThunk() || this->isArchetypeSpecimen();
+   bool doRuntimeResolveForEarlyCompilation = isUnresolvedInCP && isColdOrReducedWarm && !isMethodHandleThunk;
 
    void *backingStorage;
    J9ROMFieldShape *fieldShape;
