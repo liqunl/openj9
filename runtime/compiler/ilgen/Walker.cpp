@@ -4993,6 +4993,16 @@ TR_J9ByteCodeIlGenerator::loadInstance(int32_t cpIndex)
          }
       }
 
+   if (address->getOpCode().hasSymbolReference() &&
+       address->getSymbolReference()->hasKnownObjectIndex())
+      {
+      TR::Node* nodeToRemove = NULL;
+      if (TR::TransformUtil::transformIndirectLoadChain(comp(), dummyLoad, address, address->getSymbolReference()->getKnownObjectIndex(), &nodeToRemove) && nodeToRemove)
+         {
+         nodeToRemove->recursivelyDecReferenceCount();
+         }
+      }
+
    push(dummyLoad);
    }
 
@@ -5308,6 +5318,10 @@ TR_J9ByteCodeIlGenerator::loadStatic(int32_t cpIndex)
          {
          handleSideEffect(treeTopNode);
          genTreeTop(treeTopNode);
+         }
+      if (symbol->isFinal() && TR::TransformUtil::canFoldStaticFinalField(comp(), load) == TR_yes)
+         {
+         TR::TransformUtil::foldReliableStaticFinalField(comp(), load);
          }
 
       push(load);
