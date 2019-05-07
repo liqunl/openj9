@@ -7545,6 +7545,31 @@ getMethodHandleThunkDetails(TR_J9ByteCodeIlGenerator *ilgen, TR::Compilation *co
    return NULL;
    }
 
+static TR::DataType typeFromSig(char sig)
+   {
+   switch (sig)
+      {
+      case 'L':
+      case '[':
+         return TR::Address;
+      case 'I':
+      case 'Z':
+      case 'B':
+      case 'S':
+      case 'C':
+         return TR::Int32;
+      case 'J':
+         return TR::Int64;
+      case 'F':
+         return TR::Float;
+      case 'D':
+         return TR::Double;
+      default:
+         break;
+      }
+   return TR::NoType;
+   }
+
 bool
 TR_J9ByteCodeIlGenerator::runFEMacro(TR::SymbolReference *symRef)
    {
@@ -7959,25 +7984,76 @@ TR_J9ByteCodeIlGenerator::runFEMacro(TR::SymbolReference *symRef)
                   char *argType = nthSignatureArgument(i, nextHandleSignature+1);
                   char  extraName[10];
                   char *extraSignature;
+
+                  // function to call to get the extra argument if we can't grab the value directly at compile time
                   switch (argType[0])
                      {
                      case 'L':
                      case '[':
                         sprintf(extraName, "extra_L");
-                        extraSignature = artificialSignature(stackAlloc, "(L" JSR292_ArgumentMoverHandle ";I)Ljava/lang/Object;");
+                        extraSignature = artificialSignature(stackAlloc, "(I)Ljava/lang/Object;");
                         break;
                      default:
                         sprintf(extraName, "extra_%c", argType[0]);
-                        extraSignature = artificialSignature(stackAlloc, "(L" JSR292_ArgumentMoverHandle ";I).@", nextHandleSignature, i);
+                        extraSignature = artificialSignature(stackAlloc, "(I).@", nextHandleSignature, i);
                         break;
                      }
+
+                  // Get the argument type of next handle
+                  TR::DataType dataType = typeFromSig(argType[0]);
+
                   if (comp()->getOption(TR_TraceILGen))
-                     traceMsg(comp(), "  permuteArgs:   %d: call to %s.%s%s\n", argIndex, JSR292_ArgumentMoverHandle, extraName, extraSignature);
-                  TR::SymbolReference *extra = comp()->getSymRefTab()->methodSymRefFromName(_methodSymbol, JSR292_ArgumentMoverHandle, extraName, extraSignature, TR::MethodSymbol::Static);
+                     traceMsg(comp(), "  permuteArgs:   %d: call to %s.%s%s\n", argIndex, JSR292_BruteArgumentMoverHandle, extraName, extraSignature);
+
+                  if (thunkDetails->isCustom() && dataType != TR::Address)
+                     {
+                     char extraFieldSig[2];
+                     extraFieldSig[0] = argType[0];
+                     extraFieldSig[1] = '\0';
+                     uintptrj_t extra = fej9->getReferenceField(methodHandle, "extra", "[Ljava/lang/Object;");
+                     uintptrj_t extraArg = fej9->getReferenceElement(extra, -argIndex -1);
+                     uint32_t fieldOffset = fej9->getInstanceFieldOffset(fej9->getObjectClass(extraArg), "value", extraFieldSig);
+                     TR::ILOpCodes opCode = comp()->il.opCodeForConst(dataType);
+                     switch (dataType)
+                        {
+                        case TR::Int32:
+                           {
+                           int32_t value = fej9->getInt32FieldAt(extraArg, fieldOffset);
+                           loadConstant(opCode,value);
+                           break;
+                           }
+                        case TR::Int64:
+                           {
+                           int64_t value = fej9->getInt64FieldAt(extraArg, fieldOffset);
+                           loadConstant(opCode,value);
+                           break;
+                           }
+                        case TR::Float:
+                           {
+                           float value = fej9->getFloatFieldAt(extraArg, fieldOffset);
+                           loadConstant(opCode, value);
+                           break;
+                           }
+                        case TR::Double:
+                           {
+                           double value = fej9->getDoubleFieldAt(extraArg, fieldOffset);
+                           loadConstant(opCode,value);
+                           break;
+                           }
+                        default:
+                           break;
+                        }
+                     traceMsg(comp(), "  liqun BAMH:   %d: load primitive constant %s\n", argIndex, extraFieldSig);
+                     }
+                  else
+                     {
+                     traceMsg(comp(), "  liqun BAMH:   %d: can't get a constant value at compile time %c\n", argIndex, argType[0]);
+                     TR::SymbolReference *extra = comp()->getSymRefTab()->methodSymRefFromName(_methodSymbol, JSR292_BruteArgumentMoverHandle, extraName, extraSignature, TR::MethodSymbol::Special);
                   loadAuto(TR::Address, 0);
                   loadConstant(TR::iconst, argIndex);
                   genInvokeDirect(extra);
                   }
+               }
                }
             if (comp()->getOption(TR_TraceILGen))
                traceMsg(comp(), "  permuteArgs: permuted placeholder signature is %s\n", newSignature);
