@@ -4992,6 +4992,24 @@ TR_J9ByteCodeIlGenerator::loadInstance(int32_t cpIndex)
          }
       }
 
+   if (address->getOpCode().hasSymbolReference() &&
+       address->getSymbolReference()->hasKnownObjectIndex() &&
+       address->isNonNull())
+      {
+      TR_OpaqueClassBlock *declaringClass = _methodSymbol->getResolvedMethod()->getDeclaringClassFromFieldOrStatic(comp(), cpIndex);
+      TR_OpaqueClassBlock *methodHandleClass =  fej9()->getSystemClassFromClassName("java/lang/invoke/MethodHandle", 29);
+      if (declaringClass &&
+          methodHandleClass &&
+          fej9()->isInstanceOf(declaringClass, methodHandleClass, true, true) == TR_yes)
+         {
+         TR::Node* nodeToRemove = NULL;
+         if (TR::TransformUtil::transformIndirectLoadChain(comp(), dummyLoad, address, address->getSymbolReference()->getKnownObjectIndex(), &nodeToRemove) && nodeToRemove)
+            {
+            nodeToRemove->recursivelyDecReferenceCount();
+            }
+         }
+      }
+
    push(dummyLoad);
    }
 
@@ -5307,6 +5325,10 @@ TR_J9ByteCodeIlGenerator::loadStatic(int32_t cpIndex)
          {
          handleSideEffect(treeTopNode);
          genTreeTop(treeTopNode);
+         }
+      if (symbol->isFinal() && TR::TransformUtil::canFoldStaticFinalField(comp(), load) == TR_yes)
+         {
+         TR::TransformUtil::foldReliableStaticFinalField(comp(), load);
          }
 
       push(load);
