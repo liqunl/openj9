@@ -6001,6 +6001,16 @@ TR_J9ByteCodeIlGenerator::loadInstance(int32_t cpIndex)
          }
       }
 
+   if (address->getOpCode().hasSymbolReference() &&
+       address->getSymbolReference()->hasKnownObjectIndex())
+      {
+      TR::Node* nodeToRemove = NULL;
+      if (TR::TransformUtil::transformIndirectLoadChain(comp(), dummyLoad, address, address->getSymbolReference()->getKnownObjectIndex(), &nodeToRemove) && nodeToRemove)
+         {
+         nodeToRemove->recursivelyDecReferenceCount();
+         }
+      }
+
    push(dummyLoad);
    }
 
