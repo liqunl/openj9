@@ -1306,6 +1306,20 @@ TR_J9VMBase::getVolatileReferenceFieldAt(uintptrj_t objectPointer, uintptrj_t fi
       (J9Object*)objectPointer, J9_OBJECT_HEADER_SIZE + fieldOffset, IS_VOLATILE);
    }
 
+float
+TR_J9VMBase::getFloatFieldAt(uintptrj_t objectPointer, uintptrj_t fieldOffset)
+   {
+   TR_ASSERT(haveAccess(), "Must haveAccess in getInt32Field");
+   return *(float*)(objectPointer + sizeof(J9Object) + fieldOffset);
+   }
+
+double
+TR_J9VMBase::getDoubleFieldAt(uintptrj_t objectPointer, uintptrj_t fieldOffset)
+   {
+   TR_ASSERT(haveAccess(), "Must haveAccess in getInt32Field");
+   return *(double*)(objectPointer + sizeof(J9Object) + fieldOffset);
+   }
+
 int32_t
 TR_J9VMBase::getInt32FieldAt(uintptrj_t objectPointer, uintptrj_t fieldOffset)
    {
