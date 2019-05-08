@@ -108,9 +108,6 @@ static bool isScorching(TR::Compilation *comp)
 
 static int32_t getJ9InitialBytecodeSize(TR_ResolvedMethod * feMethod, TR::ResolvedMethodSymbol * methodSymbol, TR::Compilation *comp)
    {
-   if (feMethod->convertToMethod()->isArchetypeSpecimen())
-      return 0;
-
    int32_t size = feMethod->maxBytecodeIndex();
 
    if (methodSymbol && methodSymbol->getRecognizedMethod() == TR::java_util_ArrayList_remove)
@@ -4919,7 +4916,7 @@ void
 TR_J9InlinerUtil::estimateAndRefineBytecodeSize(TR_CallSite* callsite, TR_CallTarget* calltarget, TR_CallStack *callStack, int32_t &bytecodeSize)
    {
    calltarget->_originatingBlock = (callsite->_callerBlock != NULL) ? callsite->_callerBlock : (callsite->_callNodeTreeTop ? callsite->_callNodeTreeTop->getEnclosingBlock() : 0);
-   if (comp()->getOptLevel() >= warm && bytecodeSize > 100)
+   if (comp()->getOptLevel() >= warm && bytecodeSize > 100 && !calltarget->_calleeMethod->convertToMethod()->isArchetypeSpecimen())
       {
                      //We call to calculateCodeSize to simply get an estimate.
                      //We don't want the original calltarget to be modified and become inconsistent in any way
