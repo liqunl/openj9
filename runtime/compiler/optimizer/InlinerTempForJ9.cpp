@@ -2447,6 +2447,8 @@ TR_J9InlinerPolicy::skipHCRGuardForCallee(TR_ResolvedMethod *callee)
    switch (mandatoryRM)
       {
       case TR::java_lang_invoke_MethodHandle_invokeExactTargetAddress:
+      case TR::java_lang_invoke_MethodHandle_doCustomizationLogic:
+      case TR::java_lang_invoke_MethodHandle_undoCustomizationLogic:
       case TR::java_lang_invoke_ArgumentMoverHandle_extra:
       case TR::java_lang_invoke_BruteArgumentMoverHandle_extra:
       return true;
