@@ -3421,6 +3421,7 @@ int TR_J9VMBase::checkInlineableTarget (TR_CallTarget* target, TR_CallSite* call
       case TR::java_lang_StringUTF16_getChar:
       case TR::java_lang_StringUTF16_toBytes:
       case TR::java_lang_invoke_MethodHandle_asType:
+      case TR::java_lang_invoke_MethodHandle_requestCustomThunk:
             return DontInline_Callee;
       default:
          break;
