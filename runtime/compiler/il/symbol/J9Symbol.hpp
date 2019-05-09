@@ -146,6 +146,7 @@ public:
       Java_lang_StringBuilder_count,
       Java_lang_StringBuilder_value,
       Java_lang_Throwable_stackTrace,
+      Java_lang_invoke_BruteArgumentMoverHandle_extra,
       Java_lang_invoke_BruteArgumentMoverHandle_extraL0,
       Java_lang_invoke_BruteArgumentMoverHandle_extraL1,
       Java_lang_invoke_DynamicInvokerHandle_site,
