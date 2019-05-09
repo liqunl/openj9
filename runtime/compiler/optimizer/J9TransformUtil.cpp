@@ -151,19 +151,13 @@ static bool isFinalFieldPointingAtRepresentableNativeStruct(TR::SymbolReference 
 static bool isKnownFabricatedJavaField(TR::SymbolReference *symRef, TR::Compilation *comp)
    {
    TR::Symbol *symbol = symRef->getSymbol();
-   if (symbol->isShadow() && symRef->getCPIndex() < 0)
+   if (symbol->isShadow() &&
+       symRef->getCPIndex() < 0 &&
+       symbol->getRecognizedField() != TR::Symbol::UnknownField)
       {
-      switch (symbol->getRecognizedField())
-         {
-         case TR::Symbol::Java_lang_invoke_VarHandle_handleTable:
-         case TR::Symbol::Java_lang_invoke_MethodHandle_type:
-         case TR::Symbol::Java_lang_invoke_MethodHandle_thunks:
-         case TR::Symbol::Java_lang_invoke_ThunkTuple_invokeExactThunk:
-            return true;
-         default:
-            break;
-         }
+      return true;
       }
+
    return false;
    }
 
