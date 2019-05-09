@@ -3196,6 +3196,7 @@ void TR_J9ByteCodeIlGenerator::expandInvokeExact(TR::TreeTop *tree)
                                  + comp()->fej9()->getInstanceFieldOffset(clazz, "thunks", 6, "Ljava/lang/invoke/ThunkTuple;", 29);
    TR::SymbolReference *thunksSymRef = comp()->getSymRefTab()->findOrFabricateShadowSymbol(_methodSymbol, TR::Symbol::Java_lang_invoke_MethodHandle_thunks, TR::Address, offset, false, false, false, "java/lang/invoke/MethodHandle.thunks Ljava/lang/invoke/ThunkTuple;");
    TR::Node *thunksNode = TR::Node::createWithSymRef(callNode, comp()->il.opCodeForIndirectLoad(TR::Address), 1, receiverHandle, thunksSymRef);
+   thunksNode->setIsNonNull(true);
 
    classSig = "Ljava/lang/invoke/ThunkTuple;";
    classSigLength = 29;
@@ -3206,8 +3207,8 @@ void TR_J9ByteCodeIlGenerator::expandInvokeExact(TR::TreeTop *tree)
    TR::Node *invokeExactTargetAddr = TR::Node::createWithSymRef(callNode, comp()->il.opCodeForIndirectLoad(TR::Int64), 1, thunksNode, invokeExactTargetAddrSymRef);
 
    invokeExactTargetAddr->getByteCodeInfo().setDoNotProfile(true);
-   TR::SymbolReference *nullchkSymRef = comp()->getSymRefTab()->findOrCreateNullCheckSymbolRef(_methodSymbol);
-   tree->insertBefore(TR::TreeTop::create(comp(), TR::Node::createWithSymRef(callNode, TR::NULLCHK, 1, invokeExactTargetAddr, nullchkSymRef)));
+   //TR::SymbolReference *nullchkSymRef = comp()->getSymRefTab()->findOrCreateNullCheckSymbolRef(_methodSymbol);
+   tree->insertBefore(TR::TreeTop::create(comp(), TR::Node::create(callNode, TR::treetop, 1, invokeExactTargetAddr)));
 
    if (comp()->getOption(TR_TraceILGen))
       {
