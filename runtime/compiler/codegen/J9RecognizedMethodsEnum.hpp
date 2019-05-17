@@ -761,6 +761,7 @@
    com_ibm_jit_JITHelpers_compareAndSwapObjectInArray,
    com_ibm_jit_JITHelpers_byteToCharUnsigned,
    com_ibm_jit_JITHelpers_acmplt,
+   com_ibm_jit_JITHelpers_nullCheck,
    com_ibm_jit_JITHelpers_jitHelpers,
    com_ibm_jit_JITHelpers_getClassInitializeStatus,
 
@@ -952,6 +953,7 @@
    java_lang_invoke_DirectHandle_directCall,
    java_lang_invoke_DirectHandle_invokeExact,
    java_lang_invoke_DirectHandle_isAlreadyCompiled,
+   java_lang_invoke_DirectHandle_isStatic,
    java_lang_invoke_ExplicitCastHandle_convertArgs,
    java_lang_invoke_FilterArgumentsHandle_filterArguments,
    java_lang_invoke_FilterArgumentsHandle_numArgsToFilter,

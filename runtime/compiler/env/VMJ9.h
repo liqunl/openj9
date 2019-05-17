@@ -544,6 +544,11 @@ public:
       return getInt32FieldAt(objectPointer, getInstanceFieldOffset(getObjectClass(objectPointer), fieldName, "I"));
       }
 
+   int32_t getByteField(uintptrj_t objectPointer, char *fieldName)
+      {
+      return getInt32FieldAt(objectPointer, getInstanceFieldOffset(getObjectClass(objectPointer), fieldName, "B"));
+      }
+
    int64_t getInt64Field(uintptrj_t objectPointer, char *fieldName)
       {
       return getInt64FieldAt(objectPointer, getInstanceFieldOffset(getObjectClass(objectPointer), fieldName, "J"));
