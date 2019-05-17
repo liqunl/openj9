@@ -354,6 +354,25 @@ void J9::RecognizedCallTransformer::processMethodHandleType(TR::TreeTop* treetop
    callNode->setAndIncChild(0, mh);
    }
 
+void J9::RecognizedCallTransformer::processJITHelpersNullCheck(TR::TreeTop* treetop)
+   {
+   TR::Node* callNode = treetop->getNode()->getFirstChild();
+   TR::SymbolReference* symRef = callNode->getSymbolReference();
+   if (symRef->isUnresolved())
+      return;
+
+   TR::TransformUtil::separateNullCheck(comp(), treetop, trace());
+   TR::Node* receiver = callNode->getArgument(1);
+   TR::Node* jitHelpers = callNode->getArgument(0);
+
+   dumpOptDetails(comp(), "Insert NULLCHK on node %s [" POINTER_PRINTF_FORMAT "] n%dn\n", callNode->getOpCode().getName(), callNode, callNode->getGlobalIndex());
+   TR::Node* passthrough = TR::Node::create(callNode, TR::PassThrough, 1, receiver);
+   TR::ResolvedMethodSymbol* owningMethodSymbol = callNode->getSymbolReference()->getOwningMethodSymbol(comp());
+   TR::Node* nullchk = TR::Node::createWithSymRef(callNode, TR::NULLCHK, 1, passthrough, comp()->getSymRefTab()->findOrCreateNullCheckSymbolRef(owningMethodSymbol));
+   treetop->insertBefore(TR::TreeTop::create(comp(), nullchk));
+   TR::TransformUtil::transformCallNodeToPassThrough(this, callNode, treetop, jitHelpers);
+   }
+
 bool J9::RecognizedCallTransformer::isInlineable(TR::TreeTop* treetop)
    {
    auto node = treetop->getNode()->getFirstChild();
@@ -387,6 +406,8 @@ bool J9::RecognizedCallTransformer::isInlineable(TR::TreeTop* treetop)
          return !comp()->getOption(TR_DisableMaxMinOptimization);
       case TR::java_lang_StringUTF16_toBytes:
          return !comp()->compileRelocatableCode();
+      case TR::com_ibm_jit_JITHelpers_nullCheck:
+         return true;
       default:
          return false;
       }
@@ -399,6 +420,9 @@ void J9::RecognizedCallTransformer::transform(TR::TreeTop* treetop)
       {
       case TR::java_lang_invoke_MethodHandle_type:
          processMethodHandleType(treetop);
+         break;
+      case TR::com_ibm_jit_JITHelpers_nullCheck:
+         processJITHelpersNullCheck(treetop);
          break;
       case TR::sun_misc_Unsafe_getAndAddInt:
       case TR::sun_misc_Unsafe_getAndAddLong:
