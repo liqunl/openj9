@@ -3427,6 +3427,7 @@ TR_ResolvedJ9Method::TR_ResolvedJ9Method(TR_OpaqueMethodBlock * aMethod, TR_Fron
       {x(TR::com_ibm_jit_JITHelpers_getPackedDataSizeFromJ9Class64,           "getPackedDataSizeFromJ9Class64", "(J)J")},
       {x(TR::com_ibm_jit_JITHelpers_getComponentTypeFromJ9Class32,            "getComponentTypeFromJ9Class32", "(I)I")},
       {x(TR::com_ibm_jit_JITHelpers_getComponentTypeFromJ9Class64,            "getComponentTypeFromJ9Class64", "(J)J")},
+      {x(TR::com_ibm_jit_JITHelpers_nullCheck,                                "nullCheck", "(Ljava/lang/Object;)V")},
       {x(TR::com_ibm_jit_JITHelpers_transformedEncodeUTF16Big,                "transformedEncodeUTF16Big",       "(JJI)I")},
       {x(TR::com_ibm_jit_JITHelpers_transformedEncodeUTF16Little,             "transformedEncodeUTF16Little",    "(JJI)I")},
       {x(TR::com_ibm_jit_JITHelpers_getIntFromObject,                         "getIntFromObject", "(Ljava/lang/Object;J)I")},
@@ -4037,6 +4038,7 @@ TR_ResolvedJ9Method::TR_ResolvedJ9Method(TR_OpaqueMethodBlock * aMethod, TR_Fron
    static X DirectHandleMethods[] =
       {
       {x(TR::java_lang_invoke_DirectHandle_isAlreadyCompiled,   "isAlreadyCompiled",  "(J)Z")},
+      {x(TR::java_lang_invoke_DirectHandle_isStatic,            "isStatic",  "()Z")},
       {x(TR::java_lang_invoke_DirectHandle_compiledEntryPoint,  "compiledEntryPoint", "(J)J")},
       {x(TR::java_lang_invoke_DirectHandle_nullCheckIfRequired,  "nullCheckIfRequired", "(Ljava/lang/Object;)V")},
       {  TR::unknownMethod}
@@ -8133,6 +8135,23 @@ TR_J9ByteCodeIlGenerator::runFEMacro(TR::SymbolReference *symRef)
             {
             genTreeTop(callNode);
             }
+         }
+         return true;
+      case TR::java_lang_invoke_DirectHandle_isStatic:
+         {
+         J9::MethodHandleThunkDetails *thunkDetails = getMethodHandleThunkDetails(this, comp(), symRef);
+         if (!thunkDetails)
+            return false;
+
+            TR::VMAccessCriticalSection invokeDirectHandleDirectCall(fej9);
+            uintptrj_t methodHandle   = *thunkDetails->getHandleRef();
+            int32_t kind = fej9->getByteField(methodHandle, "kind");
+            //int32_t KIND_STATIC = fej9->getByteField(methodHandle, "KIND_STATIC");
+
+            if (kind == 6 /*KIND_STATIC*/)
+               push(TR::Node::iconst(1));
+            else
+               push(TR::Node::iconst(0));
          }
          return true;
       case TR::java_lang_invoke_DirectHandle_isAlreadyCompiled:
