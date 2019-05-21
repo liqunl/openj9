@@ -2474,6 +2474,8 @@ TR_J9InlinerPolicy::skipHCRGuardForCallee(TR_ResolvedMethod *callee)
       return true;
    else if (length >= 30 && !strncmp(className, "java/lang/invoke/CollectHandle", 30))
       return true;
+   else if (length >= 31 && !strncmp(className, "java/lang/invoke/IndirectHandle", 31))
+      return true;
    else if (length >= 29 && !strncmp(className, "java/lang/invoke/AsTypeHandle", 29))
       return true;
    else if (length >= 36 && !strncmp(className, "java/lang/invoke/ArgumentMoverHandle", 36))
