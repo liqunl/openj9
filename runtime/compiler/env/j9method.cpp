@@ -5399,6 +5399,9 @@ bool TR_ResolvedJ9Method::isWarmCallGraphTooBig(uint32_t bcIndex, TR::Compilatio
 
 void TR_ResolvedJ9Method::setWarmCallGraphTooBig(uint32_t bcIndex, TR::Compilation *comp)
    {
+   if (isArchetypeSpecimen())
+      return;
+
    if (fej9()->getIProfiler())
       fej9()->getIProfiler()->setWarmCallGraphTooBig((TR_OpaqueMethodBlock *)ramMethod(), bcIndex, comp, true);
    }
