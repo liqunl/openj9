@@ -1458,6 +1458,8 @@ TR_J9EstimateCodeSize::realEstimateCodeSize(TR_CallTarget *calltarget, TR_CallSt
                   {
                   isIndirectCall = true;
                   uintptrj_t *entryLocation = (uintptrj_t*)owningMethod->callSiteTableEntryAddress(cpIndex);
+                  // Add callsite handle to known object table
+                  knot->getIndexAt((uintptrj_t*)entryLocation);
                   resolvedMethod = comp()->fej9()->createMethodHandleArchetypeSpecimen(comp()->trMemory(), entryLocation, owningMethod);
                   bool allconsts= false;
 
