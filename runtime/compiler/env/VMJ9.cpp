@@ -1374,6 +1374,31 @@ TR_J9VMBase::getReferenceElement(uintptrj_t objectPointer, intptrj_t elementInde
    return (uintptrj_t)J9JAVAARRAYOFOBJECT_LOAD(vmThread(), objectPointer, elementIndex);
    }
 
+int32_t TR_J9VMBase::getArrayType(TR_OpaqueClassBlock* clazz)
+   {
+   J9Type j9type = j9TypeForClass(clazz);
+   switch (j9type)
+      {
+      case J9BOOLEAN:
+         return 4;
+      case J9CHAR:
+         return 5;
+      case J9FLOAT:
+         return 6;
+      case J9DOUBLE:
+         return 7;
+      case J9BYTE:
+         return 8;
+      case J9SHORT:
+         return 9;
+      case J9INT:
+         return 10;
+      case J9LONG:
+         return 11;
+      }
+   return 0;
+   }
+
 TR_OpaqueClassBlock *
 TR_J9VMBase::getClassFromJavaLangClass(uintptrj_t objectPointer)
    {
