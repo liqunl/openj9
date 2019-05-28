@@ -3949,6 +3949,7 @@ TR_ResolvedJ9Method::TR_ResolvedJ9Method(TR_OpaqueMethodBlock * aMethod, TR_Fron
       {x(TR::java_lang_invoke_CollectHandle_collectionStart,     	       "collectionStart",             "()I")},
       {x(TR::java_lang_invoke_CollectHandle_numArgsAfterCollectArray,      "numArgsAfterCollectArray",    "()I")},
       {  TR::java_lang_invoke_CollectHandle_invokeExact,          28,  "invokeExact_thunkArchetype_X",    (int16_t)-1, "*"},
+      {  TR::java_lang_invoke_CollectHandle_allocateArray,        13,  "allocateArray",    (int16_t)-1, "*"},
       {  TR::unknownMethod}
       };
 
@@ -7498,6 +7499,34 @@ TR_J9ByteCodeIlGenerator::runFEMacro(TR::SymbolReference *symRef)
 
    switch (rm)
       {
+      case TR::java_lang_invoke_CollectHandle_allocateArray:
+         {
+         TR::Node* classNode = top();
+         TR::Node* sizeNode = topn(1);
+         traceMsg(comp(), "classNode %p sizeNode %p\n", classNode, sizeNode);
+
+         if (sizeNode->getOpCodeValue() == TR::iconst &&
+             classNode->getSymbolReference()->hasKnownObjectIndex())
+            {
+            pop();
+            TR::KnownObjectTable *knot = comp()->getKnownObjectTable();
+            uintptrj_t* typeLocation = knot->getPointerLocation(classNode->getSymbolReference()->getKnownObjectIndex());
+            TR_OpaqueClassBlock* componentClazz = fej9->getClassFromJavaLangClass(*typeLocation);
+            int32_t typeIndex = fej9->getArrayType(componentClazz);
+            if (typeIndex != 0)
+               {
+               genNewArray(typeIndex);
+               }
+            else
+               {
+               loadClassObject(componentClazz);
+               genANewArray();
+               }
+            return true;
+            }
+         traceMsg(comp(), "Can't transform\n");
+         return false;
+         }
       case TR::java_lang_invoke_CollectHandle_numArgsToPassThrough:
       case TR::java_lang_invoke_CollectHandle_numArgsToCollect:
       case TR::java_lang_invoke_CollectHandle_collectionStart:
