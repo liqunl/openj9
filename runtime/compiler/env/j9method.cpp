@@ -3988,7 +3988,7 @@ TR_ResolvedJ9Method::TR_ResolvedJ9Method(TR_OpaqueMethodBlock * aMethod, TR_Fron
 
    static X ArgumentMoverHandleMethods[] =
       {
-      {x(TR::java_lang_invoke_ArgumentMoverHandle_permuteArgs,        "permuteArgs",   "(I)I")},
+      {  TR::java_lang_invoke_ArgumentMoverHandle_permuteArgs,     11, "permuteArgs",   (int16_t)-1, "*"},
       {  TR::java_lang_invoke_ArgumentMoverHandle_extra,           7, "extra_Z",       (int16_t)-1, "*"},
       {  TR::java_lang_invoke_ArgumentMoverHandle_extra,           7, "extra_B",       (int16_t)-1, "*"},
       {  TR::java_lang_invoke_ArgumentMoverHandle_extra,           7, "extra_C",       (int16_t)-1, "*"},
@@ -7494,8 +7494,9 @@ TR_J9ByteCodeIlGenerator::runFEMacro(TR::SymbolReference *symRef)
    char *nextHandleSignature = NULL;
 
    TR_J9VMBase *fej9 = (TR_J9VMBase *)fe();
+   TR::RecognizedMethod rm = symRef->getSymbol()->castToMethodSymbol()->getMandatoryRecognizedMethod();
 
-   switch (symRef->getSymbol()->castToMethodSymbol()->getMandatoryRecognizedMethod())
+   switch (rm)
       {
       case TR::java_lang_invoke_CollectHandle_numArgsToPassThrough:
       case TR::java_lang_invoke_CollectHandle_numArgsToCollect:
@@ -7856,10 +7857,20 @@ TR_J9ByteCodeIlGenerator::runFEMacro(TR::SymbolReference *symRef)
          TR::Node *originalArgs;
          char * oldSignature;
          char * newSignature;
+         TR::Node* extraNode = NULL;
+         TR::Node* extraL[5];
+         if (rm == TR::java_lang_invoke_ArgumentMoverHandle_permuteArgs)
+            {
+            extraNode = pop();
+            for (int i=4; i>=0; i--)
+                extraL[i] = pop();
+            }
 
             {
             TR::VMAccessCriticalSection invokePermuteHandlePermuteArgs(fej9);
             uintptrj_t methodHandle = *thunkDetails->getHandleRef();
+            traceMsg(comp(), "  permuteArgs:   methodHandle %p\n", methodHandle);
+
             uintptrj_t permuteArray = fej9->getReferenceField(methodHandle, "permute", "[I");
 
             // Create temporary placeholder to cause argument expressions to be expanded
@@ -7914,14 +7925,18 @@ TR_J9ByteCodeIlGenerator::runFEMacro(TR::SymbolReference *symRef)
                   if (comp()->getOption(TR_TraceILGen))
                      traceMsg(comp(), "  permuteArgs:   %d: call to %s.%s%s\n", argIndex, JSR292_BruteArgumentMoverHandle, extraName, extraSignature);
 
-                  if (thunkDetails->isCustom() && dataType != TR::Address)
+                  if (thunkDetails->isCustom())
                      {
                      char extraFieldSig[2];
                      extraFieldSig[0] = argType[0];
                      extraFieldSig[1] = '\0';
                      uintptrj_t extra = fej9->getReferenceField(methodHandle, "extra", "[Ljava/lang/Object;");
                      uintptrj_t extraArg = fej9->getReferenceElement(extra, -argIndex -1);
-                     uint32_t fieldOffset = fej9->getInstanceFieldOffset(fej9->getObjectClass(extraArg), "value", extraFieldSig);
+                     traceMsg(comp(), "  permuteArgs:   extra %p extraArg %p\n", extra, extraArg);
+                     uint32_t fieldOffset = 0;
+                     if (dataType != TR::Address)
+                        fieldOffset = fej9->getInstanceFieldOffset(fej9->getObjectClass(extraArg), "value", extraFieldSig);
+
                      TR::ILOpCodes opCode = comp()->il.opCodeForConst(dataType);
                      switch (dataType)
                         {
@@ -7949,10 +7964,31 @@ TR_J9ByteCodeIlGenerator::runFEMacro(TR::SymbolReference *symRef)
                            loadConstant(opCode,value);
                            break;
                            }
+                        case TR::Address:
+                           {
+                           if (extraArg == 0)
+                              {
+                              loadConstant(opCode, 0);
+                              break;
+                              }
+
+                           if (-1 - argIndex < 5)
+                              {
+                              push(extraL[-1-argIndex]);
+                              }
+                           else
+                              {
+                              push(extraNode);
+                              loadConstant(TR::iconst, -1 - argIndex);
+                              loadArrayElement(TR::Address, comp()->il.opCodeForIndirectArrayLoad(TR::Address), false);
+                              }
+                           break;
+                           }
                         default:
+                           TR_ASSERT_FATAL(false, "Unknown data type argIndex %d extraFieldSig %s", argIndex, extraFieldSig);
                            break;
                         }
-                     traceMsg(comp(), "  liqun BAMH:   %d: load primitive constant %s\n", argIndex, extraFieldSig);
+                     traceMsg(comp(), "  liqun BAMH:   %d: load constant %s\n", argIndex, extraFieldSig);
                      }
                   else
                      {
