@@ -4699,6 +4699,9 @@ TR_J9InlinerPolicy::doCorrectnessAndSizeChecksForInlineCallTarget(TR_CallStack *
 
    bool ignoreThisSmallMethod = getInitialBytecodeSize(calltarget->_calleeMethod, calltarget->_calleeSymbol, comp()) <= 20;
    //static int si, sj; ++sj;
+   static const bool ignoreTooManyNodesForThunk = feGetEnv("TR_ignoreTooManyNodesForThunk") ? true: false;
+   if (ignoreTooManyNodesForThunk && calltarget->_calleeSymbol->getResolvedMethod()->convertToMethod()->isArchetypeSpecimen())
+      return true;
    if (((_inliner->getNumAsyncChecks() > HIGH_LOOP_COUNT-5) || ((uint32_t)nodeCount > _inliner->getNodeCountThreshold())) && !_inliner->forceInline(calltarget) && !ignoreThisSmallMethod)
       {
       // getCurrentNumberOfNodes may be unreliable so we must recompute
