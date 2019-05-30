@@ -7011,7 +7011,7 @@ TR::CompilationInfoPerThreadBase::wrappedCompile(J9PortLibrary *portLib, void * 
       if (details.isMethodHandleThunk())
          {
          J9::MethodHandleThunkDetails &mhDetails = static_cast<J9::MethodHandleThunkDetails &>(details);
-         compilee = vm->createMethodHandleArchetypeSpecimen(p->trMemory(), method, mhDetails.getHandleRef());
+         compilee = vm->createMethodHandleArchetypeSpecimen(p->trMemory(), method, mhDetails.getHandleRef(), 0, mhDetails.isCustom());
          TR_ASSERT(compilee, "Cannot queue a thunk compilation for a MethodHandle without a suitable archetype");
          }
       else if (details.isNewInstanceThunk())
