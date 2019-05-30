@@ -694,7 +694,7 @@ bool TR_J9MutableCallSite::findCallSiteTarget (TR_CallStack *callStack, TR_Inlin
          {
          TR::ResolvedMethodSymbol *owningMethod   = _callNode->getSymbolReference()->getOwningMethodSymbol(comp());
          TR_ResolvedMethod       *specimenMethod = comp()->fej9()->createMethodHandleArchetypeSpecimen(comp()->trMemory(),
-            knot->getPointerLocation(vgs->_mutableCallSiteEpoch), owningMethod->getResolvedMethod());
+            knot->getPointerLocation(vgs->_mutableCallSiteEpoch), owningMethod->getResolvedMethod(), true);
          TR_CallTarget *target = addTarget(comp()->trMemory(), inliner, vgs,
             specimenMethod, _receiverClass, heapAlloc);
          TR_ASSERT(target , "There should be only one target for TR_MutableCallSite");
