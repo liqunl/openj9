@@ -2546,6 +2546,11 @@ bool TR_EscapeAnalysis::checkAllNewsOnRHSInLoopWithAliasing(int32_t defIndex, TR
 
          for (Candidate *otherAllocNode = _candidates.getFirst(); otherAllocNode; otherAllocNode = otherAllocNode->getNext())
             {
+if (trace())
+{
+traceMsg(comp(), "Looking at candidate %p against other %p\n", candidate->_node, otherAllocNode->_node);
+traceMsg(comp(), "defNode2 == %p; defTreeTop2 == %p; isDef == %d; isUse == %d\n", defNode2, _useDefInfo->getTreeTop(defIndex2), _useDefInfo->isDefIndex(defIndex2), _useDefInfo->isUseIndex(defIndex2));
+}
             // A reaching definition that is an allocation node for a candidate
             // for stack allocation is harmless.  Also, a reaching definition
             // that has the value number of a candidate allocation, other than the
@@ -2553,9 +2558,11 @@ bool TR_EscapeAnalysis::checkAllNewsOnRHSInLoopWithAliasing(int32_t defIndex, TR
             // second case avoids allowing the current candidate through from a
             // a previous loop iteration.
             if (otherAllocNode->_node == firstChild
-                   || (candidate->_node != otherAllocNode->_node
-                       && _valueNumberInfo->getValueNumber(otherAllocNode->_node)
-                            == _valueNumberInfo->getValueNumber(firstChild)))
+                   || (_valueNumberInfo->getValueNumber(otherAllocNode->_node)
+                             == _valueNumberInfo->getValueNumber(firstChild)
+                          && (candidate->_node != otherAllocNode->_node
+                                 || isCopyThroughFromCandidateInBlock(candidate,
+                                          _useDefInfo->getTreeTop(defIndex2)))))
                {
                rhsIsHarmless = true;
                break;
@@ -2681,6 +2688,60 @@ bool TR_EscapeAnalysis::checkAllNewsOnRHSInLoopWithAliasing(int32_t defIndex, TR
       }
 
    return allnewsonrhs;
+   }
+
+bool TR_EscapeAnalysis::isCopyThroughFromCandidateInBlock(Candidate *candidate, TR::TreeTop *defTreeTop)
+   {
+   TR_BitVector copyChain;
+   bool result = false;
+
+   for (TR::TreeTop *currTreeTop = candidate->_treeTop; currTreeTop; currTreeTop = currTreeTop->getNextTreeTop())
+      {
+      TR::Node *node = currTreeTop->getNode();
+
+      if (node->getOpCode().isStore() && node->getSymbol()->isAutoOrParm())
+         {
+         int32_t lhsIndex = node->getSymbolReference()->getReferenceNumber();
+
+         if (node->getFirstChild() == candidate->_node)
+            {
+            copyChain.set(lhsIndex);
+            }
+         else if (node->getFirstChild()->getOpCode().isLoadVarDirect()
+                     && node->getFirstChild()->getSymbol()->isAutoOrParm())
+            {
+            if (copyChain.get(node->getFirstChild()->getSymbolReference()->getReferenceNumber()))
+               {
+               copyChain.set(lhsIndex);
+               }
+            else if (!copyChain.get(lhsIndex))
+               {
+               copyChain.reset(lhsIndex);
+               }
+            }
+
+         if (currTreeTop == defTreeTop)
+            {
+            result = copyChain.get(lhsIndex);
+            if (trace())
+               {
+               traceMsg(comp(), "isCopyThrough with candidate [%p] for def [%p] reached defTreeTop - result == %d\n", candidate->_node, defTreeTop->getNode(), result);
+               }
+            break;
+            }
+         }
+
+      if (node->getOpCodeValue() == TR::BBEnd)
+         {
+         if (trace())
+            {
+            traceMsg(comp(), "isCopyThrough with candidate [%p] for def [%p] reached BBEnd - result == %d\n", candidate->_node, defTreeTop->getNode(), result);
+            }
+         break;
+         }
+      }
+
+   return result;
    }
 
 bool TR_EscapeAnalysis::checkAllNewsOnRHSInLoop(TR::Node *defNode, TR::Node *useNode, Candidate *candidate)

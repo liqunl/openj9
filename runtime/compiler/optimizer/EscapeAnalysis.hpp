@@ -508,6 +508,7 @@ class TR_EscapeAnalysis : public TR::Optimization
    bool     checkOtherDefsOfLoopAllocation(TR::Node *useNode, Candidate *candidate, bool isImmediateUse);
    bool     checkOverlappingLoopAllocation(TR::Node *useNode, Candidate *candidate);
    bool     checkOverlappingLoopAllocation(TR::Node *node, TR::Node *useNode, TR::Node *allocNode, rcount_t &numReferences);
+   bool     isCopyThroughFromCandidateInBlock(Candidate *candidate, TR::TreeTop *defTreeTop);
 
    /**
     * Visit nodes in the subtree, keeping track of those visited in
