@@ -340,6 +340,9 @@ TR_J9InlinerPolicy::alwaysWorthInlining(TR_ResolvedMethod * calleeMethod, TR::No
    if (calleeMethod->isDAAWrapperMethod())
       return true;
 
+   if (isJSR292SmallGetterMethod(calleeMethod))
+      return true;
+
    if (TR_J9MethodBase::isVarHandleOperationMethod(calleeMethod->convertToMethod()->getMandatoryRecognizedMethod()))
       return true;
 
@@ -4715,13 +4718,115 @@ TR_J9InlinerPolicy::supressInliningRecognizedInitialCallee(TR_CallSite* callsite
 TR_InlinerFailureReason
 TR_J9InlinerPolicy::checkIfTargetInlineable(TR_CallTarget* target, TR_CallSite* callsite, TR::Compilation* comp)
    {
-   return  static_cast<TR_InlinerFailureReason> (comp->fej9()->checkInlineableTarget(target, callsite, comp, false));
+   if (comp->compileRelocatableCode() && comp->getMethodHotness() <= cold)
+      {
+      // If we are an AOT cold compile, don't inline
+      return DontInline_Callee;
+      }
+
+   // for GPU, skip all the heuristic for JSR292 related methods
+   if (comp->hasIntStreamForEach())
+      return static_cast<TR_InlinerFailureReason> (comp->fej9()->checkInlineableTarget(target, callsite));
+
+   TR_ResolvedMethod * resolvedMethod = target->_calleeSymbol ? target->_calleeSymbol->getResolvedMethod():target->_calleeMethod;
+   if (isJSR292Method(resolvedMethod) &&
+      !isJSR292AlwaysInlineableMethod(resolvedMethod))
+      return DontInline_Callee;
+   else if (comp->ilGenRequest().details().isMethodHandleThunk() &&
+            static_cast<J9::MethodHandleThunkDetails &>(comp->ilGenRequest().details()).isShareable())
+      {
+      // We are trying to inline a non-JSR292 method and we are a shareable thunk, say NO
+      // Except for do and undo customization logic which we still want to inline...
+      //
+      if (resolvedMethod->getRecognizedMethod() != TR::java_lang_invoke_MethodHandle_doCustomizationLogic &&
+          resolvedMethod->getRecognizedMethod() != TR::java_lang_invoke_MethodHandle_undoCustomizationLogic)
+         {
+         return DontInline_Callee;
+         }
+      }
+   else
+      return static_cast<TR_InlinerFailureReason> (comp->fej9()->checkInlineableTarget(target, callsite));
+   return InlineableTarget;
+   }
+
+bool TR_J9InlinerPolicy::isJSR292Method(TR_ResolvedMethod *resolvedMethod)
+   {
+   if (isJSR292AlwaysInlineableMethod(resolvedMethod))
+      return true;
+
+   if (resolvedMethod->convertToMethod()->isArchetypeSpecimen())
+      return true;
+
+   TR::RecognizedMethod method =  resolvedMethod->getRecognizedMethod();
+   if (method == TR::java_lang_invoke_MethodHandle_invokeExact)
+      return true;
+   return false;
+   }
+
+bool TR_J9InlinerPolicy::isJSR292AlwaysInlineableMethod(TR_ResolvedMethod *resolvedMethod)
+   {
+   TR::RecognizedMethod method =  resolvedMethod->getRecognizedMethod();
+   if (TR_J9MethodBase::isVarHandleOperationMethod(method))
+      return true;
+
+   if (isJSR292SmallGetterMethod(resolvedMethod))
+      return true;
+
+   switch (method)
+      {
+      // single-level "leaf" handles
+      case TR::java_lang_invoke_DirectHandle_invokeExact:
+      case TR::java_lang_invoke_InterfaceHandle_invokeExact:
+      case TR::java_lang_invoke_VirtualHandle_invokeExact:
+         return true;
+      }
+   return false;
+   }
+
+bool TR_J9InlinerPolicy::isJSR292SmallGetterMethod(TR_ResolvedMethod *resolvedMethod)
+   {
+   TR::RecognizedMethod method =  resolvedMethod->getRecognizedMethod();
+   // small getters
+   switch (method)
+      {
+      case TR::java_lang_invoke_MethodHandle_invokeExactTargetAddress:
+      case TR::java_lang_invoke_MutableCallSite_getTarget:
+      case TR::java_lang_invoke_MethodHandle_type:
+      case TR::java_lang_invoke_ArgumentMoverHandle_extra:
+      case TR::java_lang_invoke_BruteArgumentMoverHandle_extra:
+         return true;
+      }
+   return false;
    }
 
 TR_InlinerFailureReason
 TR_J9JSR292InlinerPolicy::checkIfTargetInlineable(TR_CallTarget* target, TR_CallSite* callsite, TR::Compilation* comp)
    {
-   return  static_cast<TR_InlinerFailureReason> (comp->fej9()->checkInlineableTarget(target, callsite, comp, true));
+   // for GPU, skip all the heuristic for JSR292 related methods
+   if (comp->hasIntStreamForEach())
+      return DontInline_Callee;
+
+   TR_ResolvedMethod * resolvedMethod = target->_calleeSymbol ? target->_calleeSymbol->getResolvedMethod():target->_calleeMethod;
+   if (!isJSR292Method(resolvedMethod))
+      return DontInline_Callee;
+
+   if (isJSR292AlwaysInlineableMethod(resolvedMethod))
+      return InlineableTarget;
+   else if (comp->getCurrentMethod()->convertToMethod()->isArchetypeSpecimen() ||
+            comp->getCurrentMethod()->getRecognizedMethod() == TR::java_lang_invoke_MethodHandle_invokeExact)
+      {
+      //we are ourselves an archetype specimen, so we can inline other archetype speciman
+      return InlineableTarget;
+      }
+   else if (comp->getMethodHotness() >= hot)
+      {
+      // We are not an archetype specimen
+      // but because we're hot (or greater) we are allowed to inline JSR292 methods
+      return InlineableTarget;
+      }
+
+   //we are not an archetype specimen ourselves and we are warm or below, No inlining of JSR292 methods.
+   return DontInline_Callee;
     }
 
 void

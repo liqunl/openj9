@@ -234,6 +234,21 @@ class TR_J9InlinerPolicy : public OMR_InlinerPolicy
       bool validateArguments(TR_CallTarget *calltarget, TR_LinkHead<TR_ParameterMapping> &map);
       virtual bool supressInliningRecognizedInitialCallee(TR_CallSite* callsite, TR::Compilation* comp);
       virtual TR_InlinerFailureReason checkIfTargetInlineable(TR_CallTarget* target, TR_CallSite* callsite, TR::Compilation* comp);
+      /** \brief
+       *     This query decides whether the given callee should be considered to inline in targeted inlining.
+       */
+      static bool isJSR292Method(TR_ResolvedMethod *resolvedMethod);
+      /** \brief
+       *     This query decides whether the given callee should be considered to inline in both targeted inlining and normal inlining.
+       *
+       *  \notes
+       *     The methods are in 3 kinds: 1. VarHandle operation methods 2. small getters 3. leaf method handles
+       */
+      static bool isJSR292AlwaysInlineableMethod(TR_ResolvedMethod *resolvedMethod);
+      /** \brief
+       *     This query defines a group of methods that are small getters in the java/lang/invoke package
+       */
+      static bool isJSR292SmallGetterMethod(TR_ResolvedMethod *resolvedMethod);
    };
 
 class TR_J9JSR292InlinerPolicy : public TR_J9InlinerPolicy
