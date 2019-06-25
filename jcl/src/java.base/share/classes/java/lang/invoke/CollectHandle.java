@@ -1,6 +1,6 @@
 /*[INCLUDE-IF Sidecar17]*/
 /*******************************************************************************
- * Copyright (c) 2009, 2016 IBM Corp. and others
+ * Copyright (c) 2009, 2019 IBM Corp. and others
  *
  * This program and the accompanying materials are made available under
  * the terms of the Eclipse Public License 2.0 which accompanies this
@@ -23,6 +23,7 @@
 package java.lang.invoke;
 
 import com.ibm.oti.util.Msg;
+import java.lang.reflect.Array;
 
 /* CollectHandle is a MethodHandle subclass used to call another MethodHandle.  
  * It accepts the incoming arguments and collects the requested number
@@ -35,18 +36,32 @@ import com.ibm.oti.util.Msg;
  * down the call chain.
  */
 final class CollectHandle extends MethodHandle {
+	static final boolean[] EMPTY_BOOLEAN_ARRAY = new boolean[0];
+	static final byte[] EMPTY_BYTE_ARRAY = new byte[0];
+	static final char[] EMPTY_CHAR_ARRAY = new char[0];
+	static final short[] EMPTY_SHORT_ARRAY = new short[0];
+	static final int[] EMPTY_INT_ARRAY = new int[0];
+	static final long[] EMPTY_LONG_ARRAY = new long[0];
+	static final float[] EMPTY_FLOAT_ARRAY = new float[0];
+	static final double[] EMPTY_DOUBLE_ARRAY = new double[0];
 	@VMCONSTANTPOOL_FIELD
 	final MethodHandle next;
 	@VMCONSTANTPOOL_FIELD
 	final int collectArraySize; /* Size of the collect array */
 	@VMCONSTANTPOOL_FIELD
 	final int collectPosition; /* The starting position of arguments to collect */
+	final Object emptyArray;
 	
 	CollectHandle(MethodHandle next, int collectArraySize, int collectPosition) {
 		super(collectMethodType(next.type(), collectArraySize, collectPosition), KIND_COLLECT, new int[]{collectArraySize, collectPosition});
 		this.collectPosition = collectPosition;
 		this.collectArraySize = collectArraySize;
 		this.next = next;
+		if (collectArraySize == 0) {
+			emptyArray = createEmptyArray(next.type.arguments[collectPosition].getComponentType());
+		} else {
+			emptyArray = null;
+		}
 	}
 	
 	CollectHandle(CollectHandle original, MethodType newType) {
@@ -54,6 +69,33 @@ final class CollectHandle extends MethodHandle {
 		this.collectPosition = original.collectPosition;
 		this.collectArraySize = original.collectArraySize;
 		this.next = original.next;
+		this.emptyArray = original.emptyArray;
+	}
+
+	private static final Object createEmptyArray(Class<?> componentType) {
+		Object emptyArray;
+
+		if (componentType == boolean.class) {
+			emptyArray = EMPTY_BOOLEAN_ARRAY;
+		} else if (componentType == byte.class) {
+			emptyArray = EMPTY_BYTE_ARRAY;
+		} else if (componentType == char.class) {
+			emptyArray = EMPTY_CHAR_ARRAY;
+		} else if (componentType == short.class) {
+			emptyArray = EMPTY_SHORT_ARRAY;
+		} else if (componentType == int.class) {
+			emptyArray = EMPTY_INT_ARRAY;
+		} else if (componentType == long.class) {
+			emptyArray = EMPTY_LONG_ARRAY;
+		} else if (componentType == float.class) {
+			emptyArray = EMPTY_FLOAT_ARRAY;
+		} else if (componentType == double.class) {
+			emptyArray = EMPTY_DOUBLE_ARRAY;
+		} else {
+			emptyArray = Array.newInstance(componentType, 0);
+		}
+
+		return emptyArray;
 	}
 
 	private static final MethodType collectMethodType(MethodType type, int collectArraySize, int collectPosition) {
@@ -99,10 +141,10 @@ final class CollectHandle extends MethodHandle {
 		return thunkTable().get(new ThunkKeyWithIntArray(ThunkKey.computeThunkableType(type()), collectArguments));
 	}
 
-	private final Object allocateArray() {
-		return java.lang.reflect.Array.newInstance(
-			next.type().parameterType(collectPosition).getComponentType(),
-			collectArraySize);
+	private static final Object allocateArray(CollectHandle mh) {
+		return Array.newInstance(
+			mh.next.type.arguments[mh.collectPosition].getComponentType(),
+			mh.collectArraySize);
 	}
 
 	private static native int numArgsToCollect();
@@ -118,7 +160,7 @@ final class CollectHandle extends MethodHandle {
 			doCustomizationLogic();
 		}
 		ILGenMacros.populateArray(
-			ILGenMacros.push(allocateArray()),
+			ILGenMacros.push(collectArraySize == 0 ? emptyArray : allocateArray(this)),
 			ILGenMacros.middleN(collectionStart(), numArgsToCollect(), argPlaceholder));
 		return ILGenMacros.invokeExact_X(
 			next, 
