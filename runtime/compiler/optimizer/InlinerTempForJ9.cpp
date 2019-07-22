@@ -4728,7 +4728,7 @@ TR_J9InlinerPolicy::supressInliningRecognizedInitialCallee(TR_CallSite* callsite
                J9::MethodHandleThunkDetails & thunkDetails = static_cast<J9::MethodHandleThunkDetails &>(details);
                   return thunkDetails.isCustom();
                }
-            return false;
+            return true;
          }
       }
    return (callsite->_callNode && comp->fej9()->supressInliningRecognizedInitialCallee(callsite, comp));
