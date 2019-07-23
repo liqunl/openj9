@@ -7974,6 +7974,51 @@ TR_J9ByteCodeIlGenerator::runFEMacro(TR::SymbolReference *symRef)
                         loadArrayElement(TR::Address, comp()->il.opCodeForIndirectArrayLoad(TR::Address), false);
                         }
                      }
+                  else if (thunkDetails->isCustom())
+                     {
+                     char extraFieldSig[2];
+                     extraFieldSig[0] = argType[0];
+                     extraFieldSig[1] = '\0';
+                     uintptrj_t extra = fej9->getReferenceField(methodHandle, "extra", "[Ljava/lang/Object;");
+                     uintptrj_t extraArg = fej9->getReferenceElement(extra, -argIndex -1);
+                     traceMsg(comp(), "  permuteArgs:   extra %p extraArg %p\n", extra, extraArg);
+                     uint32_t fieldOffset = 0;
+                     if (dataType != TR::Address)
+                        fieldOffset = fej9->getInstanceFieldOffset(fej9->getObjectClass(extraArg), "value", extraFieldSig);
+
+                     TR::ILOpCodes opCode = comp()->il.opCodeForConst(dataType);
+                     switch (dataType)
+                        {
+                        case TR::Int32:
+                           {
+                           int32_t value = fej9->getInt32FieldAt(extraArg, fieldOffset);
+                           loadConstant(opCode,value);
+                           break;
+                           }
+                        case TR::Int64:
+                           {
+                           int64_t value = fej9->getInt64FieldAt(extraArg, fieldOffset);
+                           loadConstant(opCode,value);
+                           break;
+                           }
+                        case TR::Float:
+                           {
+                           float value = fej9->getFloatFieldAt(extraArg, fieldOffset);
+                           loadConstant(opCode, value);
+                           break;
+                           }
+                        case TR::Double:
+                           {
+                           double value = fej9->getDoubleFieldAt(extraArg, fieldOffset);
+                           loadConstant(opCode,value);
+                           break;
+                           }
+                        default:
+                           TR_ASSERT_FATAL(false, "Unknown data type argIndex %d extraFieldSig %s", argIndex, extraFieldSig);
+                           break;
+                        }
+                     traceMsg(comp(), "  liqun BAMH:   %d: load constant %s\n", argIndex, extraFieldSig);
+                     }
                   else
                      {
                      TR::SymbolReference *extra = comp()->getSymRefTab()->methodSymRefFromName(_methodSymbol, JSR292_ArgumentMoverHandle, extraName, extraSignature, TR::MethodSymbol::Static);
