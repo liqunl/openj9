@@ -1329,6 +1329,20 @@ TR_J9VMBase::setInt64FieldAt(uintptrj_t objectPointer, uintptrj_t fieldOffset, i
    *(int64_t*)(objectPointer + sizeof(J9Object) + fieldOffset) = newValue;
    }
 
+float
+TR_J9VMBase::getFloatFieldAt(uintptrj_t objectPointer, uintptrj_t fieldOffset)
+   {
+   TR_ASSERT(haveAccess(), "Must haveAccess in getInt32Field");
+   return *(float*)(objectPointer + sizeof(J9Object) + fieldOffset);
+   }
+
+double
+TR_J9VMBase::getDoubleFieldAt(uintptrj_t objectPointer, uintptrj_t fieldOffset)
+   {
+   TR_ASSERT(haveAccess(), "Must haveAccess in getInt32Field");
+   return *(double*)(objectPointer + sizeof(J9Object) + fieldOffset);
+   }
+
 bool
 TR_J9VMBase::compareAndSwapInt64FieldAt(uintptrj_t objectPointer, uintptrj_t fieldOffset, int64_t oldValue, int64_t newValue)
    {
