@@ -542,6 +542,8 @@ public:
    uintptrj_t           getReferenceFieldAtAddress(void *fieldAddress){ return getReferenceFieldAtAddress((uintptrj_t)fieldAddress); }
    uintptrj_t           getStaticReferenceFieldAtAddress(uintptrj_t fieldAddress);
    int32_t              getInt32FieldAt(uintptrj_t objectPointer, uintptrj_t fieldOffset);
+   float                getFloatFieldAt(uintptrj_t objectPointer, uintptrj_t fieldOffset);
+   double               getDoubleFieldAt(uintptrj_t objectPointer, uintptrj_t fieldOffset);
 
    int32_t getInt32Field(uintptrj_t objectPointer, char *fieldName)
       {

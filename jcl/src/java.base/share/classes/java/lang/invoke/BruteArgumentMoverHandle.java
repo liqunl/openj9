@@ -318,6 +318,19 @@ final class BruteArgumentMoverHandle extends ArgumentMoverHandle {
 	protected ThunkTable thunkTable(){ return _thunkTable; }
 
 	final Object extra_L(int index) {
+		return extra[-1 - index];
+	}
+
+	final int extra_I(int index) {
+		return (Integer)extra[-1 - index];
+	}
+
+	final long extra_J(int index) {
+		return (Long)extra[-1 - index];
+	}
+
+/*
+	final Object extra_L(int index) {
 		if (index == -1) {
 			return extra_L0;
 		} else if (index == -2) {
@@ -364,6 +377,7 @@ final class BruteArgumentMoverHandle extends ArgumentMoverHandle {
 			return (Long)extra[-1 - index];
 		}
 	}
+*/
 
 	// Unbox if needed.  These allow us to skip an AsTypeHandle just for unboxing,
 	// though it does impose a checkcast unless the jit can eliminate it.

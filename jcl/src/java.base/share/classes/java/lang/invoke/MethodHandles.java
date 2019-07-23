@@ -3414,6 +3414,43 @@ public class MethodHandles {
 			} else {
 				clazz.cast(value);
 			}
+
+                       if (clazz.isPrimitive()) {
+                               if (clazz == boolean.class) {
+                                       boolean realValue = ConvertHandle.FilterHelpers.object2Z(value);
+					values[i] = realValue;
+                               }
+                               else if (clazz == byte.class) {
+                                       byte realValue = ConvertHandle.FilterHelpers.object2B(value);
+					values[i] = realValue;
+                               }
+                               else if (clazz == short.class) {
+                                       short realValue = ConvertHandle.FilterHelpers.object2S(value);
+					values[i] = realValue;
+                               }
+                               else if (clazz == char.class) {
+                                       char realValue = ConvertHandle.FilterHelpers.object2C(value);
+					values[i] = realValue;
+                               }
+                               else if (clazz == int.class) {
+                                       int realValue = ConvertHandle.FilterHelpers.object2I(value);
+					values[i] = realValue;
+                               }
+                               else if (clazz == long.class) {
+                                       long realValue = ConvertHandle.FilterHelpers.object2J(value);
+					values[i] = realValue;
+                               }
+                               else if (clazz == float.class) {
+                                       float realValue = ConvertHandle.FilterHelpers.object2F(value);
+					values[i] = realValue;
+                               }
+                               else if (clazz == double.class) {
+                                       double realValue = ConvertHandle.FilterHelpers.object2D(value);
+					values[i] = realValue;
+                               }
+			valueClazz = values[i].getClass();
+                       }
+
 			// overwrite the original argument with the new class from the values[]
 			arguments[location + i] = valueClazz;
 		}
@@ -3440,8 +3477,10 @@ public class MethodHandles {
 			insertHandle = new InsertHandle(mtype, asTypedOriginalHandle, location, values);
 		}
 
+		//return insertHandle;
 		// Now give originalHandle a chance to supply a handle with a better thunk archetype
-		return originalHandle.insertArguments(insertHandle, asTypedOriginalHandle, location, values);
+		return originalHandle.insertArguments(insertHandle, originalHandle, location, values);
+		//return originalHandle.insertArguments(insertHandle, asTypedOriginalHandle, location, values);
 	}
 	
 	/*[IF Sidecar19-SE]*/
