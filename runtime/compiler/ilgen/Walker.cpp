@@ -6014,10 +6014,17 @@ TR_J9ByteCodeIlGenerator::loadInstance(int32_t cpIndex)
       }
 
    if (address->getOpCode().hasSymbolReference() &&
-       address->getSymbolReference()->hasKnownObjectIndex())
+       address->getSymbolReference()->hasKnownObjectIndex() &&
+       address->isNonNull())
       {
       TR::Node* nodeToRemove = NULL;
-      if (TR::TransformUtil::transformIndirectLoadChain(comp(), dummyLoad, address, address->getSymbolReference()->getKnownObjectIndex(), &nodeToRemove) && nodeToRemove)
+      bool succeed = TR::TransformUtil::transformIndirectLoadChain(comp(), dummyLoad, address, address->getSymbolReference()->getKnownObjectIndex(), &nodeToRemove);
+      if (succeed)
+         {
+         traceMsg(comp(), "Fold instance field in ILGen type %s node %p n%dn\n", dummyLoad->getDataType() == TR::Address ? "address" : "primitive", dummyLoad, dummyLoad->getGlobalIndex());
+         }
+
+      if (succeed && nodeToRemove)
          {
          nodeToRemove->recursivelyDecReferenceCount();
          }
