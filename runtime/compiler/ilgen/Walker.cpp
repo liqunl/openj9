@@ -6014,12 +6014,20 @@ TR_J9ByteCodeIlGenerator::loadInstance(int32_t cpIndex)
       }
 
    if (address->getOpCode().hasSymbolReference() &&
-       address->getSymbolReference()->hasKnownObjectIndex())
+       address->getSymbolReference()->hasKnownObjectIndex() &&
+       address->isNonNull())
       {
-      TR::Node* nodeToRemove = NULL;
-      if (TR::TransformUtil::transformIndirectLoadChain(comp(), dummyLoad, address, address->getSymbolReference()->getKnownObjectIndex(), &nodeToRemove) && nodeToRemove)
+      TR_OpaqueClassBlock *declaringClass = _methodSymbol->getResolvedMethod()->getDeclaringClassFromFieldOrStatic(comp(), cpIndex);
+      TR_OpaqueClassBlock *methodHandleClass =  fej9()->getSystemClassFromClassName("java/lang/invoke/MethodHandle", 29);
+      if (declaringClass &&
+          methodHandleClass &&
+          fej9()->isInstanceOf(declaringClass, methodHandleClass, true, true) == TR_yes)
          {
-         nodeToRemove->recursivelyDecReferenceCount();
+         TR::Node* nodeToRemove = NULL;
+         if (TR::TransformUtil::transformIndirectLoadChain(comp(), dummyLoad, address, address->getSymbolReference()->getKnownObjectIndex(), &nodeToRemove) && nodeToRemove)
+            {
+            nodeToRemove->recursivelyDecReferenceCount();
+            }
          }
       }
 
