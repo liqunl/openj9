@@ -454,6 +454,10 @@ bool TR_InlinerBase::inlineCallTarget(TR_CallStack *callStack, TR_CallTarget *ca
    calltarget->_prexArgInfo = TR_PrexArgInfo::enhance(calltarget->_prexArgInfo, argInfo, comp());
    argInfo = getUtil()->computePrexInfo(calltarget);
 
+   // Validate the arg info at callsite and arg info from call target
+   // If validation fails, we're inlining dead call
+
+
    if (!comp()->incInlineDepth(calltarget->_calleeSymbol, calltarget->_myCallSite->_callNode->getByteCodeInfo(), calltarget->_myCallSite->_callNode->getSymbolReference()->getCPIndex(), calltarget->_myCallSite->_callNode->getSymbolReference(), !calltarget->_myCallSite->_isIndirectCall, argInfo))
 		{
 		return false;
