@@ -4154,7 +4154,7 @@ TR_J9VMBase::canDereferenceAtCompileTimeWithFieldSymbol(TR::Symbol * fieldSymbol
             name = getClassNameChars((TR_OpaqueClassBlock*)fieldClass, len);
             }
 
-         return foldFinalFieldsIn(name, len, comp);
+         return TR::TransformUtil::foldFinalFieldsIn(NULL, name, len, false, comp);
          }
       }
    return false;
