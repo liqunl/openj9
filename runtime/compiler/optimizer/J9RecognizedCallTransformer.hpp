@@ -106,7 +106,6 @@ class RecognizedCallTransformer : public OMR::RecognizedCallTransformer
     *     Flag indicating if null check is needed on the first argument of the unsafe call
     */
    void processUnsafeAtomicCall(TR::TreeTop* treetop, TR::SymbolReferenceTable::CommonNonhelperSymbol helper, bool needsNullCheck = false);
-   void process_java_lang_invoke_MutableCallSite_getTarget(TR::TreeTop* treetop, TR::Node* node);
    };
 
 }

@@ -347,61 +347,6 @@ void J9::RecognizedCallTransformer::processUnsafeAtomicCall(TR::TreeTop* treetop
    unsafeCall->setSymbolReference(comp()->getSymRefTab()->findOrCreateCodeGenInlinedHelper(helper));
    }
 
-void process_java_lang_invoke_MutableCallSite_getTarget(TR::TreeTop* treetop, TR::Node* node)
-   {
-   TR::Node* mcsNode = node->getFirstArgument();
-   if (!mcsNode->getOpCode().hasSymbolReference())
-      return;
-
-   uintptrj_t* mcsLocation = NULL;
-   if (mcsNode->getSymbolReference()->hasKnownObjectIndex())
-      {
-      mcsLocation = mcsNode->getSymbolReference()->getKnownObjectReferenceLocation(comp());
-      }
-   else if (mcsNode->getSymbol()->isFixedObjectRef())
-      {
-      mcsLocation = (uintptrj_t*)mcsNode->getSymbol()->castToStaticSymbol()->getStaticAddress();
-      }
-
-   if (!mcsLocation)
-      return;
-
-   TR::knownObjectIndex epochKOI = TR::KnownObjectTable::UNKNOWN;
-
-      {
-      TR::VMAccessCriticalSection mutableCallSiteEpoch(comp()->fej9());
-      uintptrj_t mcsObject = comp()->fej9()->getStaticReferenceFieldAtAddress((uintptrj_t)mcsReferenceLocation);
-      if (mcsObject)
-         {
-         TR_J9VMBase *fej9 = (TR_J9VMBase *)(comp()->fej9());
-         uintptrj_t currentEpoch = fej9->getVolatileReferenceField(mcsObject, "epoch", "Ljava/lang/invoke/MethodHandle;");
-         if (currentEpoch)
-            epochKOI = knot->getIndex(currentEpoch);
-         }
-      }
-
-   if (epochKOI != TR::KnownObjectTable::UNKNOWN)
-      {
-      // Replace getTaret with aload from a temp with known object index
-      TR::ResolvedMethodSymbol* methodSymbol = node->getSymbol()->getResolvedMethodSymbol();
-      TR::ResolvedMethod* method = methodSymbol->getResolvedMethod();
-      uint32_t offset = fej9()->getInstanceFieldOffsetIncludingHeader("Ljava/lang/invoke/MutableCallSite;", "epoch", "Ljava/lang/invoke/MethodHandle;", method);
-      TR::SymbolReference *epochSymRef = comp()->getSymRefTab()->findOrFabricateShadowSymbol(methodSymbol,
-                                                                                            TR::Symbol::Java_lang_invoke_MutableCallSite_epoch,
-                                                                                            TR::Address,
-                                                                                            offset,
-                                                                                            true,
-                                                                                            true,
-                                                                                            false,
-                                                                                            "java/lang/invoke/MutableCallSite.epoch Ljava/lang/invoke/MethodHandle;");
-      if (treetop->getNode()->getOpCode().isNullCheck())
-         TR::Node::recreate(treetop->getNode(), TR::treetop);
-
-      TR::SymbolReference* improvedSymRef = comp()->getSymRefTab()->findOrCreateSymRefWithKnownObject(epochSymRef, epochKOI);
-      TR::Node::recreateWithSymRef(node, comp()->il.opCodeForIndirectLoad(TR::Address), 1, 1, mcsNode, improvedSymRef);
-      }
-   }
-
 bool J9::RecognizedCallTransformer::isInlineable(TR::TreeTop* treetop)
    {
    auto node = treetop->getNode()->getFirstChild();
@@ -438,11 +383,6 @@ bool J9::RecognizedCallTransformer::isInlineable(TR::TreeTop* treetop)
       case TR::java_lang_StrictMath_sqrt:
       case TR::java_lang_Math_sqrt:
          return TR::Compiler->target.cpu.getSupportsHardwareSQRT();;
-      case TR::java_lang_invoke_MutableCallSite_getTarget:
-         {
-         TR::Method* method = comp()->getCurrentMethod()->convertToMethod();
-         return method->isArchetypeSpecimen() && method->getMethodHandleLocation();
-         }
       default:
          return false;
       }
@@ -500,9 +440,6 @@ void J9::RecognizedCallTransformer::transform(TR::TreeTop* treetop)
       case TR::java_lang_StrictMath_sqrt:
       case TR::java_lang_Math_sqrt:
          process_java_lang_StrictMath_and_Math_sqrt(treetop, node);
-         break;
-      case TR::java_lang_invoke_MutableCallSite_getTarget:
-         process_java_lang_invoke_MutableCallSite_getTarget(treetop, node);
          break;
       default:
          break;
