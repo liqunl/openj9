@@ -149,6 +149,7 @@ public:
       Java_lang_invoke_BruteArgumentMoverHandle_extra,
       Java_lang_invoke_DynamicInvokerHandle_site,
       Java_lang_invoke_MutableCallSite_target,
+      Java_lang_invoke_MutableCallSite_epoch,
       Java_lang_invoke_MutableCallSiteDynamicInvokerHandle_mutableSite,
       Java_lang_invoke_MethodHandle_thunks,
       Java_lang_invoke_MethodHandle_type,
