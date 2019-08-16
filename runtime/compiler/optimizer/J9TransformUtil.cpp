@@ -111,6 +111,18 @@ static bool isFinalFieldOfNativeStruct(TR::SymbolReference *symRef, TR::Compilat
       }
    }
 
+static bool isFinalFieldOfNativeStructPointingAtJavaObject(TR::SymbolReference *symRef, TR::Compilation *comp)
+   {
+   switch (symRef->getReferenceNumber() - comp->getSymRefTab()->getNumHelperSymbols())
+      {
+      case TR::SymbolReferenceTable::javaLangClassFromClassSymbol:
+         TR_ASSERT(symRef->getSymbol()->isShadow(), "isFinalFieldOfNativeStructPointingAtJavaObject expected shadow symbol");
+         return true;
+      default:
+         return false;
+      }
+   }
+
 static bool isFinalFieldPointingAtNativeStruct(TR::SymbolReference *symRef, TR::Compilation *comp)
    {
    switch (symRef->getReferenceNumber() - comp->getSymRefTab()->getNumHelperSymbols())
@@ -273,6 +285,12 @@ static bool verifyFieldAccess(void *curStruct, TR::SymbolReference *field, TR::C
       {
       // These are implicitly verified by virtue of being verifiable
       //
+      return true;
+      }
+   else if (isFinalFieldOfNativeStructPointingAtJavaObject(field, comp))
+      {
+      // How to verify the curstruct? No, we can't. This is the same as
+      // final field of native struct, implicitly verified by virtue of being verifiable
       return true;
       }
    else
