@@ -1686,6 +1686,19 @@ J9::TransformUtil::transformIndirectLoadChainImpl(TR::Compilation *comp, TR::Nod
                   node->setAddress(value);
                   }
                }
+            else if (symRef->getReferenceNumber() - comp->getSymRefTab()->getNumHelperSymbols() == TR::SymbolReferenceTable::vftSymbol)
+               {
+               // This code should be moved to inside if isFinalFieldPointAtJ9Class
+               // Mask out last 8 bits for vft symbol
+               uint32_t mask = 0xFF;
+               mask = ~mask;
+               uint32_t value = *(uint32_t*)fieldAddress;
+               value = value & mask;
+               if (changeIndirectLoadIntoConst(node, TR::loadaddr, removedNode, comp))
+                  {
+                  node->setSymbolReference(comp->getSymRefTab()->findOrCreateClassSymbol(comp->getMethodSymbol(), -1, (TR_OpaqueClassBlock *)value));
+                  }
+               }
             else
                {
                // Representable native structs are handled before now.  All
