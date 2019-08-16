@@ -282,6 +282,21 @@ J9::Symbol::getRecognizedField()
       return TR::Symbol::UnknownField;
    }
 
+bool
+J9::Symbol::isFieldNeverNull()
+   {
+   TR::Symbol::RecognizedField recognizedField = self()->getRecognizedField();
+   switch (recognizedField)
+      {
+      case TR::Symbol::Java_lang_invoke_DynamicInvokerHandle_site:
+      case TR::Symbol::Java_lang_invoke_MethodHandle_thunks:
+      case TR::Symbol::Java_lang_invoke_MutableCallSite_target:
+      case TR::Symbol::Java_lang_invoke_MutableCallSiteDynamicInvokerHandle_mutableSite:
+         return true;
+      }
+   return false;
+   }
+
 /**
  * Return the owning class name of this recognized field.
  * Return null if this symbol does not have a recognized field.

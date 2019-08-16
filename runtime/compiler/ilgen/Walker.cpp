@@ -4928,6 +4928,11 @@ TR_J9ByteCodeIlGenerator::loadInstance(int32_t cpIndex)
    TR::ILOpCodes op = _generateReadBarriersForFieldWatch ? comp()->il.opCodeForIndirectReadBarrier(type): comp()->il.opCodeForIndirectLoad(type);
    dummyLoad = load = TR::Node::createWithSymRef(op, 1, 1, address, symRef);
 
+   if (symbol->isFieldNeverNull())
+      {
+      load->setIsNonNull(true);
+      }
+
    // loading cleanroom BigDecimal long field?
    // performed only when DFP isn't disabled, and the target
    // is DFP enabled (i.e. Power6, zSeries6)
