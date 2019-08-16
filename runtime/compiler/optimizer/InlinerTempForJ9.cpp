@@ -5157,6 +5157,22 @@ TR_PrexArgInfo* TR_PrexArgInfo::buildPrexArgInfoForMethodSymbol(TR::ResolvedMeth
    int index = 0;
    for (TR::ParameterSymbol *p = parms.getFirst(); p != NULL; index++, p = parms.getNext())
       {
+      /*
+      // need comp to enable this code
+      if (p->hasKnownObjectIndex())
+         {
+         TR::KnownObjectIndex KOI = p->getKnownObjectIndex();
+         argInfo->set(index, new (tracer->trHeapMemory()) TR_PrexArgument(KOI, comp));
+         heuristicTrace(tracer, "PREX-CSI:  Parm %d class %p in %p is known object\n", index, argInfo->get(index)->getClass(), argInfo->get(index));
+         continue;
+         }
+      */
+      if (p->getFixedType())
+         {
+         argInfo->set(index, new (tracer->trHeapMemory()) TR_PrexArgument(TR_PrexArgument::ClassIsFixed, (TR_OpaqueClassBlock*)p->getFixedType()));
+         heuristicTrace(tracer, "PREX-CSI:  Parm %d class %p in %p is fixed\n", index, argInfo->get(index)->getClass(), argInfo->get(index));
+         continue;
+         }
       TR_ASSERT(index < numArgs, "out of bounds!");
       int32_t len = 0;
       const char *sig = p->getTypeSignature(len);
