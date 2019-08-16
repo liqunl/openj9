@@ -4036,7 +4036,8 @@ TR_J9VMBase::canDereferenceAtCompileTime(TR::SymbolReference *fieldRef, TR::Comp
       {
       if (fieldRef->getReferenceNumber() < comp->getSymRefTab()->getNumPredefinedSymbols())
          {
-         return isFinalFieldOfNativeStruct(fieldRef, comp) || isFinalFieldPointingAtNativeStruct(fieldRef, comp);
+         return isFinalFieldOfNativeStruct(fieldRef, comp) || isFinalFieldPointingAtNativeStruct(fieldRef, comp)
+                || fieldRef == comp->getSymRefTab()->findJavaLangClassFromClassSymbolRef();
          }
       else switch (fieldRef->getSymbol()->getRecognizedField())
          {
