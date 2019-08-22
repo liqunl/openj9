@@ -4043,6 +4043,7 @@ TR_J9VMBase::canDereferenceAtCompileTime(TR::SymbolReference *fieldRef, TR::Comp
          {
          case TR::Symbol::Java_lang_invoke_PrimitiveHandle_rawModifiers:
          case TR::Symbol::Java_lang_invoke_PrimitiveHandle_defc:
+         case TR::Symbol::Java_lang_invoke_PrimitiveHandle_vmSlot:
          case TR::Symbol::Java_lang_invoke_VarHandle_handleTable:
             {
             return true;

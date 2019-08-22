@@ -155,6 +155,7 @@ public:
       Java_lang_invoke_MethodType_arguments,
       Java_lang_invoke_PrimitiveHandle_rawModifiers,
       Java_lang_invoke_PrimitiveHandle_defc,
+      Java_lang_invoke_PrimitiveHandle_vmSlot,
       Java_lang_invoke_ThunkTuple_invokeExactThunk,
       Java_util_Hashtable_elementCount,
       Java_math_BigInteger_ZERO,
