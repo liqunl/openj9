@@ -5004,6 +5004,7 @@ TR_J9InlinerUtil::computePrexInfo(TR_CallTarget *target)
                {
                if (priorKnowledge < PREEXISTENT)
                   {
+                  // liqun: we shouldn't create a prex arg without class info
                   argInfo->set(argOrdinal, new (inliner()->trStackMemory()) TR_PrexArgument(TR_PrexArgument::ClassIsPreexistent));
                   if (tracePrex)
                      traceMsg(comp(), "PREX.inl:      %p: is preexistent\n", argInfo->get(argOrdinal));
