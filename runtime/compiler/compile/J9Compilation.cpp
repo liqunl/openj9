@@ -189,6 +189,21 @@ J9::Compilation::Compilation(int32_t id,
 
    for (int i = 0; i < CACHED_CLASS_POINTER_COUNT; i++)
       _cachedClassPointers[i] = NULL;
+
+   // Add MethodHandle to the known object table so that parm symbol 0 can have known object index
+   TR::KnownObjectTable *knot = getOrCreateKnownObjectTable();
+   if (knot)
+      {
+      TR::IlGeneratorMethodDetails & details = ilGenRequest.details();
+      if (details.isMethodHandleThunk())
+         {
+         J9::MethodHandleThunkDetails & thunkDetails = static_cast<J9::MethodHandleThunkDetails &>(details);
+         if (thunkDetails.isCustom())
+            {
+            knot->getIndexAt(thunkDetails.getHandleRef());
+            }
+         }
+      }
    }
 
 J9::Compilation::~Compilation()
