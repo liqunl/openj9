@@ -168,6 +168,8 @@ retry:
 	} else {
 		J9I2JState * elsState = &(currentThread->entryLocalStorage->i2jState);
 		UDATA * returnSP;
+		UDATA alignedSP = 0;
+		UDATA currentSP = 0;
 		UDATA * sp;
 		U_32 infoWord = ((U_32 *) dltEntry)[-1];
 
@@ -190,10 +192,12 @@ retry:
 		sp = walkState->sp;
 		returnSP = sp + argCount;
 		returnSP = (UDATA *) ((UDATA) returnSP | J9_STACK_FLAGS_J2_IFRAME);
-
-		if (J9_ARE_ANY_BITS_SET((UDATA)sp, sizeof(UDATA))) {
+		/* Align the java stack before the call to the JIT code */
+		currentSP = (UDATA)sp;
+		alignedSP = currentSP & ~(J9_JIT_STACK_ALIGNMENT - 1);
+		if (alignedSP != currentSP) {
 			Trc_DLT_setUpForDLT_Aligning_Arguments(currentThread);
-			memmove((walkState->sp = sp - 1), sp, argCount * sizeof(UDATA));
+			memmove((walkState->sp = (UDATA*)alignedSP), (void*)currentSP, sizeof(UDATA) * argCount);
 			returnSP = (UDATA *) ((UDATA) returnSP | J9_STACK_FLAGS_ARGS_ALIGNED);
 		}
 		elsState->returnSP = returnSP;

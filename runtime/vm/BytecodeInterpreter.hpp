@@ -790,10 +790,12 @@ done:
 	jitTransition(REGISTER_ARGS_LIST, UDATA argCount, void *jitStartAddress)
 	{
 		UDATA returnSP = ((UDATA)(_sp + argCount)) | J9_STACK_FLAGS_J2_IFRAME;
-		/* Align the java stack such that sp is double-slot aligned upon entry to the JIT code */
-		if (J9_ARE_ANY_BITS_SET((UDATA)_sp, sizeof(UDATA))) {
-			_sp -= 1;
-			memmove(_sp, _sp + 1, sizeof(UDATA) * argCount);
+		/* Align the java stack before the call to the JIT code */
+		UDATA currentSP = (UDATA)_sp;
+		UDATA alignedSP = currentSP & ~(J9_JIT_STACK_ALIGNMENT - 1);
+		if (alignedSP != currentSP) {
+			_sp = (UDATA*)alignedSP;
+			memmove(_sp, (void*)currentSP, sizeof(UDATA) * argCount);
 			returnSP |= J9_STACK_FLAGS_ARGS_ALIGNED;
 		}
 		J9I2JState *i2jState = &_currentThread->entryLocalStorage->i2jState;

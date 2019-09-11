@@ -825,6 +825,14 @@ extern "C" {
 #define J9_ITABLE_OFFSET_VIRTUAL 2
 #define J9_ITABLE_OFFSET_TAG_BITS (J9_ITABLE_OFFSET_DIRECT | J9_ITABLE_OFFSET_VIRTUAL)
 
+/* The stack pointer alignment required when running inside a compiled method.
+ * Note: On X86, the stack is aligned before pushing the return address of the
+ * call instruction.
+ *
+ * Must be a multiple of sizeof(UDATA).
+ */
+#define J9_JIT_STACK_ALIGNMENT 16
+
 #ifdef __cplusplus
 }
 #endif

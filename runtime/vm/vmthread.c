@@ -1401,12 +1401,10 @@ allocateJavaStack(J9JavaVM * vm, UDATA stackSize, J9JavaStack * previousStack)
 		stagger += vm->thrStaggerStep;
 		vm->thrStagger = stagger = stagger >= vm->thrStaggerMax ? 0 : stagger;
 		if (vm->thrStaggerMax != 0) {
-			end += vm->thrStaggerMax - ((UDATA)end + stagger) % vm->thrStaggerMax;
+			end += vm->thrStaggerMax - (end + stagger) % vm->thrStaggerMax;
 		}
-		/* Ensure that the stack ends on a double-slot boundary */
-		if (J9_ARE_ANY_BITS_SET(end, sizeof(UDATA))) {
-			end += sizeof(UDATA);
-		}
+		/* Ensure that the stack end is properly aligned */
+		end &= ~(J9_JIT_STACK_ALIGNMENT - 1);
 #if 0
 		j9tty_printf(PORTLIB, "Allocated stack ending at 16r%p (stagger = %d, alignment = %d)\n", 
 			end, 

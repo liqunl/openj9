@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 1991, 2017 IBM Corp. and others
+ * Copyright (c) 1991, 2019 IBM Corp. and others
  *
  * This program and the accompanying materials are made available under
  * the terms of the Eclipse Public License 2.0 which accompanies this
@@ -135,8 +135,8 @@ static UDATA internalGrowJavaStack(J9VMThread * vmThread, UDATA newStackSize)
 		goto done;
 	}
 	delta = newStack->end - oldStack->end;
-	/* Assert that double-slot alignment has been maintained */
-	Assert_VM_false(J9_ARE_ANY_BITS_SET(delta, 1));
+	/* Assert that stack alignment has been maintained (delta is in slots, not bytes) */
+	Assert_VM_false(J9_ARE_ANY_BITS_SET(delta, ((J9_JIT_STACK_ALIGNMENT / sizeof(UDATA)) - 1)));
 	Trc_VM_growJavaStack_Delta(vmThread, oldStack, newStack, delta);
 	Trc_VM_growJavaStack_Copying(vmThread, vmThread->sp, vmThread->sp  + delta, usedBytes);
 
