@@ -35,7 +35,7 @@
 void J9::X86::Linkage::alignOffset(uint32_t &stackIndex, int32_t localObjectAlignment)
    {
    /* On the entry of a method
-    * RSP = 16*N + sizeOfReturnAddress
+    * RSP = 16*N - sizeOfReturnAddress
     * The address of a local object needs to be aligned to localObjectAlignment
     * Thus its offset needs to be aligned to localObjectAlignment*N - sizeOfReturnAddress
     * i.e. (sizeOfReturnAddress -stackIndex) % localObjectAlignment = 0

@@ -66,6 +66,15 @@ inline uint32_t align(uint32_t number, uint32_t requirement)
    TR_ASSERT(requirement && ((requirement & (requirement -1)) == 0), "INCORRECT ALIGNMENT");
    return (number + requirement - 1) & ~(requirement - 1);
    }
+
+inline uint32_t align(uint32_t number, uint32_t requirement, uint32_t offAmount)
+   {
+   TR_ASSERT(requirement && ((requirement & (requirement -1)) == 0), "INCORRECT ALIGNMENT");
+   uint32_t reminder = number % requirement;
+   if (reminder > offAmount) return requirement - reminder + offAmount;
+   return offAmount - reminder;
+   }
+
 inline uint32_t gcd(uint32_t a, uint32_t b)
    {
    while (b != 0)
@@ -87,7 +96,7 @@ TR::X86PrivateLinkage::X86PrivateLinkage(TR::CodeGenerator *cg) : TR::Linkage(cg
    //    X86-64: 16 bytes, required by both Linux and Windows
    // Stack alignment additional requirement:
    //    Stack alignment has to match the alignment requirement for local object address
-   _properties.setOutgoingArgAlignment(lcm(TR::Compiler->target.is32Bit() ? 4 : 16,
+   _properties.setOutgoingArgAlignment(lcm(TR::Compiler->target.is32Bit() ? 16 : 16,
                                            cg->fej9()->getLocalObjectAlignmentInBytes()));
    }
 
@@ -629,8 +638,8 @@ void TR::X86PrivateLinkage::createPrologue(TR::Instruction *cursor)
    //
       {
       int32_t frameSize = localSize + preservedRegsSize + ( _properties.getReservesOutgoingArgsInPrologue()? outgoingArgSize : 0 );
-      uint32_t stackSize = frameSize + _properties.getRetAddressWidth();
-      uint32_t adjust = align(stackSize, _properties.getOutgoingArgAlignment()) - stackSize;
+      uint32_t stackSize = frameSize; // + _properties.getRetAddressWidth();
+      uint32_t adjust = align(stackSize, _properties.getOutgoingArgAlignment(), _properties.getOutgoingArgAlignment() - _properties.getRetAddressWidth());
       cg()->setStackFramePaddingSizeInBytes(adjust);
       cg()->setFrameSizeInBytes(frameSize + adjust);
       if (trace)
