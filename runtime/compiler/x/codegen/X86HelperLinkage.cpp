@@ -23,6 +23,7 @@
 #include "codegen/X86HelperLinkage.hpp"
 
 #include "codegen/Linkage_inlines.hpp"
+#include "codegen/J9LinkageUtils.hpp"
 #include "codegen/Machine.hpp"
 #include "codegen/Register.hpp"
 #include "codegen/RegisterDependency.hpp"
@@ -41,11 +42,14 @@
 class RealRegisterManager
    {
    public:
-   RealRegisterManager(TR::CodeGenerator* cg) :
+   RealRegisterManager(TR::CodeGenerator* cg, bool switchStack) :
       _cg(cg),
-      _NumberOfRegistersInUse(0)
+      _NumberOfRegistersInUse(0),
+      _NumberOfPostCondRegistersInUse(0),
+      _switchStack(switchStack)
       {
       memset(_Registers, 0x0, sizeof(_Registers));
+      memset(_PostCondRegisters, 0x0, sizeof(_PostCondRegisters));
       }
    ~RealRegisterManager()
       {
@@ -56,19 +60,80 @@ class RealRegisterManager
             {
             _cg->stopUsingRegister(_Registers[i]);
             }
+
+         if (_PostCondRegisters[i] != NULL)
+            _cg->stopUsingRegister(_PostCondRegisters[i]);
          }
       }
-   // Find or allocate a virtual register which is bind to the given real register
-   TR::Register* Use(TR::RealRegister::RegNum RealRegister)
+
+   TR::Register* Use(TR::RealRegister::RegNum RealRegister, TR::Register* reg)
       {
-      if (_Registers[RealRegister] == NULL)
+      bool isGPR = RealRegister >= TR::RealRegister::FirstGPR && RealRegister <= TR::RealRegister::LastGPR;
+      if (!_switchStack)
          {
-         bool isGPR = RealRegister >= TR::RealRegister::FirstGPR && RealRegister <= TR::RealRegister::LastGPR;
-         _Registers[RealRegister] = _cg->allocateRegister(isGPR ? TR_GPR : TR_FPR);
-         _NumberOfRegistersInUse++;
+         if (_Registers[RealRegister] == NULL)
+            {
+            _Registers[RealRegister] = reg;
+            _NumberOfRegistersInUse++;
+            }
+         return _Registers[RealRegister];
          }
-      return _Registers[RealRegister];
+
+      if (_PostCondRegisters[RealRegister] == NULL)
+         {
+         _PostCondRegisters[RealRegister] = reg;
+         _NumberOfPostCondRegistersInUse++;
+         }
+
+      return _PostCondRegisters[RealRegister];
       }
+
+   // Find or allocate a virtual register which is bind to the given real register
+   TR::Register* Use(TR::RealRegister::RegNum RealRegister, bool dummy = false)
+      {
+      bool isGPR = RealRegister >= TR::RealRegister::FirstGPR && RealRegister <= TR::RealRegister::LastGPR;
+      if (!_switchStack)
+         {
+         if (_Registers[RealRegister] == NULL)
+            {
+            TR::Register* reg =  _cg->allocateRegister(isGPR ? TR_GPR : TR_FPR);
+            _Registers[RealRegister] = reg;
+            _NumberOfRegistersInUse++;
+            }
+         return _Registers[RealRegister];
+         }
+
+      if (_PostCondRegisters[RealRegister] == NULL)
+         {
+         TR::Register* reg = _cg->allocateRegister(isGPR ? TR_GPR : TR_FPR);
+         if (dummy) reg->setPlaceholderReg();
+         _PostCondRegisters[RealRegister] = reg;
+         _NumberOfPostCondRegistersInUse++;
+         }
+
+      return _PostCondRegisters[RealRegister];
+      }
+
+   // Build the dependencies for each virtual-real register pair
+   TR::RegisterDependencyConditions* BuildRegisterDependencyPostConditions()
+      {
+      TR::RegisterDependencyConditions* deps = generateRegisterDependencyConditions(0, // For VMThread
+                                                                                    NumberOfPostCondRegistersInUse() + 1, // For VMThread
+                                                                                    _cg);
+      for (uint8_t i = (uint8_t)TR::RealRegister::NoReg; i < (uint8_t)TR::RealRegister::NumRegisters; i++)
+         {
+         if (_PostCondRegisters[i] != NULL)
+            {
+            bool isDummy = _PostCondRegisters[i]->isPlaceholderReg();
+            uint8_t flag = isDummy ? DefinesDependentRegister : UsesDependentRegister;
+            deps->addPostCondition(_PostCondRegisters[i], (TR::RealRegister::RegNum)i, _cg, flag);
+            }
+         }
+      TR::Register* vmThread = _cg->getVMThreadRegister();
+      deps->addPostCondition(vmThread, (TR::RealRegister::RegNum)vmThread->getAssociation(), _cg);
+      return deps;
+      }
+
    // Build the dependencies for each virtual-real register pair
    TR::RegisterDependencyConditions* BuildRegisterDependencyConditions()
       {
@@ -93,10 +158,18 @@ class RealRegisterManager
       return _NumberOfRegistersInUse;
       }
 
+   inline uint8_t NumberOfPostCondRegistersInUse() const
+      {
+      return _NumberOfPostCondRegistersInUse;
+      }
+
    private:
    uint8_t            _NumberOfRegistersInUse;
+   uint8_t            _NumberOfPostCondRegistersInUse;
    TR::Register*      _Registers[TR::RealRegister::NumRegisters];
+   TR::Register*      _PostCondRegisters[TR::RealRegister::NumRegisters];
    TR::CodeGenerator* _cg;
+   bool _switchStack;
 };
 
 // On X86-32, fastcall is in-use for both Linux and Windows
@@ -215,6 +288,24 @@ static uint32_t X86HelperCallSiteCalculatePreservedRegisterMapForGC()
    }
 const uint32_t TR::X86HelperCallSite::PreservedRegisterMapForGC = X86HelperCallSiteCalculatePreservedRegisterMapForGC();
 
+static
+TR::Register *intOrLongClobberEvaluate(
+      TR::Node *node,
+      bool nodeIs64Bit,
+      TR::CodeGenerator *cg)
+   {
+   if (nodeIs64Bit)
+      {
+      TR_ASSERT(getNodeIs64Bit(node, cg), "nodeIs64Bit must be consistent with node size");
+      return cg->longClobberEvaluate(node);
+      }
+   else
+      {
+      TR_ASSERT(!getNodeIs64Bit(node, cg), "nodeIs64Bit must be consistent with node size");
+      return cg->intClobberEvaluate(node);
+      }
+   }
+
 TR::Register* TR::X86HelperCallSite::BuildCall()
    {
    TR_ASSERT(CalleeCleanup || cg()->getLinkage()->getProperties().getReservesOutgoingArgsInPrologue(),
@@ -224,18 +315,30 @@ TR::Register* TR::X86HelperCallSite::BuildCall()
       {
       traceMsg(cg()->comp(), "X86 HelperCall: [%04d] %s\n", _SymRef->getReferenceNumber(), cg()->getDebug()->getName(_SymRef));
       }
-   RealRegisterManager RealRegisters(cg());
+
+   TR::Node* callNode = _Node;
+   bool switchStack = false;
+   static char *disableStackSwitch = feGetEnv("TR_disableStackSwitch");
+   if (!disableStackSwitch)
+      {
+      switch (callNode->getSymbolReference()->getReferenceNumber())
+         {
+         case TR_jProfile32BitValue:
+         case TR_jProfile64BitValue:
+            switchStack = true;
+            break;
+         }
+      }
+
+   RealRegisterManager RealRegisters(cg(), switchStack);
    TR::RealRegister*   ESP = cg()->machine()->getRealRegister(TR::RealRegister::esp);
 
-   // Preserve caller saved registers
-   for (size_t i = 0;
-        i < sizeof(CallerSavedRegisters) / sizeof(CallerSavedRegisters[0]);
-        i++)
+   if (switchStack)
       {
-      RealRegisters.Use(CallerSavedRegisters[i]);
+      TR::LabelSymbol *startLabel = generateLabelSymbol(cg());
+      startLabel->setStartInternalControlFlow();
+      generateLabelInstruction(LABEL, callNode, startLabel, cg());
       }
-   // Find the return register, EAX/RAX
-   TR::Register* EAX = RealRegisters.Use(TR::RealRegister::eax);
 
    // Build parameters, parameters in _Params are Right-to-Left (RTL)
    int NumberOfParamOnStack = 0;
@@ -244,11 +347,21 @@ TR::Register* TR::X86HelperCallSite::BuildCall()
       size_t index = _Params.size() - i - 1;
       if (index < NumberOfIntParamRegisters)
          {
-         generateRegRegInstruction(MOVRegReg(),
+         // Don't generate instruction
+         if (false && switchStack)
+            {
+            TR::Node* child = callNode->getChild(index);
+            TR::Register* reg = cg()->gprClobberEvaluate(child, MOVRegReg());
+            RealRegisters.Use(IntParamRegisters[index], reg);
+            }
+         else
+            {
+            generateRegRegInstruction(MOVRegReg(),
                                    _Node,
                                    RealRegisters.Use(IntParamRegisters[index]),
                                    _Params[i],
                                    cg());
+            }
          }
       else
          {
@@ -269,16 +382,40 @@ TR::Register* TR::X86HelperCallSite::BuildCall()
          }
       }
 
+   if (switchStack)
+      {
+      TR::J9LinkageUtils::switchToMachineCStack(callNode, cg());
+      }
+
+
+   TR::Register* EAX = NULL;
+   if (_ReturnType != TR::NoType)
+      {
+      if (cg()->comp()->getOption(TR_TraceCG))
+         traceMsg(cg()->comp(), "use eax\n");
+      // Find the return register, EAX/RAX
+      EAX = RealRegisters.Use(TR::RealRegister::eax);
+      }
+
+   // Preserve caller saved registers
+   for (size_t i = 0;
+        i < sizeof(CallerSavedRegisters) / sizeof(CallerSavedRegisters[0]);
+        i++)
+      {
+      RealRegisters.Use(CallerSavedRegisters[i], true);
+      }
+
    // Call helper
    TR::X86ImmInstruction* instr = generateImmSymInstruction(CALLImm4,
                                                             _Node,
                                                             (uintptrj_t)_SymRef->getMethodAddress(),
                                                             _SymRef,
-                                                            RealRegisters.BuildRegisterDependencyConditions(),
+                                                            switchStack ? NULL : RealRegisters.BuildRegisterDependencyConditions(),
                                                             cg());
    instr->setNeedsGCMap(PreservedRegisterMapForGC);
 
    // Stack adjustment
+   if (!switchStack)
       {
       int SizeOfParamOnStack = StackSlotSize * (NumberOfParamOnStack + NumberOfIntParamRegisters - StackIndexAdjustment);
       if (CalleeCleanup)
@@ -315,9 +452,19 @@ TR::Register* TR::X86HelperCallSite::BuildCall()
          TR_ASSERT(false, "Unsupported call return data type: #%d", (int)_ReturnType);
          break;
       }
+
    if (ret)
       {
       generateRegRegInstruction(MOVRegReg(), _Node, ret, EAX, cg());
       }
+
+   if (switchStack)
+      {
+      TR::J9LinkageUtils::switchToJavaStack(callNode, cg());
+      TR::LabelSymbol *doneLabel = generateLabelSymbol(cg());
+      doneLabel->setEndInternalControlFlow();
+      generateLabelInstruction(LABEL, callNode, doneLabel, RealRegisters.BuildRegisterDependencyPostConditions(), cg());
+      }
+
    return ret;
 }
