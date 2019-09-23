@@ -321,6 +321,8 @@ TR::Register* TR::X86HelperCallSite::BuildCall()
    static char *disableStackSwitch = feGetEnv("TR_disableStackSwitch");
    if (!disableStackSwitch)
       {
+      switchStack = callNode->isProfilingCode();
+/*
       switch (callNode->getSymbolReference()->getReferenceNumber())
          {
          case TR_jProfile32BitValue:
@@ -328,6 +330,7 @@ TR::Register* TR::X86HelperCallSite::BuildCall()
             switchStack = true;
             break;
          }
+*/
       }
 
    RealRegisterManager RealRegisters(cg(), switchStack);
