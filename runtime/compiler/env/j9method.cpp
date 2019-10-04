@@ -7556,6 +7556,91 @@ static TR::DataType typeFromSig(char sig)
    return TR::NoType;
    }
 
+static char* sigForPrimitiveOrVoid(TR_OpaqueClassBlock* clazz)
+   {
+   J9Class* j9clazz = (J9Class*)clazz;
+
+   if (j9clazz == jitConfig->javaVM->booleanReflectClass)
+      return "Z";
+   else if (j9clazz == jitConfig->javaVM->byteReflectClass)
+      return "B";
+   else if (j9clazz == jitConfig->javaVM->charReflectClass)
+      return "C";
+   else if (j9clazz == jitConfig->javaVM->shortReflectClass)
+      return "S";
+   else if (j9clazz == jitConfig->javaVM->intReflectClass)
+      return "I";
+   else if (j9clazz == jitConfig->javaVM->longReflectClass)
+      return "J";
+   else if (j9clazz == jitConfig->javaVM->floatReflectClass)
+      return "F";
+   else if (j9clazz == jitConfig->javaVM->doubleReflectClass)
+      return "D";
+   else if (j9clazz == jitConfig->javaVM->voidReflectClass)
+      return "V";
+
+   return NULL;
+   }
+
+/**
+ * Get method descriptor for a MethodHandle object
+ */
+static char* getMethodDescriptor(TR::Compilation* comp, uintptrj_t methodHandle, intptrj_t &descriptorLength)
+   {
+   TR_J9VMBase *fej9 = comp->fej9();
+   TR_ASSERT_FATAL(fej9->haveAccess(), "Expect to have VM access in getMethodDescriptor");
+
+   uintptrj_t methodType = fej9->getReferenceField(
+      methodHandle,
+      "type",             "Ljava/lang/invoke/MethodType;");
+
+   uintptrj_t ptypes = fej9->getReferenceField(
+               methodType,
+               "ptypes",        "[Ljava/lang/Class;");
+
+   int32_t numArgs = fej9->getArrayLengthInElements(ptypes);
+   char** signatures = new (comp->trMemory()->trStackMemory()) char*[numArgs];
+   descriptorLength = 2; //space for '(', ')'
+   for (int32_t i = 0; i < numArgs; i++)
+      {
+      uintptrj_t jlclass = fej9->getReferenceElement(ptypes, i);
+      TR_OpaqueClassBlock* pclass = fej9->getClassFromJavaLangClass(jlclass);
+      signatures[i] = sigForPrimitiveOrVoid(pclass);
+      if (!signatures[i])
+         signatures[i] = fej9->getClassSignature(pclass, comp->trMemory());
+
+      descriptorLength += strlen(signatures[i]);
+      }
+
+   // Return type
+   uintptrj_t rtype = fej9->getReferenceField(
+               methodType,
+               "rtype",        "Ljava/lang/Class;");
+   TR_OpaqueClassBlock* rclass = fej9->getClassFromJavaLangClass(rtype);
+   char* rSignature = sigForPrimitiveOrVoid(rclass);
+   if (!rSignature)
+      rSignature = fej9->getClassSignature(rclass, comp->trMemory());
+
+   descriptorLength += strlen(rSignature);
+
+   char* methodDescriptor = new (comp->trMemory()->trStackMemory()) char[descriptorLength+1];
+   char* cursor = methodDescriptor;
+   *cursor++ = '(';
+
+   // Copy class signatures to descriptor string
+   for (int32_t i = 0; i < numArgs; i++)
+      {
+      int32_t len = strlen(signatures[i]);
+      strncpy(cursor, signatures[i], len);
+      cursor += len;
+      }
+
+   *cursor++ = ')';
+   // Copy return type signature to descriptor string
+   strcpy(cursor, rSignature);
+   return methodDescriptor;
+   }
+
 bool
 TR_J9ByteCodeIlGenerator::runFEMacro(TR::SymbolReference *symRef)
    {
@@ -7610,7 +7695,7 @@ TR_J9ByteCodeIlGenerator::runFEMacro(TR::SymbolReference *symRef)
                   methodHandle,
                   "next",             "Ljava/lang/invoke/MethodHandle;"),
                   "type",             "Ljava/lang/invoke/MethodType;"),
-                  "arguments",        "[Ljava/lang/Class;");
+                  "ptypes",           "[Ljava/lang/Class;");
                componentClazz = fej9->getComponentClassFromArrayClass(fej9->getClassFromJavaLangClass(fej9->getReferenceElement(arguments, collectPosition)));
                }
 
@@ -7669,7 +7754,7 @@ TR_J9ByteCodeIlGenerator::runFEMacro(TR::SymbolReference *symRef)
             collectArraySize = fej9->getInt32Field(methodHandle, "collectArraySize");
             if (getCollectPosition)
                collectionStart = fej9->getInt32Field(methodHandle, "collectPosition");
-            arguments = fej9->getReferenceField(fej9->getReferenceField(methodHandle, "type", "Ljava/lang/invoke/MethodType;"), "arguments", "[Ljava/lang/Class;");
+            arguments = fej9->getReferenceField(fej9->getReferenceField(methodHandle, "type", "Ljava/lang/invoke/MethodType;"), "ptypes", "[Ljava/lang/Class;");
             numArguments = (int32_t)fej9->getArrayLengthInElements(arguments);
             }
 
@@ -7706,7 +7791,6 @@ TR_J9ByteCodeIlGenerator::runFEMacro(TR::SymbolReference *symRef)
             return false;
 
          uintptr_t methodHandle;
-         uintptr_t methodDescriptorRef;
          intptr_t methodDescriptorLength;
          char *methodDescriptor;
 
@@ -7727,14 +7811,11 @@ TR_J9ByteCodeIlGenerator::runFEMacro(TR::SymbolReference *symRef)
             {
             TR::VMAccessCriticalSection invokeExplicitCastHandleConvertArgs(fej9);
             methodHandle = *thunkDetails->getHandleRef();
-            methodDescriptorRef = fej9->getReferenceField(fej9->getReferenceField(fej9->getReferenceField(
+
+            uintptrj_t nextHandle = fej9->getReferenceField(
                methodHandle,
-               "next",             "Ljava/lang/invoke/MethodHandle;"),
-               "type",             "Ljava/lang/invoke/MethodType;"),
-               "methodDescriptor", "Ljava/lang/String;");
-            methodDescriptorLength = fej9->getStringUTF8Length(methodDescriptorRef);
-            methodDescriptor = (char*)alloca(methodDescriptorLength+1);
-            fej9->getStringUTF8(methodDescriptorRef, methodDescriptor, methodDescriptorLength+1);
+               "next",             "Ljava/lang/invoke/MethodHandle;");
+            methodDescriptor = getMethodDescriptor(comp(), nextHandle, methodDescriptorLength);
             }
 
          // Create a placeholder to cause argument expressions to be expanded
@@ -7835,14 +7916,14 @@ TR_J9ByteCodeIlGenerator::runFEMacro(TR::SymbolReference *symRef)
                      methodHandle,
                      "next",             "Ljava/lang/invoke/MethodHandle;"),
                      "type",             "Ljava/lang/invoke/MethodType;"),
-                     "arguments",        "[Ljava/lang/Class;");
+                     "ptypes",        "[Ljava/lang/Class;");
                   targetParmClass = (TR_OpaqueClassBlock*)(intptr_t)fej9->getInt64Field(fej9->getReferenceElement(targetArguments, argIndex),
                                                                                    "vmRef" /* should use fej9->getOffsetOfClassFromJavaLangClassField() */);
                   // Load callsite type and check if two types are compatible
                   sourceArguments = fej9->getReferenceField(fej9->getReferenceField(
                      methodHandle,
                      "type",             "Ljava/lang/invoke/MethodType;"),
-                     "arguments",        "[Ljava/lang/Class;");
+                     "ptypes",        "[Ljava/lang/Class;");
                   sourceParmClass = (TR_OpaqueClassBlock*)(intptr_t)fej9->getInt64Field(fej9->getReferenceElement(sourceArguments, argIndex),
                                                                                    "vmRef" /* should use fej9->getOffsetOfClassFromJavaLangClassField() */);
                   }
@@ -7902,7 +7983,6 @@ TR_J9ByteCodeIlGenerator::runFEMacro(TR::SymbolReference *symRef)
          //
          uintptr_t receiverHandle;
          uintptr_t methodHandle;
-         uintptr_t methodDescriptorRef;
          intptr_t methodDescriptorLength;
          char *methodDescriptor;
 
@@ -7929,13 +8009,7 @@ TR_J9ByteCodeIlGenerator::runFEMacro(TR::SymbolReference *symRef)
             TR::VMAccessCriticalSection invokeILGenMacrosInvokeExactAndFixup(fej9);
             receiverHandle = *thunkDetails->getHandleRef();
             methodHandle = returnFromArchetype ? receiverHandle : walkReferenceChain(methodHandleExpression, receiverHandle);
-            methodDescriptorRef = fej9->getReferenceField(fej9->getReferenceField(
-               methodHandle,
-               "type",             "Ljava/lang/invoke/MethodType;"),
-               "methodDescriptor", "Ljava/lang/String;");
-            methodDescriptorLength = fej9->getStringUTF8Length(methodDescriptorRef);
-            methodDescriptor = (char*)alloca(methodDescriptorLength+1);
-            fej9->getStringUTF8(methodDescriptorRef, methodDescriptor, methodDescriptorLength+1);
+            methodDescriptor = getMethodDescriptor(comp(), methodHandle, methodDescriptorLength);
             }
 
          char *returnType = strchr(methodDescriptor, ')') + 1;
@@ -8017,8 +8091,8 @@ TR_J9ByteCodeIlGenerator::runFEMacro(TR::SymbolReference *symRef)
             return false;
 
          uintptr_t methodHandle;
-         uintptr_t methodDescriptorRef;
-         intptr_t methodDescriptorLength;
+         uintptr_t methodDescriptorLength;
+         char* methodDescriptor = NULL;
 
 #if defined(J9VM_OPT_JITSERVER)
          if (comp()->isOutOfProcessCompilation())
@@ -8036,14 +8110,11 @@ TR_J9ByteCodeIlGenerator::runFEMacro(TR::SymbolReference *symRef)
             {
             TR::VMAccessCriticalSection invokeArgumentMoverHandlePermuteArgs(fej9);
             methodHandle = *thunkDetails->getHandleRef();
-            methodDescriptorRef = fej9->getReferenceField(fej9->getReferenceField(fej9->getReferenceField(
+            uintptrj_t nextHandle = fej9->getReferenceField(
                methodHandle,
-               "next",             "Ljava/lang/invoke/MethodHandle;"),
-               "type",             "Ljava/lang/invoke/MethodType;"),
-               "methodDescriptor", "Ljava/lang/String;");
-            methodDescriptorLength = fej9->getStringUTF8Length(methodDescriptorRef);
-            nextHandleSignature = (char*)alloca(methodDescriptorLength+1);
-            fej9->getStringUTF8(methodDescriptorRef, nextHandleSignature, methodDescriptorLength+1);
+               "next",             "Ljava/lang/invoke/MethodHandle;");
+
+            nextHandleSignature = getMethodDescriptor(comp(), nextHandle, methodDescriptorLength);
             }
 
          if (comp()->getOption(TR_TraceILGen))
@@ -8277,7 +8348,7 @@ TR_J9ByteCodeIlGenerator::runFEMacro(TR::SymbolReference *symRef)
             methodHandle = *thunkDetails->getHandleRef();
             guardArgs = fej9->getReferenceField(fej9->methodHandle_type(fej9->getReferenceField(methodHandle,
                "guard", "Ljava/lang/invoke/MethodHandle;")),
-               "arguments", "[Ljava/lang/Class;");
+               "ptypes", "[Ljava/lang/Class;");
             numGuardArgs = (int32_t)fej9->getArrayLengthInElements(guardArgs);
             }
 
@@ -8315,7 +8386,7 @@ TR_J9ByteCodeIlGenerator::runFEMacro(TR::SymbolReference *symRef)
             TR::VMAccessCriticalSection invokeInsertHandle(fej9);
             methodHandle = *thunkDetails->getHandleRef();
             insertionIndex = fej9->getInt32Field(methodHandle, "insertionIndex");
-            arguments = fej9->getReferenceField(fej9->getReferenceField(methodHandle, "type", "Ljava/lang/invoke/MethodType;"), "arguments", "[Ljava/lang/Class;");
+            arguments = fej9->getReferenceField(fej9->getReferenceField(methodHandle, "type", "Ljava/lang/invoke/MethodType;"), "ptypes", "[Ljava/lang/Class;");
             numArguments = (int32_t)fej9->getArrayLengthInElements(arguments);
             values = fej9->getReferenceField(methodHandle, "values", "[Ljava/lang/Object;");
             numValues = (int32_t)fej9->getArrayLengthInElements(values);
@@ -8631,10 +8702,10 @@ TR_J9ByteCodeIlGenerator::runFEMacro(TR::SymbolReference *symRef)
             {
             TR::VMAccessCriticalSection invokeSpreadHandle(fej9);
             methodHandle = *thunkDetails->getHandleRef();
-            arguments = fej9->getReferenceField(fej9->methodHandle_type(methodHandle), "arguments", "[Ljava/lang/Class;");
+            arguments = fej9->getReferenceField(fej9->methodHandle_type(methodHandle), "ptypes", "[Ljava/lang/Class;");
             numArguments = (int32_t)fej9->getArrayLengthInElements(arguments);
             next         = fej9->getReferenceField(methodHandle, "next", "Ljava/lang/invoke/MethodHandle;");
-            nextArguments = fej9->getReferenceField(fej9->methodHandle_type(next), "arguments", "[Ljava/lang/Class;");
+            nextArguments = fej9->getReferenceField(fej9->methodHandle_type(next), "ptypes", "[Ljava/lang/Class;");
             numNextArguments = (int32_t)fej9->getArrayLengthInElements(nextArguments);
             // Guard to protect old code
             if (symRef->getSymbol()->castToMethodSymbol()->getMandatoryRecognizedMethod() == TR::java_lang_invoke_SpreadHandle_spreadStart ||
@@ -8730,7 +8801,7 @@ TR_J9ByteCodeIlGenerator::runFEMacro(TR::SymbolReference *symRef)
             else
                {
                uintptr_t combiner         = fej9->getReferenceField(methodHandle, "combiner", "Ljava/lang/invoke/MethodHandle;");
-               uintptr_t combinerArguments = fej9->getReferenceField(fej9->methodHandle_type(combiner), "arguments", "[Ljava/lang/Class;");
+               uintptr_t combinerArguments = fej9->getReferenceField(fej9->methodHandle_type(combiner), "ptypes", "[Ljava/lang/Class;");
                int32_t numArgs = (int32_t)fej9->getArrayLengthInElements(combinerArguments);
                // Push the indices in reverse order
                for (int i=foldPosition+numArgs-1; i>=foldPosition; i--)
@@ -8904,13 +8975,11 @@ TR_J9ByteCodeIlGenerator::runFEMacro(TR::SymbolReference *symRef)
             uintptr_t methodHandle = *thunkDetails->getHandleRef();
             uintptr_t finallyTarget = fej9->getReferenceField(methodHandle, "finallyTarget", "Ljava/lang/invoke/MethodHandle;");
             uintptr_t finallyType = fej9->getReferenceField(finallyTarget, "type", "Ljava/lang/invoke/MethodType;");
-            uintptr_t arguments        = fej9->getReferenceField(finallyType, "arguments", "[Ljava/lang/Class;");
+            uintptr_t arguments        = fej9->getReferenceField(finallyType, "ptypes", "[Ljava/lang/Class;");
             numArgsPassToFinallyTarget = (int32_t)fej9->getArrayLengthInElements(arguments);
 
-            uintptr_t methodDescriptorRef = fej9->getReferenceField(finallyType, "methodDescriptor", "Ljava/lang/String;");
-            int methodDescriptorLength = fej9->getStringUTF8Length(methodDescriptorRef);
-            methodDescriptor = (char*)alloca(methodDescriptorLength+1);
-            fej9->getStringUTF8(methodDescriptorRef, methodDescriptor, methodDescriptorLength+1);
+            uintptr_t methodDescriptorLength;
+            methodDescriptor = getMethodDescriptor(comp(), finallyTarget, methodDescriptorLength);
             }
 
          char *returnType = strchr(methodDescriptor, ')') + 1;
@@ -8949,7 +9018,7 @@ TR_J9ByteCodeIlGenerator::runFEMacro(TR::SymbolReference *symRef)
             {
             TR::VMAccessCriticalSection invokeFilterArgumentsWithCombinerHandle(fej9);
             methodHandle = *thunkDetails->getHandleRef();
-            arguments = fej9->getReferenceField(fej9->methodHandle_type(methodHandle), "arguments", "[Ljava/lang/Class;");
+            arguments = fej9->getReferenceField(fej9->methodHandle_type(methodHandle), "ptypes", "[Ljava/lang/Class;");
             numArguments = (int32_t)fej9->getArrayLengthInElements(arguments);
             filterPos     = (int32_t)fej9->getInt32Field(methodHandle, "filterPosition");
             }
@@ -8989,7 +9058,7 @@ TR_J9ByteCodeIlGenerator::runFEMacro(TR::SymbolReference *symRef)
             {
             TR::VMAccessCriticalSection invokeFilterArgumentsHandle2(fej9);
             methodHandle = *thunkDetails->getHandleRef();
-            arguments = fej9->getReferenceField(fej9->methodHandle_type(methodHandle), "arguments", "[Ljava/lang/Class;");
+            arguments = fej9->getReferenceField(fej9->methodHandle_type(methodHandle), "ptypes", "[Ljava/lang/Class;");
             numArguments = (int32_t)fej9->getArrayLengthInElements(arguments);
             startPos     = (int32_t)fej9->getInt32Field(methodHandle, "startPos");
             filters = fej9->getReferenceField(methodHandle, "filters", "[Ljava/lang/invoke/MethodHandle;");
@@ -9088,14 +9157,13 @@ TR_J9ByteCodeIlGenerator::runFEMacro(TR::SymbolReference *symRef)
                
 
             startPos = (int32_t)fej9->getInt32Field(methodHandle, "startPos");
-            uintptr_t methodDescriptorRef = fej9->getReferenceField(fej9->getReferenceField(fej9->getReferenceField(
+
+            uintptr_t nextHandle = fej9->getReferenceField(
                methodHandle,
-               "next",             "Ljava/lang/invoke/MethodHandle;"),
-               "type",             "Ljava/lang/invoke/MethodType;"),
-               "methodDescriptor", "Ljava/lang/String;");
-            intptr_t methodDescriptorLength = fej9->getStringUTF8Length(methodDescriptorRef);
-            nextSignature = (char*)alloca(methodDescriptorLength+1);
-            fej9->getStringUTF8(methodDescriptorRef, nextSignature, methodDescriptorLength+1);
+               "next",             "Ljava/lang/invoke/MethodHandle;");
+
+            uintptr_t methodDescriptorLength;
+            nextSignature = getMethodDescriptor(comp(), nextHandle, methodDescriptorLength);
             }
 
          placeholder = genNodeAndPopChildren(TR::icall, 1, placeholderWithDummySignature());
@@ -9203,7 +9271,7 @@ TR_J9ByteCodeIlGenerator::runFEMacro(TR::SymbolReference *symRef)
             uintptr_t catchArguments = fej9->getReferenceField(fej9->getReferenceField(
                catchTarget,
                "type", "Ljava/lang/invoke/MethodType;"),
-               "arguments", "[Ljava/lang/Class;");
+               "ptypes", "[Ljava/lang/Class;");
             numCatchArguments = (int32_t)fej9->getArrayLengthInElements(catchArguments);
             }
 
@@ -9236,7 +9304,7 @@ TR_J9ByteCodeIlGenerator::runFEMacro(TR::SymbolReference *symRef)
             uintptr_t arguments        = fej9->getReferenceField(fej9->getReferenceField(
                methodHandle,
                "type", "Ljava/lang/invoke/MethodType;"),
-               "arguments", "[Ljava/lang/Class;");
+               "ptypes", "[Ljava/lang/Class;");
             parameterCount = (int32_t)fej9->getArrayLengthInElements(arguments);
             }
 

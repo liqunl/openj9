@@ -1,6 +1,6 @@
 /*[INCLUDE-IF Sidecar17]*/
 /*******************************************************************************
- * Copyright (c) 2009, 2019 IBM Corp. and others
+ * Copyright (c) 2009, 2020 IBM Corp. and others
  *
  * This program and the accompanying materials are made available under
  * the terms of the Eclipse Public License 2.0 which accompanies this
@@ -66,7 +66,7 @@ abstract class FieldHandle extends PrimitiveHandle {
 	}
 
 	final Class<?> finishFieldInitialization(Class<?> accessClass) throws IllegalAccessException, NoSuchFieldException {
-		String signature = MethodType.getBytecodeStringName(fieldClass);
+		String signature = MethodTypeHelper.getBytecodeStringName(fieldClass);
 		try {
 			boolean isStaticLookup = ((KIND_GETSTATICFIELD == this.kind) || (KIND_PUTSTATICFIELD == this.kind)); 
 			return lookupField(referenceClass, name, signature, isStaticLookup, accessClass);

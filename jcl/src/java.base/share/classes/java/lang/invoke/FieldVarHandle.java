@@ -61,8 +61,7 @@ abstract class FieldVarHandle extends VarHandle {
 		int header = (isStatic ? 0 : VM.OBJECT_HEADER_SIZE);
 
 		/* The native lookupField method also modifies the definingClass field. */
-		this.vmslot = lookupField(definingClass, fieldName, MethodType.getBytecodeStringName(fieldType), fieldType, isStatic, accessClass) + header;
-
+		this.vmslot = lookupField(definingClass, fieldName, MethodTypeHelper.getBytecodeStringName(fieldType), fieldType, isStatic, accessClass) + header;
 		checkSetterFieldFinality(handleTable);
 	}
 	
@@ -120,7 +119,7 @@ abstract class FieldVarHandle extends VarHandle {
 			for (AccessMode mode : AccessMode.values()) {
 				if (mode.isSetter) {
 					MethodHandle mh = handleTable[mode.ordinal()];
-					Class<?>[] args = mh.type.arguments;
+					Class<?>[] args = mh.type.ptypes();
 					handleTable[mode.ordinal()] = MethodHandles.dropArguments(exceptionThrower, 0, args);
 				}
 			}
@@ -141,7 +140,7 @@ abstract class FieldVarHandle extends VarHandle {
 	 * 
 	 * @param lookupClass The class where we start the lookup of the field
 	 * @param name The field name
-	 * @param signature Equivalent of the String returned by MethodType.getBytecodeStringName
+	 * @param signature Equivalent of the String returned by MethodTypeHelper.getBytecodeStringName
 	 * @param type The exact type of the field. This must match the signature.
 	 * @param isStatic A boolean value indicating whether the field is static.
 	 * @param accessClass The class being used to look up the field.

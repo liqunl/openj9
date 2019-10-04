@@ -1,6 +1,6 @@
 /*[INCLUDE-IF Sidecar17]*/
 /*******************************************************************************
- * Copyright (c) 2009, 2017 IBM Corp. and others
+ * Copyright (c) 2009, 2020 IBM Corp. and others
  *
  * This program and the accompanying materials are made available under
  * the terms of the Eclipse Public License 2.0 which accompanies this
@@ -53,8 +53,8 @@ abstract class ConvertHandle extends MethodHandle {
 	 * Return conversions are handled by FilterReturnHandle.
 	 */
 	final void checkConversion(MethodType toType, MethodType fromType) {
-		Class<?>[] toArgs = toType.arguments;
-		Class<?>[] fromArgs = fromType.arguments;
+		Class<?>[] toArgs = toType.ptypes();
+		Class<?>[] fromArgs = fromType.ptypes();
 
 		if (toArgs.length != fromArgs.length) {
 			throwWrongMethodTypeException(fromType, toType, toArgs.length);
@@ -95,9 +95,9 @@ abstract class ConvertHandle extends MethodHandle {
 					continue;
 				} else {
 					// fromClass is reference type { Object, Number, Boolean, Byte, Integer, etc }
-					Class<?> unwrappedFromClass = MethodType.unwrapPrimitive(fromClass);
+					Class<?> unwrappedFromClass = MethodTypeHelper.unwrapPrimitive(fromClass);
 					if ((toClass == unwrappedFromClass) ||
-						fromClass.isAssignableFrom(MethodType.wrapPrimitive(toClass)) ||
+						fromClass.isAssignableFrom(MethodTypeHelper.wrapPrimitive(toClass)) ||
 						FilterHelpers.checkIfWideningPrimitiveConversion(unwrappedFromClass, toClass)) {
 						continue;
 					}
@@ -107,7 +107,7 @@ abstract class ConvertHandle extends MethodHandle {
 		
 			// toClass is reference type
 			// primitive wrapper is subclass of fromClass
-			if (toClass.isAssignableFrom(MethodType.wrapPrimitive(fromClass))) {
+			if (toClass.isAssignableFrom(MethodTypeHelper.wrapPrimitive(fromClass))) {
 				requiresBoxing = true;
 				continue;
 			}
@@ -219,19 +219,19 @@ abstract class ConvertHandle extends MethodHandle {
 		} 
 
 		static MethodHandle getPrimitiveReturnFilter(MethodType type, boolean isExplicitCast) throws IllegalAccessException, NoSuchMethodException {
-			Class<?> fromClass = type.arguments[0];
-			Class<?> toClass = type.returnType;
+			Class<?> fromClass = type.ptypes()[0];
+			Class<?> toClass = type.returnType();
 			
 			if (!isExplicitCast) {
-				if ((type.returnType != void.class) && !checkIfWideningPrimitiveConversion(fromClass, toClass)) {
+				if ((type.returnType() != void.class) && !checkIfWideningPrimitiveConversion(fromClass, toClass)) {
 					throw new WrongMethodTypeException();
 				}
 			}
 			MethodHandle filter = cachedReturnFilters.get(type);
 			if (filter == null) {
 				MethodHandle previous;
-				String to = MethodType.getBytecodeStringName(toClass);
-				String from = MethodType.getBytecodeStringName(type.arguments[0]);
+				String to = MethodTypeHelper.getBytecodeStringName(toClass);
+				String from = MethodTypeHelper.getBytecodeStringName(type.ptypes()[0]);
 				filter = privilegedLookup.findStatic(FilterHelpers.class, from + "2" + to, type); //$NON-NLS-1$
 				if ((previous = cachedReturnFilters.putIfAbsent(type, filter)) != null) {
 					filter = previous;
@@ -251,27 +251,27 @@ abstract class ConvertHandle extends MethodHandle {
 		 * Constructors of the Wrapper type provide the filter.
 		 */
 		static MethodHandle getBoxingReturnFilter(MethodType type) throws IllegalAccessException, NoSuchMethodException {
-			Class<?> wrapper = MethodType.wrapPrimitive(type.arguments[0]);
-			if (!type.returnType.isAssignableFrom(wrapper)) {
+			Class<?> wrapper = MethodTypeHelper.wrapPrimitive(type.ptypes()[0]);
+			if (!type.returnType().isAssignableFrom(wrapper)) {
 				throw new WrongMethodTypeException();
 			}
 			MethodHandle filter = cachedReturnFilters.get(type);
 			if (filter == null) {
 				MethodHandle previous;
-				filter = privilegedLookup.findStatic(wrapper, "valueOf", MethodType.methodType(wrapper, type.arguments[0])); //$NON-NLS-1$
+				filter = privilegedLookup.findStatic(wrapper, "valueOf", MethodType.methodType(wrapper, type.ptypes()[0])); //$NON-NLS-1$
 				if ((previous = cachedReturnFilters.putIfAbsent(type, filter)) != null) {
 					filter = previous;
 				}
 			}
-			if (type.returnType != wrapper) {
+			if (type.returnType() != wrapper) {
 				filter = filter.cloneWithNewType(type);
 			}
 			return filter;
 		}
 		
 		static MethodHandle getUnboxingReturnFilter(MethodType type, boolean isExplicitCast) throws IllegalAccessException, NoSuchMethodException {
-			Class<?> toUnbox = type.arguments[0];
-			Class<?> returnType = type.returnType;
+			Class<?> toUnbox = type.ptypes()[0];
+			Class<?> returnType = type.returnType();
 			
 			if (toUnbox.equals(Object.class)) {
 				String methodName;
@@ -280,22 +280,22 @@ abstract class ConvertHandle extends MethodHandle {
 				} else {
 					methodName = "object2"; //$NON-NLS-1$
 				}
-				methodName += MethodType.getBytecodeStringName(returnType);
+				methodName += MethodTypeHelper.getBytecodeStringName(returnType);
 				return privilegedLookup.findStatic(FilterHelpers.class, methodName, MethodType.methodType(returnType, Object.class));
 			
 			} else if (toUnbox.equals(Number.class)) {
 				/* Widening conversions need to validate the conversion at runtime */
 				if (!isExplicitCast) {
 					if ((returnType != boolean.class) || (returnType != char.class)) {
-						return privilegedLookup.findStatic(FilterHelpers.class, "number2" + MethodType.getBytecodeStringName(returnType), MethodType.methodType(returnType, Number.class)); //$NON-NLS-1$
+						return privilegedLookup.findStatic(FilterHelpers.class, "number2" + MethodTypeHelper.getBytecodeStringName(returnType), MethodType.methodType(returnType, Number.class)); //$NON-NLS-1$
 					}
 				} else {
 					/* special case these - can't be handled by the <type>Value() methods on Number */
 					if ((returnType == boolean.class) || (returnType == char.class)) {
-						String methodName = "explicitNumber2"  + MethodType.getBytecodeStringName(returnType); //$NON-NLS-1$
+						String methodName = "explicitNumber2"  + MethodTypeHelper.getBytecodeStringName(returnType); //$NON-NLS-1$
 						return privilegedLookup.findStatic(FilterHelpers.class, methodName, MethodType.methodType(returnType, Number.class));
 					}
-					String methodName = MethodType.getBytecodeStringName(returnType) + "Value"; //$NON-NLS-1$
+					String methodName = MethodTypeHelper.getBytecodeStringName(returnType) + "Value"; //$NON-NLS-1$
 					return privilegedLookup.findVirtual(Number.class, methodName, MethodType.methodType(returnType));
 				}
 			
@@ -318,9 +318,9 @@ abstract class ConvertHandle extends MethodHandle {
 				/* widen the return if possible */
 				return MethodHandles.filterReturnValue(filter, getPrimitiveReturnFilter(MethodType.methodType(returnType, char.class), isExplicitCast));
 			
-			} else if (MethodType.WRAPPER_SET.contains(toUnbox)) {
+			} else if (MethodTypeHelper.WRAPPER_SET.contains(toUnbox)) {
 				/* remaining wrappers may have widening conversions - can be handled by toUnbox#'type'Value() methods (ie: Number subclasses)*/
-				Class<?> unwrapped = MethodType.unwrapPrimitive(toUnbox);
+				Class<?> unwrapped = MethodTypeHelper.unwrapPrimitive(toUnbox);
 				boolean justUnwrap = returnType.equals(unwrapped);
 				if (justUnwrap || isExplicitCast || checkIfWideningPrimitiveConversion(unwrapped, returnType)) {
 					
@@ -345,7 +345,7 @@ abstract class ConvertHandle extends MethodHandle {
 		 * object to object conversion: use Class#cast(Object)
 		 */
 		static MethodHandle getCastFilter(MethodType type, boolean isExplicitCast) throws IllegalAccessException, NoSuchMethodException{
-			Class<?> returnClass = type.returnType;
+			Class<?> returnClass = type.returnType();
 			if (isExplicitCast && returnClass.isInterface()) {
 				// Interfaces are passed unchecked
 				MethodType filterType = MethodType.methodType(Object.class, Object.class);

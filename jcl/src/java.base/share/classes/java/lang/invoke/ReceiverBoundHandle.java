@@ -1,6 +1,6 @@
 /*[INCLUDE-IF Sidecar17]*/
 /*******************************************************************************
- * Copyright (c) 2009, 2019 IBM Corp. and others
+ * Copyright (c) 2009, 2020 IBM Corp. and others
  *
  * This program and the accompanying materials are made available under
  * the terms of the Eclipse Public License 2.0 which accompanies this
@@ -74,7 +74,7 @@ final class ReceiverBoundHandle extends DirectHandle {
 	 * argument.
 	 */
 	static final MethodType receiverBoundMethodType(MethodType type) {
-		return type.dropFirstParameterType();
+		return type.dropParameterTypes(0, 1);
 	}
 
 	@Override

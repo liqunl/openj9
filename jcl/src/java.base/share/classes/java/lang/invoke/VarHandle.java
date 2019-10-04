@@ -655,7 +655,7 @@ public abstract class VarHandle extends VarHandleInternal
 			modifiedType = accessModeTypeUncached(accessMode);
 		} else {
 			MethodType internalType = internalHandle.type;
-			int numOfArguments = internalType.arguments.length;
+			int numOfArguments = internalType.parameterCount();
 
 			/* Drop the internal VarHandle argument. */
 			modifiedType = internalType.dropParameterTypes(numOfArguments - 1, numOfArguments);
@@ -773,8 +773,8 @@ public abstract class VarHandle extends VarHandleInternal
 			/* The resulting method handle must come with the same signature as the requested access mode method
 			 * so as to throw out UnsupportedOperationException from that method.
 			 */
-			mh = mh.asType(MethodType.methodType(mt.returnType));
-			mh = MethodHandles.dropArguments(mh, 0, mt.arguments);
+			mh = mh.asType(MethodType.methodType(mt.returnType()));
+			mh = MethodHandles.dropArguments(mh, 0, mt.parameterArray());
 		}
 		
 		return mh;
@@ -1517,7 +1517,7 @@ public abstract class VarHandle extends VarHandleInternal
 			return (ClassDesc)args[0];
 		}		
 	}
-/*[ENDIF] Java12 */ 
+/*[ENDIF] Java12 */
 
 /*[IF Java15]*/
 	VarHandle target() {
@@ -1538,4 +1538,19 @@ public abstract class VarHandle extends VarHandleInternal
 /*[ENDIF] Java15 */
 
 	abstract MethodType accessModeTypeUncached(AccessMode accessMode);
+
+	static final class AccessDescriptor {
+		final MethodType symbolicMethodTypeErased;
+		final MethodType symbolicMethodTypeInvoker;
+		final Class<?> returnType;
+		final int type;
+		final int mode;
+		public AccessDescriptor(MethodType mtype, int type, int mode) {
+			symbolicMethodTypeErased = mtype.erase();
+			symbolicMethodTypeInvoker = mtype.insertParameterTypes(0, new Class<?>[] {VarHandle.class});
+			returnType = mtype.returnType();
+			this.type = type;
+			this.mode = mode;
+		}
+	}
 }

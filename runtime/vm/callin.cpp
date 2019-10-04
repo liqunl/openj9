@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2012, 2019 IBM Corp. and others
+ * Copyright (c) 2012, 2020 IBM Corp. and others
  *
  * This program and the accompanying materials are made available under
  * the terms of the Eclipse Public License 2.0 which accompanies this
@@ -880,7 +880,7 @@ sendFromMethodDescriptorString(J9VMThread *currentThread, J9UTF8 *descriptor, J9
 			*--currentThread->sp = (UDATA)classLoader->classLoaderObject;
 			*--currentThread->sp = (UDATA)J9VM_J9CLASS_TO_HEAPCLASS(appendArgType);
 			currentThread->returnValue = J9_BCLOOP_RUN_METHOD;
-			currentThread->returnValue2 = (UDATA)J9VMJAVALANGINVOKEMETHODTYPE_VMRESOLVEFROMMETHODDESCRIPTORSTRING_METHOD(vm);
+			currentThread->returnValue2 = (UDATA)J9VMJAVALANGINVOKEMETHODTYPEHELPER_VMRESOLVEFROMMETHODDESCRIPTORSTRING_METHOD(vm);
 			c_cInterpreter(currentThread);
 		}
 		restoreCallInFrame(currentThread);

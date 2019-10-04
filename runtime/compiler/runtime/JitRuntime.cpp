@@ -1783,8 +1783,10 @@ void methodHandleJ2I(j9object_t methodHandle, void **stack, J9VMThread *vmThread
       {
       TR_VerboseLog::writeLineLocked(TR_Vlog_J2I, "%p J2I mh: %p sp: %p", vmThread, methodHandle, stack);
       // TODO: Adjust "stack" so it points at the MethodHandle.  +1 for return address, +N for n argument slots
-      uintptr_t methodType = fej9->getReferenceField ((uintptr_t)methodHandle, "type",     "Ljava/lang/invoke/MethodType;");
-      int32_t    argSlots   = fej9->getInt32Field     (            methodType  , "argSlots");
+      uintptr_t methodType = fej9->getReferenceField ((uintptrj_t)methodHandle, "type",     "Ljava/lang/invoke/MethodType;");
+      uintptr_t methodTypeForm = fej9->getReferenceField (          methodType, "form",     "Ljava/lang/invoke/MethodTypeForm;");
+      int64_t    argCounts  = fej9->getInt64Field     (          methodTypeForm, "argCounts");
+      int32_t    argSlots   = (int32_t)((argCounts >> 16) & 0xFFFF);
       void **methodHandleOnStack = stack + argSlots;
       printMethodHandleArgs(methodHandle, methodHandleOnStack, vmThread, TR_Vlog_J2I, fej9);
       }

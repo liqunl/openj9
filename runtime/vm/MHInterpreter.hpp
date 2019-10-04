@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 1991, 2019 IBM Corp. and others
+ * Copyright (c) 1991, 2020 IBM Corp. and others
  *
  * This program and the accompanying materials are made available under
  * the terms of the Eclipse Public License 2.0 which accompanies this
@@ -136,7 +136,7 @@ private:
 	VMINLINE U_32
 	getMethodTypeArgSlots(j9object_t methodType) const
 	{
-		return (U_32)J9VMJAVALANGINVOKEMETHODTYPE_ARGSLOTS(_currentThread, methodType);
+		return VM_VMHelpers::getArgSlotFromMethodType(_currentThread, methodType);
 	}
 
 	/**
@@ -199,7 +199,7 @@ private:
 	{
 		return J9VM_J9CLASS_FROM_HEAPCLASS(
 				_currentThread,
-				J9VMJAVALANGINVOKEMETHODTYPE_RETURNTYPE(_currentThread, methodType));
+				J9VMJAVALANGINVOKEMETHODTYPE_RTYPE(_currentThread, methodType));
 	}
 
 	/**
@@ -210,7 +210,7 @@ private:
 	VMINLINE j9object_t
 	getMethodTypeArguments(j9object_t methodType) const
 	{
-		return J9VMJAVALANGINVOKEMETHODTYPE_ARGUMENTS(_currentThread, methodType);
+		return J9VMJAVALANGINVOKEMETHODTYPE_PTYPES(_currentThread, methodType);
 	}
 
 	/**
