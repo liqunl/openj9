@@ -4874,6 +4874,44 @@ TR_J9InlinerUtil::estimateAndRefineBytecodeSize(TR_CallSite* callsite, TR_CallTa
       }
    }
 
+TR_PrexArgInfo* TR_PrexArgInfo::argInfoFromCaller(TR::Node* callNode, TR_PrexArgInfo* callerArgInfo)
+   {
+   int32_t firstArgIndex = callNode->getFirstArgumentIndex();
+   int32_t numArgs = callNode->getNumArguments();
+   int32_t numChildren = callNode->getNumChildren();
+
+   TR_PrexArgInfo* argInfo = new (TR::comp()->trStackMemory()) TR_PrexArgInfo(numArgs, TR::comp()->trMemory());
+
+   for (int32_t i = firstArgIndex; i < numChildren; i++)
+      {
+      TR::Node* child = callNode->getChild(i);
+      if (TR_PrexArgInfo::hasArgInfoForChild(child, callerArgInfo))
+         {
+         argInfo->set(i - firstArgIndex, TR_PrexArgInfo::getArgForChild(child, callerArgInfo));
+         }
+      }
+   return argInfo;
+   }
+
+TR_PrexArgInfo *
+TR_J9InlinerUtil::computePrexInfo(TR_CallTarget *target, TR_PrexArgInfo *callerArgInfo)
+   {
+   TR_CallSite *site = target->_myCallSite;
+   if (!site)
+      return NULL;
+
+   if (!site->_callNode)
+      return NULL;
+
+   if (callerArgInfo)
+      {
+      TR_PrexArgInfo* argsFromCaller = TR_PrexArgInfo::argInfoFromCaller(site->_callNode, callerArgInfo);
+      target->_prexArgInfo = TR_PrexArgInfo::enhance(target->_prexArgInfo, argsFromCaller, comp());
+      }
+
+   return computePrexInfo(target);
+   }
+
 TR_PrexArgInfo *
 TR_J9InlinerUtil::computePrexInfo(TR_CallTarget *target)
    {
