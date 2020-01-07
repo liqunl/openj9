@@ -5994,8 +5994,8 @@ void *TR::CompilationInfo::compileOnSeparateThread(J9VMThread * vmThread, TR::Il
             else if (nextHotness > hot && (dynamicThreadPriority() || compBudgetSupport()))
                compPriority = CP_ASYNC_ABOVE_NORMAL;
             // hot methods below 6% will be given lower priority
-            else if (nextHotness == hot &&
-                     optimizationPlan->getPerceivedCPUUtil() <= (TR::Options::_sampleInterval * 1000 / TR::Options::_veryHotSampleThreshold) &&
+            else if (nextHotness == hot && TR::Options::_veryHotSampleThreshold != 0 &&
+                     optimizationPlan->getPerceivedCPUUtil() <= (TR::Options::_sampleInterval * 1000 / TR::Options::_veryHotSampleThreshold) && //liqun: we crash in this divide
                      bodyInfo->getSamplingRecomp()) // recompilation triggered through sampling (as opposed to EDO)
                {
                compPriority = CP_ASYNC_BELOW_NORMAL;
