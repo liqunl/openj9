@@ -8221,11 +8221,14 @@ TR::CompilationInfoPerThreadBase::wrappedCompile(J9PortLibrary *portLib, void * 
                   //
                   static char *disableNextGenHCRDuringStartup = feGetEnv("TR_DisableNextGenHCRDuringStartup");
                   static char *enableStartupNextGenHCRAtAllOpts = feGetEnv("TR_EnableStartupNextGenHCRAtAllOpts");
+                  static char *enableStartupNextGenHCRAtWarm = feGetEnv("TR_EnableStartupNextGenHCRAtWarm");
                   if (jitConfig->javaVM->phase != J9VM_PHASE_NOT_STARTUP
                       && (disableNextGenHCRDuringStartup
                           || that->_methodBeingCompiled->isDLTCompile()
                           || options->getOptLevel() <= warm
-                             && !enableStartupNextGenHCRAtAllOpts))
+                             && !enableStartupNextGenHCRAtAllOpts)
+                          && (options->getOptLevel() != warm
+                             || !enableStartupNextGenHCRAtWarm))
                      {
                      options->setOption(TR_DisableNextGenHCR);
                      }
