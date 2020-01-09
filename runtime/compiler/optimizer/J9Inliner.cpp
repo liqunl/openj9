@@ -843,6 +843,7 @@ void TR_ProfileableCallSite::findSingleProfiledReceiver(ListIterator<TR_ExtraAdd
 
 
       bool preferMethodTest = false;
+      bool noGuard = false;
 
       bool isClassObsolete = comp()->getPersistentInfo()->isObsoleteClass((void*)tempreceiverClass, comp()->fe());
 
@@ -851,7 +852,12 @@ void TR_ProfileableCallSite::findSingleProfiledReceiver(ListIterator<TR_ExtraAdd
          int32_t len = 1;
          const char *className = TR::Compiler->cls.classNameChars(comp(), tempreceiverClass, len);
 
-         if (!strncmp(className, "java/lang/ThreadLocal", 21) && !isInterface())
+         static const char* disablePreferMethodTest = feGetEnv("TR_DisablePreferMethodTest");
+         if (len == 42 && !strncmp(className, "java/lang/ThreadLocal$ThreadLocalMap$Entry", 42))
+            {
+            noGuard = true;
+            }
+         else if (!disablePreferMethodTest && !strncmp(className, "java/lang/ThreadLocal", 21) && !isInterface())
             {
             preferMethodTest = true;
             }
@@ -935,7 +941,9 @@ void TR_ProfileableCallSite::findSingleProfiledReceiver(ListIterator<TR_ExtraAdd
             }
 
          TR_VirtualGuardSelection *guard = NULL;
-         if (preferMethodTest)
+         if (noGuard)
+            guard = new (comp()->trHeapMemory()) TR_VirtualGuardSelection(TR_NoGuard);
+         else if (preferMethodTest)
             guard = new (comp()->trHeapMemory()) TR_VirtualGuardSelection(TR_ProfiledGuard, TR_MethodTest, tempreceiverClass);
          else
             guard = new (comp()->trHeapMemory()) TR_VirtualGuardSelection(TR_ProfiledGuard, TR_VftTest, tempreceiverClass);
