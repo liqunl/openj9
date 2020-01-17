@@ -1307,6 +1307,7 @@ TR::Register *J9::X86::AMD64::JNILinkage::buildDirectJNIDispatch(TR::Node *callN
    bool wrapRefs;
    bool passReceiver;
    bool passThread;
+   bool dontRestoreMachineSP = false;
 
    if (!isGPUHelper)
       {
@@ -1321,6 +1322,16 @@ TR::Register *J9::X86::AMD64::JNILinkage::buildDirectJNIDispatch(TR::Node *callN
       wrapRefs             = !fej9->jniDoNotWrapObjects(resolvedMethod);
       passReceiver         = !fej9->jniDoNotPassReceiver(resolvedMethod);
       passThread           = !fej9->jniDoNotPassThread(resolvedMethod);
+      //char* target = "net/adoptopenjdk/bumblebench/examples/GetIntFieldJNI.getInt()I";
+      char* target = "net/adoptopenjdk/bumblebench/examples/GetIntFieldJNI";
+      int32_t len = strlen(target);
+      char* className = resolvedMethod->classNameChars();
+      int32_t classLen = resolvedMethod->classNameLength();
+      dontRestoreMachineSP        = classLen >= len && strncmp(className, target, len) == 0;
+      target = "HelloJNI";
+      len = strlen(target);
+      dontRestoreMachineSP        = dontRestoreMachineSP || (classLen >= len && strncmp(className, target, len) == 0);
+      traceMsg(comp(), "className %s len %d dontRestoreMachineSP %d\n", className, classLen, dontRestoreMachineSP);
       }
    else
       {
@@ -1365,6 +1376,7 @@ TR::Register *J9::X86::AMD64::JNILinkage::buildDirectJNIDispatch(TR::Node *callN
          }
       }
 
+   traceMsg(comp(), "dropVMAccess %d\n", dropVMAccess);
    // Anchor the Java frame here to establish the top of the frame.  The reason this must occur here
    // is because the subsequent manual adjustments of the stack pointer confuse the vfp logic.
    // This should be fixed in a subsquent revision of that code.
@@ -1492,12 +1504,15 @@ TR::Register *J9::X86::AMD64::JNILinkage::buildDirectJNIDispatch(TR::Node *callN
 
    //    1) Store out the machine sp into the vm thread.  It has to be done as sometimes
    //       it gets tromped on by call backs.
+if (!dontRestoreMachineSP)
+   {
    generateMemRegInstruction(
       SMemReg(),
       callNode,
       generateX86MemoryReference(vmThreadReg, fej9->thisThreadGetMachineSPOffset(), cg()),
       espReal,
       cg());
+   }
 
    switchToJavaStack(callNode);
 
