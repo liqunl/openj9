@@ -4843,6 +4843,7 @@ typedef struct J9VMThread {
 	U_8* nonZeroHeapAlloc;
 	U_8* nonZeroHeapTop;
 	IDATA nonZeroTlhPrefetchFTA;
+	UDATA inNative;
 	omrthread_monitor_t publicFlagsMutex;
 	UDATA publicFlags;
 #if defined(J9VM_ENV_DATA64) /* The ifdeffed field does not affect the aligmment check below */
@@ -4995,7 +4996,6 @@ typedef struct J9VMThread {
 #endif /* J9VM_OPT_JAVA_OFFLOAD_SUPPORT */
 	void *gpuInfo;
 	void *startOfMemoryBlock;
-	UDATA inNative;
 	struct J9JITDecompilationInfo* lastDecompilation;
 #if 0 && !defined(J9VM_ENV_DATA64) /* Change to 0 or 1 based on number of fields above */
 	U_32 paddingToAlignTo8;
