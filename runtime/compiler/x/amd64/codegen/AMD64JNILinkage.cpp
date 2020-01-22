@@ -501,6 +501,7 @@ void J9::X86::AMD64::JNILinkage::buildJNICallOutFrame(
    TR::Register *vmThreadReg = cg()->getMethodMetaDataRegister();
    TR::Register *scratchReg = NULL;
    TR::RealRegister *espReal = machine()->getRealRegister(TR::RealRegister::esp);
+   bool aot = cg()->comp()->compileRelocatableCode();
 
    TR_J9VMBase *fej9 = (TR_J9VMBase *)(fe());
 
@@ -534,17 +535,28 @@ void J9::X86::AMD64::JNILinkage::buildJNICallOutFrame(
 
    // Push tag bits (savedA0 slot).
    //
-   generateImmInstruction(PUSHImm4, callNode, tagBits, cg());
 
-   // (skip savedPC slot).
-   //
-   generateImmInstruction(PUSHImm4, callNode, 0, cg());
-
-   // Push return address in this frame (savedCP slot).
-   //
    if (!scratchReg)
       scratchReg = cg()->allocateRegister();
 
+   if (tagBits != 0)
+      {
+      generateImmInstruction(PUSHImm4, callNode, tagBits, cg());
+
+      // (skip savedPC slot).
+      //
+      generateImmInstruction(PUSHImm4, callNode, 0, cg());
+      }
+   else
+      {
+      generateRegRegInstruction(XORRegReg(), callNode, scratchReg, scratchReg, cg());
+      generateRegInstruction(PUSHReg, callNode, scratchReg, cg());
+      }
+
+   // Push return address in this frame (savedCP slot).
+   //
+   if (aot)
+      {
    TR::AMD64RegImm64SymInstruction* returnAddressInstr =
    generateRegImm64SymInstruction(
       MOV8RegImm64,
@@ -555,6 +567,7 @@ void J9::X86::AMD64::JNILinkage::buildJNICallOutFrame(
       cg());
 
    returnAddressInstr->setReloKind(TR_AbsoluteMethodAddress);
+      }
 
    generateRegInstruction(PUSHReg, callNode, scratchReg, cg());
 
@@ -1307,7 +1320,7 @@ TR::Register *J9::X86::AMD64::JNILinkage::buildDirectJNIDispatch(TR::Node *callN
    bool wrapRefs;
    bool passReceiver;
    bool passThread;
-   bool dontRestoreMachineSP = false;
+   bool isTargetMethod = false;
 
    if (!isGPUHelper)
       {
@@ -1327,11 +1340,11 @@ TR::Register *J9::X86::AMD64::JNILinkage::buildDirectJNIDispatch(TR::Node *callN
       int32_t len = strlen(target);
       char* className = resolvedMethod->classNameChars();
       int32_t classLen = resolvedMethod->classNameLength();
-      dontRestoreMachineSP        = classLen >= len && strncmp(className, target, len) == 0;
+      isTargetMethod        = classLen >= len && strncmp(className, target, len) == 0;
       target = "HelloJNI";
       len = strlen(target);
-      dontRestoreMachineSP        = dontRestoreMachineSP || (classLen >= len && strncmp(className, target, len) == 0);
-      traceMsg(comp(), "className %s len %d dontRestoreMachineSP %d\n", className, classLen, dontRestoreMachineSP);
+      isTargetMethod        = isTargetMethod || (classLen >= len && strncmp(className, target, len) == 0);
+      traceMsg(comp(), "className %s len %d isTargetMethod %d\n", className, classLen, isTargetMethod);
       }
    else
       {
@@ -1374,6 +1387,13 @@ TR::Register *J9::X86::AMD64::JNILinkage::buildDirectJNIDispatch(TR::Node *callN
          isJNIGCPoint = false;
          checkExceptions = false;
          }
+      }
+
+   if (false && isTargetMethod)
+      {
+         dropVMAccess = false;
+         isJNIGCPoint = false;
+         checkExceptions = false;
       }
 
    traceMsg(comp(), "dropVMAccess %d\n", dropVMAccess);
@@ -1454,11 +1474,14 @@ TR::Register *J9::X86::AMD64::JNILinkage::buildDirectJNIDispatch(TR::Node *callN
    //
    generateLabelInstruction(callInstr, LABEL, returnAddrLabel, cg());
 
+   traceMsg(comp(), "_JNIDispatchInfo.JNIReturnRegister %p\n", _JNIDispatchInfo.JNIReturnRegister);
+
    if (_JNIDispatchInfo.JNIReturnRegister)
       {
       if (isGPUHelper)
          callNode->setSymbolReference(gpuHelperSymRef);
 
+      // liqun: if return value is not used, no need to save it to another register
       cleanupReturnValue(callNode, _JNIDispatchInfo.linkageReturnRegister, _JNIDispatchInfo.JNIReturnRegister);
 
       if (isGPUHelper)
@@ -1504,7 +1527,7 @@ TR::Register *J9::X86::AMD64::JNILinkage::buildDirectJNIDispatch(TR::Node *callN
 
    //    1) Store out the machine sp into the vm thread.  It has to be done as sometimes
    //       it gets tromped on by call backs.
-if (!dontRestoreMachineSP)
+if (!isTargetMethod)
    {
    generateMemRegInstruction(
       SMemReg(),
