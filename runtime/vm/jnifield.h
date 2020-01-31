@@ -39,6 +39,10 @@ jbyte JNICALL getByteField(JNIEnv *env, jobject obj, jfieldID fieldID);
 jshort JNICALL getShortField(JNIEnv *env, jobject obj, jfieldID fieldID);
 jchar JNICALL getCharField(JNIEnv *env, jobject obj, jfieldID fieldID);
 jint JNICALL getIntField(JNIEnv *env, jobject obj, jfieldID fieldID);
+jint JNICALL getIntFieldNoHookCheck(JNIEnv *env, jobject obj, jfieldID fieldID);
+jint JNICALL getIntFieldNoVolatileCheck(JNIEnv *env, jobject obj, jfieldID fieldID);
+jint JNICALL getIntFieldNoVMAccess(JNIEnv *env, jobject obj, jfieldID fieldID);
+jint JNICALL getIntFieldFastest(JNIEnv *env, jobject obj, jfieldID fieldID);
 jlong JNICALL getLongField(JNIEnv *env, jobject obj, jfieldID fieldID);
 
 void JNICALL setByteField(JNIEnv *env, jobject obj, jfieldID fieldID, jbyte value);

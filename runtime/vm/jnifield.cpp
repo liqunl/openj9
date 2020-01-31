@@ -188,6 +188,96 @@ getShortField(JNIEnv *env, jobject obj, jfieldID fieldID)
 }
 
 jint JNICALL
+getIntFieldNoHookCheck(JNIEnv *env, jobject obj, jfieldID fieldID)
+{
+	J9VMThread *currentThread = (J9VMThread *)env;
+	VM_VMAccess::inlineEnterVMFromJNI(currentThread);
+	J9JNIFieldID *j9FieldID = (J9JNIFieldID *)fieldID;
+	UDATA valueOffset = j9FieldID->offset;
+
+	j9object_t object = J9_JNI_UNWRAP_REFERENCE(obj);
+	valueOffset += J9VMTHREAD_OBJECT_HEADER_SIZE(currentThread);
+	jint value = J9OBJECT_I32_LOAD(currentThread, object, valueOffset);
+
+	if (j9FieldID->field->modifiers & J9AccVolatile) {
+		VM_AtomicSupport::readBarrier();
+	}
+
+	VM_VMAccess::inlineExitVMToJNI(currentThread);
+	return value;
+}
+
+jint JNICALL
+getIntFieldNoVolatileCheck(JNIEnv *env, jobject obj, jfieldID fieldID)
+{
+	J9VMThread *currentThread = (J9VMThread *)env;
+	J9JavaVM *vm = currentThread->javaVM;
+	VM_VMAccess::inlineEnterVMFromJNI(currentThread);
+	J9JNIFieldID *j9FieldID = (J9JNIFieldID *)fieldID;
+	UDATA valueOffset = j9FieldID->offset;
+
+	if (J9_EVENT_IS_HOOKED(vm->hookInterface, J9HOOK_VM_GET_FIELD)) {
+		j9object_t object = J9_JNI_UNWRAP_REFERENCE(obj);
+		if (J9_ARE_ANY_BITS_SET(J9OBJECT_CLAZZ(currentThread, object)->classFlags, J9ClassHasWatchedFields)) {
+			IDATA location = 0;
+			J9Method *method = findFieldContext(currentThread, &location);
+			if (NULL != method) {
+				ALWAYS_TRIGGER_J9HOOK_VM_GET_FIELD(vm->hookInterface, currentThread, method, location, object, j9FieldID->offset);
+			}
+		}
+	}
+
+	j9object_t object = J9_JNI_UNWRAP_REFERENCE(obj);
+	valueOffset += J9VMTHREAD_OBJECT_HEADER_SIZE(currentThread);
+	jint value = J9OBJECT_I32_LOAD(currentThread, object, valueOffset);
+
+	VM_VMAccess::inlineExitVMToJNI(currentThread);
+	return value;
+}
+
+jint JNICALL
+getIntFieldNoVMAccess(JNIEnv *env, jobject obj, jfieldID fieldID)
+{
+	J9VMThread *currentThread = (J9VMThread *)env;
+	J9JavaVM *vm = currentThread->javaVM;
+	J9JNIFieldID *j9FieldID = (J9JNIFieldID *)fieldID;
+	UDATA valueOffset = j9FieldID->offset;
+
+	if (J9_EVENT_IS_HOOKED(vm->hookInterface, J9HOOK_VM_GET_FIELD)) {
+		j9object_t object = J9_JNI_UNWRAP_REFERENCE(obj);
+		if (J9_ARE_ANY_BITS_SET(J9OBJECT_CLAZZ(currentThread, object)->classFlags, J9ClassHasWatchedFields)) {
+			IDATA location = 0;
+			J9Method *method = findFieldContext(currentThread, &location);
+			if (NULL != method) {
+				ALWAYS_TRIGGER_J9HOOK_VM_GET_FIELD(vm->hookInterface, currentThread, method, location, object, j9FieldID->offset);
+			}
+		}
+	}
+
+	j9object_t object = J9_JNI_UNWRAP_REFERENCE(obj);
+	valueOffset += J9VMTHREAD_OBJECT_HEADER_SIZE(currentThread);
+	jint value = J9OBJECT_I32_LOAD(currentThread, object, valueOffset);
+
+	if (j9FieldID->field->modifiers & J9AccVolatile) {
+		VM_AtomicSupport::readBarrier();
+	}
+
+	return value;
+}
+
+jint JNICALL
+getIntFieldFastest(JNIEnv *env, jobject obj, jfieldID fieldID)
+{
+	//J9VMThread *currentThread = (J9VMThread *)env;
+	J9JNIFieldID *j9FieldID = (J9JNIFieldID *)fieldID;
+	UDATA valueOffset = j9FieldID->offset;
+	j9object_t object = J9_JNI_UNWRAP_REFERENCE(obj);
+	valueOffset += J9VMTHREAD_OBJECT_HEADER_SIZE((J9VMThread*)env);
+	jint value = J9OBJECT_I32_LOAD((J9VMThread*)env, object, valueOffset);
+	return value;
+}
+
+jint JNICALL
 getIntField(JNIEnv *env, jobject obj, jfieldID fieldID)
 {
 	J9VMThread *currentThread = (J9VMThread *)env;

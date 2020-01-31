@@ -1472,6 +1472,24 @@ struct JNINativeInterface_ EsJNIFunctions = {
 
 void  initializeJNITable(J9JavaVM *vm)
 {
+	static char* getIntFieldVersion = getenv("TR_GetIntFieldVersion");
+	if (getIntFieldVersion) {
+                void* fp = (void*)EsJNIFunctions.GetIntField;
+		if (!strcmp(getIntFieldVersion, "original"))
+			EsJNIFunctions.GetIntField = getIntField;
+		else if (!strcmp(getIntFieldVersion, "noHookCheck"))
+			EsJNIFunctions.GetIntField = getIntFieldNoHookCheck;
+		else if (!strcmp(getIntFieldVersion, "noVolatileCheck"))
+			EsJNIFunctions.GetIntField = getIntFieldNoVolatileCheck;
+		else if (!strcmp(getIntFieldVersion, "noVMAccess"))
+			EsJNIFunctions.GetIntField = getIntFieldNoVMAccess;
+		else if (!strcmp(getIntFieldVersion, "fastest"))
+			EsJNIFunctions.GetIntField = getIntFieldFastest;
+
+                if (EsJNIFunctions.GetIntField != fp)
+			printf("GetIntField is set to %s\n", getIntFieldVersion);
+	}
+
 	vm->jniFunctionTable = GLOBAL_TABLE(EsJNIFunctions);
 }
 
