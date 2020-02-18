@@ -4565,7 +4565,8 @@ break
       {
       saveStack(-1, !comp()->pendingPushLivenessDuringIlgen());
       stashPendingPushLivenessForOSR(osrInductionOffset);
-      if (comp()->supportsInduceOSR() && comp()->getOSRMode() == TR::voluntaryOSR)
+      static char *disablePotentialOSRPointHelperCall = feGetEnv("TR_DisablePotentialOSRPointHelperCall");
+      if (!disablePotentialOSRPointHelperCall && comp()->supportsInduceOSR() && comp()->getOSRMode() == TR::voluntaryOSR)
          {
          TR::Node* callToPotentialOSRPoint = TR::Node::createPotentialOSRPointHelperCallInILGen(callNodeTreeTop->getNode(), osrInductionOffset);
          _block->append(TR::TreeTop::create(comp(), TR::Node::create(TR::treetop, 1, callToPotentialOSRPoint)));
