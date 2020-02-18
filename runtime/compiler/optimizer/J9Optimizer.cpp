@@ -316,6 +316,7 @@ static const OptimizationStrategy warmStrategyOpts[] =
    { OMR::lastLoopVersionerGroup,                      OMR::IfLoops                  },
    { OMR::globalDeadStoreElimination,                  OMR::IfEnabledAndLoops},
    { OMR::deadTreesElimination                                                  },
+   { OMR::expensiveObjectAllocationGroup                                             },
    { OMR::recompilationModifier,                     OMR::IfEnabledAndNotProfiling   },
    { OMR::localReordering,                           OMR::IfNoLoopsOREnabledAndLoops }, // if required or if not done earlier
    { OMR::basicBlockOrdering,                        OMR::IfLoops                    }, // required for loop reduction
@@ -665,6 +666,7 @@ static const OptimizationStrategy cheapWarmStrategyOpts[] =
 #ifdef TR_HOST_S390
    { OMR::globalDeadStoreElimination,                OMR::IfEnabledAndLoops          },
    { OMR::deadTreesElimination                                                       },
+   { OMR::expensiveObjectAllocationGroup                                             },
    { OMR::recompilationModifier,                     OMR::IfEnabledAndNotProfiling   },
    { OMR::localReordering,                           OMR::IfNoLoopsOREnabledAndLoops },
    { OMR::basicBlockOrdering,                        OMR::IfLoops                    },
