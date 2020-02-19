@@ -2179,7 +2179,9 @@ void J9::TransformUtil::prohibitOSROverRange(TR::Compilation* comp, TR::TreeTop*
          dumpOptDetails(comp, "Can no longer OSR at [%p] n%dn\n", osrNode, osrNode->getGlobalIndex());
          // Record the prohibition so other opts are aware of the existence of dangerous region
          comp->setOSRProhibitedOverRangeOfTrees();
-         osrNode->getByteCodeInfo().setDoNotProfile(true);
+         static char *noDoNotProfile = feGetEnv("TR_NoDoNotProfile");
+         if (!noDoNotProfile)
+            osrNode->getByteCodeInfo().setDoNotProfile(true);
          }
       tt = tt->getNextTreeTop();
       }

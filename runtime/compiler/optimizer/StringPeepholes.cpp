@@ -845,7 +845,9 @@ TR::TreeTop *TR_StringPeepholes::detectFormatPattern(TR::TreeTop *tt, TR::TreeTo
 
             if (performTransformation(comp(), "%sAttempting to inline call [%p]\n", optDetailString(), tt->getNode()))
                {
-               nextNode->getByteCodeInfo().setDoNotProfile(true);
+               static char *noDoNotProfile = feGetEnv("TR_NoDoNotProfile");
+               if (!noDoNotProfile)
+                 nextNode->getByteCodeInfo().setDoNotProfile(true);
                TR_InlineCall newInlineCall(optimizer(), this);
                newInlineCall.setSizeThreshold(800);
                bool inlineOK = newInlineCall.inlineCall(tt, 0, true, 0, 400);
@@ -884,7 +886,10 @@ TR::TreeTop *TR_StringPeepholes::detectFormatPattern(TR::TreeTop *tt, TR::TreeTo
                else
                   {
                   //now that inlining wasn't successful, revert back all the changes done to the IL
-                  nextNode->getByteCodeInfo().setDoNotProfile(false);
+                  static char *noDoNotProfile = feGetEnv("TR_NoDoNotProfile");
+                  if (!noDoNotProfile)
+                     nextNode->getByteCodeInfo().setDoNotProfile(false);
+
                   nextNode->setSymbolReference(origSymRef);
                   nextNode->getSecondChild()->recursivelyDecReferenceCount();
                   nextNode->setChild(1, origSecondChild);
