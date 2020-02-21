@@ -3690,7 +3690,9 @@ void TR_MultipleCallTargetInliner::weighCallSite( TR_CallStack * callStack , TR_
             // For optServer in hot/scorching I want the old thresholds 1000 0 0 (high degree of inlining)
             // For optSever in warm I want the new thresholds 9000 5000 1500
             // For noServer I want no change for high frequency but inhibit inlining in cold blocks ==> 10000 5000 1500
+            static char *noMHScale = feGetEnv("TR_NoMHScale");
             if (TR::isJ9() && !comp()->getMethodSymbol()->doJSR292PerfTweaks() && calltarget->_calleeMethod &&
+                (!noMHScale || !callsite->_callerResolvedMethod->convertToMethod()->isArchetypeSpecimen()) &&
                 !alwaysWorthInlining(calltarget->_calleeMethod, callsite->_callNode))
                {
                int32_t maxFrequency = MAX_BLOCK_COUNT + MAX_COLD_BLOCK_COUNT;
@@ -4255,7 +4257,9 @@ TR_MultipleCallTargetInliner::exceedsSizeThreshold(TR_CallSite *callSite, int by
      if (frequency1 > frequency2 && callerResolvedMethod->convertToMethod()->isArchetypeSpecimen())
         frequency2 = frequency1;
 
+     static char *noMHScale = feGetEnv("TR_NoMHScale");
      if ((frequency1 <= 0) && ((0 <= frequency2) &&  (frequency2 <= MAX_COLD_BLOCK_COUNT)) &&
+        (!noMHScale || !callerResolvedMethod->convertToMethod()->isArchetypeSpecimen()) &&
         !alwaysWorthInlining(calleeResolvedMethod, callNode))
         {
         isCold = true;
@@ -4265,6 +4269,7 @@ TR_MultipleCallTargetInliner::exceedsSizeThreshold(TR_CallSite *callSite, int by
 
      if (allowBiggerMethods() &&
          !comp()->getMethodSymbol()->doJSR292PerfTweaks() &&
+         (!noMHScale || !callerResolvedMethod->convertToMethod()->isArchetypeSpecimen()) &&
          calleeResolvedMethod &&
          !j9InlinerPolicy->isInlineableJNI(calleeResolvedMethod, callNode))
         {
