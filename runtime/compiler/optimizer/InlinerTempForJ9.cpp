@@ -3691,7 +3691,9 @@ void TR_MultipleCallTargetInliner::weighCallSite( TR_CallStack * callStack , TR_
             // For optServer in hot/scorching I want the old thresholds 1000 0 0 (high degree of inlining)
             // For optSever in warm I want the new thresholds 9000 5000 1500
             // For noServer I want no change for high frequency but inhibit inlining in cold blocks ==> 10000 5000 1500
-            if (TR::isJ9() && !comp()->getMethodSymbol()->doJSR292PerfTweaks() && calltarget->_calleeMethod &&
+            static bool trustFrequencyForMH = feGetEnv("TR_TrustFrequencyForMH") ? true : false;
+            bool trustFrequency = !callsite->_callerResolvedMethod->convertToMethod()->isArchetypeSpecimen() || trustFrequencyForMH;
+            if (trustFrequency && TR::isJ9() && !comp()->getMethodSymbol()->doJSR292PerfTweaks() && calltarget->_calleeMethod &&
                 !alwaysWorthInlining(calltarget->_calleeMethod, callsite->_callNode))
                {
                int32_t maxFrequency = MAX_BLOCK_COUNT + MAX_COLD_BLOCK_COUNT;
@@ -4256,7 +4258,9 @@ TR_MultipleCallTargetInliner::exceedsSizeThreshold(TR_CallSite *callSite, int by
      if (frequency1 > frequency2 && callerResolvedMethod->convertToMethod()->isArchetypeSpecimen())
         frequency2 = frequency1;
 
-     if ((frequency1 <= 0) && ((0 <= frequency2) &&  (frequency2 <= MAX_COLD_BLOCK_COUNT)) &&
+     static bool trustFrequencyForMH = feGetEnv("TR_TrustFrequencyForMH") ? true : false;
+     bool trustFrequency = !callerResolvedMethod->convertToMethod()->isArchetypeSpecimen() || trustFrequencyForMH;
+     if (trustFrequency && (frequency1 <= 0) && ((0 <= frequency2) &&  (frequency2 <= MAX_COLD_BLOCK_COUNT)) &&
         !alwaysWorthInlining(calleeResolvedMethod, callNode))
         {
         isCold = true;
@@ -4264,7 +4268,8 @@ TR_MultipleCallTargetInliner::exceedsSizeThreshold(TR_CallSite *callSite, int by
 
      debugTrace(tracer(), "exceedsSizeThreshold: Call with block_%d has frequency1 %d frequency2 %d ", block->getNumber(), frequency1, frequency2);
 
-     if (allowBiggerMethods() &&
+     if (trustFrequency &&
+         allowBiggerMethods() &&
          !comp()->getMethodSymbol()->doJSR292PerfTweaks() &&
          calleeResolvedMethod &&
          !j9InlinerPolicy->isInlineableJNI(calleeResolvedMethod, callNode))
