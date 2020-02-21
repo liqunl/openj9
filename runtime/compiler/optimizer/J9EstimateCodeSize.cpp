@@ -1124,9 +1124,11 @@ TR_J9EstimateCodeSize::realEstimateCodeSize(TR_CallTarget *calltarget, TR_CallSt
 
    TR_CallStack callStack(comp(), 0, calltarget->_calleeMethod, prevCallStack, 0);
 
+   // liqun: interface call is unresolved, won't have argsFromSymbol?
    TR_PrexArgInfo* argsFromSymbol = TR_PrexArgInfo::buildPrexArgInfoForMethodSymbol(methodSymbol, tracer());
 
-   if (!TR_PrexArgInfo::validateAndPropagateArgsFromCalleeSymbol(argsFromSymbol, calltarget->_ecsPrexArgInfo, tracer()))
+   bool tryToInline = _inliner->getPolicy()->tryToInline(calltarget, &callStack, true);
+   if (!tryToInline && !TR_PrexArgInfo::validateAndPropagateArgsFromCalleeSymbol(argsFromSymbol, calltarget->_ecsPrexArgInfo, tracer()))
    {
       heuristicTrace(tracer(), "*** Depth %d: ECS end for target %p signature %s. Incompatible arguments", _recursionDepth, calltarget, callerName);
       return returnCleanup(6);

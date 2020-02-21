@@ -832,7 +832,7 @@ void TR_ProfileableCallSite::findSingleProfiledReceiver(ListIterator<TR_ExtraAdd
 
    bool firstInstanceOfCheckFailed = false;
    int32_t totalFrequency = valueInfo->getTotalFrequency();
-
+   TR::SimpleRegex * regex = comp()->getOptions()->getTryToInline();
 
    for (TR_ExtraAddressInfo *profiledInfo = sortedValuesIt.getFirst(); profiledInfo != NULL; profiledInfo = sortedValuesIt.getNext())
       {
@@ -846,11 +846,12 @@ void TR_ProfileableCallSite::findSingleProfiledReceiver(ListIterator<TR_ExtraAdd
 
       bool isClassObsolete = comp()->getPersistentInfo()->isObsoleteClass((void*)tempreceiverClass, comp()->fe());
 
+      int32_t len = 1;
+      char *className = NULL;
+
       if (!isClassObsolete)
          {
-         int32_t len = 1;
-         const char *className = TR::Compiler->cls.classNameChars(comp(), tempreceiverClass, len);
-
+         className = TR::Compiler->cls.classNameChars(comp(), tempreceiverClass, len);
          if (!strncmp(className, "java/lang/ThreadLocal", 21) && !isInterface())
             {
             static const char* preferVFTTest = feGetEnv("TR_PreferVFTTest");
@@ -864,15 +865,33 @@ void TR_ProfileableCallSite::findSingleProfiledReceiver(ListIterator<TR_ExtraAdd
             preferMethodTest = true;
             }
          }
+      else
+         {
+         if (comp()->trace(OMR::inlining))
+            traceMsg(comp(), "inliner: profiled class [%p] is not obsolete\n", tempreceiverClass);
+         continue;
+         }
+
+      bool tryToInline = false;
+      if (regex && className && TR::SimpleRegex::match(regex, className))
+         {
+         tryToInline = true;
+         if (comp()->trace(OMR::inlining))
+            {
+            traceMsg(comp(), "Inliner: tryToInline pattern matched, class %.*s\n", len, className);
+            }
+         }
 
 
       static const char* userMinProfiledCallFreq = feGetEnv("TR_MinProfiledCallFrequency");
       static const float minProfiledCallFrequency = userMinProfiledCallFreq ? atof (userMinProfiledCallFreq) :
          comp()->getOption(TR_DisableMultiTargetInlining) ? MIN_PROFILED_CALL_FREQUENCY : .10f;
 
-      if ((val >= minProfiledCallFrequency ||
-               (firstInstanceOfCheckFailed && val >= SECOND_BEST_MIN_CALL_FREQUENCY)) &&
-          !comp()->getPersistentInfo()->isObsoleteClass((void*)tempreceiverClass, comp()->fe()))
+      traceMsg(comp(), "liqun: minProfiledCallFrequency %f val %f firstInstanceOfCheckFailed %d SECOND_BEST_MIN_CALL_FREQUENCY %f\n", minProfiledCallFrequency, val, firstInstanceOfCheckFailed, SECOND_BEST_MIN_CALL_FREQUENCY);
+
+      //bool isLambda = !strncmp(className, "java/lang/ThreadLocal", 21) && isInterface();
+      if (tryToInline || (val >= minProfiledCallFrequency ||
+               (firstInstanceOfCheckFailed && val >= SECOND_BEST_MIN_CALL_FREQUENCY)))
          {
          TR_OpaqueClassBlock* callSiteClass = _receiverClass ? _receiverClass : getClassFromMethod();
 

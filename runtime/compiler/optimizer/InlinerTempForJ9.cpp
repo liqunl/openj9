@@ -5209,6 +5209,7 @@ TR_PrexArgInfo* TR_PrexArgInfo::buildPrexArgInfoForMethodSymbol(TR::ResolvedMeth
       int32_t len = 0;
       const char *sig = p->getTypeSignature(len);
 
+      heuristicTrace(tracer, "PREX-CSI:  sig  sig %.*s\n", len, sig);
       if (*sig == 'L')
          {
          TR_OpaqueClassBlock *clazz = tracer->fe()->getClassFromSignature(sig, len, feMethod);
