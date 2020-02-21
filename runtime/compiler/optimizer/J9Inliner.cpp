@@ -853,7 +853,9 @@ void TR_ProfileableCallSite::findSingleProfiledReceiver(ListIterator<TR_ExtraAdd
 
          if (!strncmp(className, "java/lang/ThreadLocal", 21) && !isInterface())
             {
-            preferMethodTest = true;
+            static const char* preferVFTTest = feGetEnv("TR_PreferVFTTest");
+            if (!preferVFTTest)
+               preferMethodTest = true;
             }
          // high opt level compiles during JIT STARTUP could be affected by classes being loaded - maximize the chances
          // of success by using method tests
