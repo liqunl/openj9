@@ -1416,6 +1416,7 @@ TR_J9EstimateCodeSize::realEstimateCodeSize(TR_CallTarget *calltarget, TR_CallSt
          for (int32_t j = 0; j < callSites[i]->numTargets(); j++)
             {
             TR_CallTarget *targetCallee = callSites[i]->getTarget(j);
+            bool forceInlining = _inliner->forceInline(targetCallee);
 
             char nameBuffer[1024];
             const char *calleeName = NULL;
@@ -1536,7 +1537,7 @@ TR_J9EstimateCodeSize::realEstimateCodeSize(TR_CallTarget *calltarget, TR_CallSt
                      }
 
 
-                  if (_optimisticSize - origOptimisticSize > bigCalleeThreshold)
+                  if (!forceInlining && _optimisticSize - origOptimisticSize > bigCalleeThreshold)
                      {
                      ///printf("set warmcallgraphtoobig for method %s at index %d\n", calleeName, newBCInfo._byteCodeIndex);fflush(stdout);
                      calltarget->_calleeMethod->setWarmCallGraphTooBig( newBCInfo.getByteCodeIndex(), comp());

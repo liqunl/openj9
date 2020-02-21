@@ -2418,7 +2418,7 @@ TR_J9InlinerPolicy::callMustBeInlined(TR_CallTarget *calltarget)
       return true;
 #endif
 
-   return false;
+   return tryToInline(calltarget, NULL, true);
    }
 
 void
