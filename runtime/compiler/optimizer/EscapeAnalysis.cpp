@@ -218,8 +218,10 @@ bool TR_EscapeAnalysis::isImmutableObject(Candidate *candidate)
 
 int32_t TR_EscapeAnalysis::perform()
    {
+/*
    if (comp()->isOptServer() && (comp()->getMethodHotness() <= warm))
       return 0;
+*/
 
    // EA generates direct stores/loads to instance field which is different
    // from a normal instance field read/write. Field watch would need special handling
@@ -1699,7 +1701,8 @@ Candidate *TR_EscapeAnalysis::createCandidateIfValid(TR::Node *node, TR_OpaqueCl
 
          // Removed assume, does not make sense when doing aot -- ALI
          // TR_ASSERT(comp()->getRunnableClassPointer(), "Need access to java/lang/Runnable");
-         if (comp()->getRunnableClassPointer() &&
+        static const char *allowEscapeRunnable = feGetEnv("TR_AllowEscapeRunnable");
+         if (!allowEscapeRunnable && comp()->getRunnableClassPointer() &&
              comp()->fej9()->isInstanceOf((TR_OpaqueClassBlock *)classSym->getStaticAddress(), comp()->getRunnableClassPointer(), true) == TR_yes)
             {
             if (trace())
@@ -3272,6 +3275,9 @@ void TR_EscapeAnalysis::forceEscape(TR::Node *node, TR::Node *reason, bool force
       return;
 
    int32_t valueNumber = _valueNumberInfo->getValueNumber(resolvedNode);
+   if (trace())
+      traceMsg(comp(), "forceEscape node %p reason %p resolvedNode %p valueNumber %d\n",node, reason, resolvedNode, valueNumber);
+
    Candidate *candidate, *next;
    for (candidate = _candidates.getFirst(); candidate; candidate = next)
       {
@@ -3301,7 +3307,7 @@ void TR_EscapeAnalysis::forceEscape(TR::Node *node, TR::Node *reason, bool force
                }
 
             if (trace())
-               traceMsg(comp(), "   Fail [%p] because it escapes via node [%p] (cold %d)\n", candidate->_node, reason, _inColdBlock);
+               traceMsg(comp(), "   Fail [%p] because it escapes via node [%p] (cold %d) node %p\n", candidate->_node, reason, _inColdBlock, node, resolvedNode);
 
             rememoize(candidate);
             _candidates.remove(candidate);
