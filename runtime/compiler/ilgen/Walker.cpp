@@ -6137,6 +6137,7 @@ TR_J9ByteCodeIlGenerator::genMultiANewArray(int32_t dims)
 int32_t
 TR_J9ByteCodeIlGenerator::genReturn(TR::ILOpCodes nodeop, bool monitorExit)
    {
+   // liqun: if Object.<init> is inlined and we can find the type of the object, we should elide this
    if (!comp()->isPeekingMethod() &&
          (_methodSymbol->getMandatoryRecognizedMethod() == TR::java_lang_Object_init))
       {
