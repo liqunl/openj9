@@ -3434,6 +3434,9 @@ bool TR_EscapeAnalysis::restrictCandidates(TR::Node *node, TR::Node *reason, res
    if (!resolvedNode)
       return false;
 
+   if (trace())
+      traceMsg(comp(), "restrictCandidates node %X reason %X\n", node, reason);
+
    bool locked = false;
    if (reason &&
        ((reason->getOpCodeValue() == TR::monent) ||
@@ -3462,6 +3465,9 @@ bool TR_EscapeAnalysis::restrictCandidates(TR::Node *node, TR::Node *reason, res
 
             candidate->setLockedObject(true);
             int32_t lockedObjectValueNumber = _valueNumberInfo->getValueNumber(reason->getFirstChild());
+            if (trace())
+               traceMsg(comp(), "restrictCandidates lockedObjectValueNumber %d\n", lockedObjectValueNumber);
+
             Candidate *lockedCandidate = findCandidate(lockedObjectValueNumber);
             if (!lockedCandidate)
                {
@@ -3469,6 +3475,7 @@ bool TR_EscapeAnalysis::restrictCandidates(TR::Node *node, TR::Node *reason, res
                   traceMsg(comp(), "   Make [%p] non-local because of node [%p]\n", candidate->_node, reason);
                wasRestricted = true;
                //candidate->setLocalAllocation(false);
+               // liqun: we called from here
                forceEscape(reason->getFirstChild(), reason);
                continue;
                }
@@ -4647,6 +4654,7 @@ void TR_EscapeAnalysis::checkEscapeViaNonCall(TR::Node *node, TR::NodeChecklist&
       for (i = node->getNumChildren()-1; i >= 0; i--)
          {
          child = node->getChild(i);
+         // liqun: child is aload, node is monent
          wasRestricted |= restrictCandidates(child, node, MakeObjectReferenced);
          }
       }
@@ -4655,6 +4663,7 @@ void TR_EscapeAnalysis::checkEscapeViaNonCall(TR::Node *node, TR::NodeChecklist&
       if (trace())
          {
          /////printf("secs Object referenced via %s in %s\n", node->getOpCode().getName(), comp()->signature());
+         // liqun: saw this in trace log, via monent
          traceMsg(comp(), "Object referenced via %s\n", node->getOpCode().getName());
          }
       }
@@ -6587,8 +6596,10 @@ void TR_EscapeAnalysis::makeLocalObject(Candidate *candidate)
    TR::Node::recreate(allocationNode, TR::loadaddr);
    allocationNode->setSymbolReference(symRef);
 
+   traceMsg(comp(), "liqun: argToCall %d seenSelfStore %d _seenStoreToLocalObject %d\n", candidate->_argToCall , candidate->_seenSelfStore , candidate->_seenStoreToLocalObject);
    if (candidate->_seenArrayCopy || candidate->_argToCall || candidate->_seenSelfStore || candidate->_seenStoreToLocalObject)
       {
+      traceMsg(comp(), "liqun: makeLocalObject, cannot track local uses node %p\n", allocationNode);
       allocationNode->setCannotTrackLocalUses(true);
       if (candidate->callsStringCopyConstructor())
          allocationNode->setCannotTrackLocalStringUses(true);
@@ -6601,6 +6612,7 @@ void TR_EscapeAnalysis::makeLocalObject(Candidate *candidate)
       nodeToUseInInit->setSymbolReference(symRef);
       if (candidate->escapesInColdBlocks() || candidate->_seenArrayCopy || candidate->_argToCall || candidate->_seenSelfStore || candidate->_seenStoreToLocalObject)
          {
+         traceMsg(comp(), "liqun: makeLocalObject, cannot track local uses nodeToUseInInit %p\n", nodeToUseInInit);
          if (candidate->escapesInColdBlocks())
             nodeToUseInInit->setEscapesInColdBlock(true);
          nodeToUseInInit->setCannotTrackLocalUses(true);
@@ -6900,6 +6912,7 @@ void TR_EscapeAnalysis::makeContiguousLocalAllocation(Candidate *candidate)
             baseNode = TR::Node::createWithSymRef(allocationNode, TR::loadaddr, 0, symRef);
             if (candidate->escapesInColdBlocks() || candidate->_seenArrayCopy || candidate->_argToCall || candidate->_seenSelfStore || candidate->_seenStoreToLocalObject)
                {
+               traceMsg(comp(), "liqun: makeContiguousLocalAllo, cannot track local uses baseNode %p\n", baseNode);
                if (candidate->escapesInColdBlocks())
                    baseNode->setEscapesInColdBlock(true);
                baseNode->setCannotTrackLocalUses(true);
@@ -7093,6 +7106,7 @@ void TR_EscapeAnalysis::heapifyForColdBlocks(Candidate *candidate)
 
    if (candidate->isContiguousAllocation())
       {
+      traceMsg(comp(), "liqun: heapify for cold block, cannot track local uses node %p\n", candidate->_node);
       candidate->_node->setCannotTrackLocalUses(true);
       candidate->_node->setEscapesInColdBlock(true);
       if (candidate->callsStringCopyConstructor())
