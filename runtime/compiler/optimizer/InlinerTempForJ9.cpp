@@ -5217,6 +5217,12 @@ TR_PrexArgInfo* TR_PrexArgInfo::buildPrexArgInfoForMethodSymbol(TR::ResolvedMeth
       if (*sig == 'L')
          {
          TR_OpaqueClassBlock *clazz = tracer->fe()->getClassFromSignature(sig, len, feMethod);
+         // Get the type of the receiver if it is not static
+         if (!clazz && index == 0 && !feMethod->isStatic())
+            {
+            clazz = feMethod->classOfMethod();
+            }
+
          if (clazz)
             {
             argInfo->set(index, new (tracer->trHeapMemory()) TR_PrexArgument(TR_PrexArgument::ClassIsPreexistent, clazz));
