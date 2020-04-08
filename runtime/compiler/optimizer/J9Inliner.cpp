@@ -970,11 +970,24 @@ void TR_ProfileableCallSite::findSingleProfiledReceiver(ListIterator<TR_ExtraAdd
          heuristicTrace(inliner->tracer(),"Creating a profiled call. callee Symbol %p frequencyadjustment %f",_initialCalleeSymbol, val);
          addTarget(comp()->trMemory(),inliner,guard,targetMethod,tempreceiverClass,heapAlloc,val);
 
+         TR::DebugCounter::incStaticDebugCounter(comp(), TR::DebugCounter::debugCounterName(comp(), "inliner.profiledTarget/succeed/%s/(%s)/%.2f", comp()->getHotnessName(), comp()->signature(), val));
+
          if (comp()->getOption(TR_DisableMultiTargetInlining))
             return;
          }
       else  // if we're below the above threshold, lets stop considering call targets
          {
+      profiledInfo = sortedValuesIt.getNext();
+      if (profiledInfo)
+         {
+         int32_t secondFreq = profiledInfo->_frequency;
+         float secondVal = (float)secondFreq/(float)valueInfo->getTotalFrequency();        //x87 hardware rounds differently if you leave this division in compare
+         if (val > 0.4f && secondVal > 0.4f)
+            {
+            const char* str = isInterface() ? "interface" : "other";
+            TR::DebugCounter::incStaticDebugCounter(comp(), TR::DebugCounter::debugCounterName(comp(), "inliner.profiledTarget/fail/%s/%s/(%s)/%.2f/%.2f", str, comp()->getHotnessName(), comp()->signature(), val, secondVal));
+            }
+         }
          if (comp()->trace(OMR::inlining))
             traceMsg(comp(), "bailing, below inlining threshold\n");
          break;

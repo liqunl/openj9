@@ -1243,8 +1243,15 @@ TR::Register *J9::X86::TreeEvaluator::newEvaluator(TR::Node *node, TR::CodeGener
          {
       int32_t  classNameLength;
       char    *classNameChars = TR::Compiler->cls.classNameChars(comp, loadaddr->getSymbolReference(),  classNameLength);
+      char *fullName = (char*)comp->trMemory()->allocateMemory(1 + classNameLength, stackAlloc);
+      sprintf(fullName, "%.*s", classNameLength, classNameChars);
+      fullName[classNameLength] = '\0';
+      char* counterName = "newobject/nonlambda";
+      if (strstr(fullName, "$$Lambda$"))
+         counterName = "newobject/lambda";
+
       cg->generateDebugCounter(
-         TR::DebugCounter::debugCounterName(comp, "newobject/%s/(%.*s)/(%s)/", comp->getHotnessName(), classNameLength, classNameChars, comp->signature()),
+         TR::DebugCounter::debugCounterName(comp, "%s/%s/(%.*s)/(%s)/", counterName, comp->getHotnessName(), classNameLength, classNameChars, comp->signature()),
          1, TR::DebugCounter::Cheap);
          }
       }
