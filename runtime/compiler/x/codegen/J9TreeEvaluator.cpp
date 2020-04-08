@@ -1234,6 +1234,21 @@ TR::Register *J9::X86::TreeEvaluator::newEvaluator(TR::Node *node, TR::CodeGener
       return TR::TreeEvaluator::performHelperCall(node, NULL, TR::acall, spillFPRegs, cg);
       }
 
+   // liqun: add debug counter here
+   TR::Node* loadaddr = NULL;
+   if (node->getOpCodeValue() == TR::New)
+      {
+      loadaddr = node->getFirstChild();
+      if (loadaddr->getOpCodeValue() == TR::loadaddr)
+         {
+      int32_t  classNameLength;
+      char    *classNameChars = TR::Compiler->cls.classNameChars(comp, loadaddr->getSymbolReference(),  classNameLength);
+      cg->generateDebugCounter(
+         TR::DebugCounter::debugCounterName(comp, "newobject/%s/(%.*s)/(%s)/", comp->getHotnessName(), classNameLength, classNameChars, comp->signature()),
+         1, TR::DebugCounter::Cheap);
+         }
+      }
+
    targetRegister = TR::TreeEvaluator::VMnewEvaluator(node, cg);
    if (!targetRegister)
       {
