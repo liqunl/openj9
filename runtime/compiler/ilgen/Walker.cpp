@@ -1156,6 +1156,7 @@ TR_J9ByteCodeIlGenerator::genTreeTop(TR::Node * n)
       static int32_t osrIndirectCallBCThresh = (OSRIndirectCallBCThreshold = feGetEnv("TR_OSRIndirectCallBCThreshold")) ? atoi(OSRIndirectCallBCThreshold) : 0;
 
       bool OSRTooExpensive = false;
+      // liqun: won't succeed the condition in nextGenHCR
       if ((n->getNumChildren() > 0) && !comp()->getOption(TR_EnableOSROnGuardFailure) && comp()->getHCRMode() != TR::osr &&
 
           (((comp()->getNumLoopNestingLevels() == 0) &&

@@ -441,6 +441,7 @@ int32_t TR_OSRGuardInsertion::insertOSRGuards(TR_BitVector &fearGeneratingNodes)
    comp()->getFlowGraph()->invalidateStructure();
 
    TR::TreeTop * cfgEnd = comp()->getFlowGraph()->findLastTreeTop();
+   TR::Node* osrNode;
 
    TR::Block *block = NULL;
    TR_SingleBitContainer fear(1, trMemory(), stackAlloc);
@@ -492,19 +493,12 @@ int32_t TR_OSRGuardInsertion::insertOSRGuards(TR_BitVector &fearGeneratingNodes)
          {
          // As the method entry is an implicit OSR point, it is necessary to add a guard here
          // if fear can reach it
-
-         // Hard code the transition target to the first bytecode index in the outermost caller
-         TR_ByteCodeInfo nodeBCI;
-         nodeBCI.setCallerIndex(-1);
-         nodeBCI.setByteCodeIndex(0);
-         nodeBCI.setDoNotProfile(false);
-
          TR::TreeTop *guard = TR::TreeTop::create(comp(), TR_VirtualGuard::createOSRGuard(comp(), NULL));
 
          // If something went wrong with bookkeeping, due to the nature of the implicit OSR point,
          // this will return false
-         bool induceOSR = comp()->allowRecompilation() ? comp()->getMethodSymbol()->induceOSRAfterAndRecompile(cursor, nodeBCI, guard, false, 0, &cfgEnd):
-                                                         comp()->getMethodSymbol()->induceOSRAfter(cursor, nodeBCI, guard, false, 0, &cfgEnd);
+         bool induceOSR = comp()->allowRecompilation() ? comp()->getMethodSymbol()->induceOSRAtMethodEntryAndRecompile(guard, false, &cfgEnd):
+                                                         comp()->getMethodSymbol()->induceOSRAtMethodEntry(guard, false, &cfgEnd);
 
          if (trace())
             {
@@ -516,7 +510,7 @@ int32_t TR_OSRGuardInsertion::insertOSRGuards(TR_BitVector &fearGeneratingNodes)
 
          TR_ASSERT(induceOSR, "OSR guard insertion must succeed for correctness!");
          }
-      else if (comp()->isPotentialOSRPointWithSupport(cursor))
+      else if (comp()->isPotentialOSRPointWithSupport(cursor, &osrNode))
          {
          const char *label = NULL;
          if (cursor->getNode()->getOpCodeValue() == TR::asynccheck)
@@ -601,12 +595,11 @@ int32_t TR_OSRGuardInsertion::insertOSRGuards(TR_BitVector &fearGeneratingNodes)
                // Modify the bytecode info for the guard's children to match the
                // yield point. This prevents confusion with value profiling.
                TR_ByteCodeInfo guardBCI = nodeBCI;
-               guardBCI.setDoNotProfile(true);
                guard->getNode()->getFirstChild()->setByteCodeInfo(guardBCI);
                guard->getNode()->getSecondChild()->setByteCodeInfo(guardBCI);
 
-               bool induceOSR = comp()->allowRecompilation() ? targetMethod->induceOSRAfterAndRecompile(inductionPoint, nodeBCI, guard, false, comp()->getOSRInductionOffset(cursor->getNode()), &cfgEnd):
-                                                               targetMethod->induceOSRAfter(inductionPoint, nodeBCI, guard, false, comp()->getOSRInductionOffset(cursor->getNode()), &cfgEnd);
+               bool induceOSR = comp()->allowRecompilation() ? targetMethod->induceOSRAfterAndRecompile(inductionPoint, osrNode, guard, false, &cfgEnd):
+                                                               targetMethod->induceOSRAfter(inductionPoint, osrNode, guard, false, &cfgEnd);
 
                if (trace() && induceOSR)
                   traceMsg(comp(), "  OSR induction added successfully\n");

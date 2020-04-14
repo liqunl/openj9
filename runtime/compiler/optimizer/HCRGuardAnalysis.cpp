@@ -112,7 +112,6 @@ void TR_HCRGuardAnalysis::initializeGenAndKillSetInfo()
    TR_ByteCodeInfo nodeBCI;
    nodeBCI.setCallerIndex(-1);
    nodeBCI.setByteCodeIndex(0);
-   nodeBCI.setDoNotProfile(false);
    currentBlock = comp()->getStartTree()->getEnclosingBlock();
    if (!comp()->getMethodSymbol()->supportsInduceOSR(nodeBCI, currentBlock, comp()))
       _regularGenSetInfo[currentBlock->getNumber()]->setAll(numBits);

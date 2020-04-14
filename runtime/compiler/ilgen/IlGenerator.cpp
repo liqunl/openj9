@@ -2928,7 +2928,7 @@ void TR_J9ByteCodeIlGenerator::insertCustomizationLogicTreeIfEnabled(TR::TreeTop
       {
       TR::SymbolReference *doCustomizationLogic = comp()->getSymRefTab()->methodSymRefFromName(_methodSymbol, JSR292_MethodHandle, "doCustomizationLogic", "()V", TR::MethodSymbol::Special);
       TR::Node* customization = TR::Node::createWithSymRef(TR::call, 1, 1, methodHandle, doCustomizationLogic);
-      customization->getByteCodeInfo().setDoNotProfile(true);
+      comp()->setCannotOSRAt(customization);
       tree->insertBefore(TR::TreeTop::create(comp(), TR::Node::create(TR::treetop, 1, customization)));
 
       if (comp()->getOption(TR_TraceILGen))
@@ -2989,7 +2989,7 @@ void TR_J9ByteCodeIlGenerator::expandInvokeHandle(TR::TreeTop *tree)
 
    TR::Node * callNode = tree->getNode()->getChild(0);
    TR::Node * receiverHandle = callNode->getArgument(0);
-   callNode->getByteCodeInfo().setDoNotProfile(true);
+   comp()->setCannotOSRAt(callNode);
 
    TR::Node* callSiteMethodType = loadCallSiteMethodType(callNode);
 
@@ -3058,7 +3058,7 @@ void TR_J9ByteCodeIlGenerator::expandInvokeDynamic(TR::TreeTop *tree)
 
    TR::Node * callNode = tree->getNode()->getChild(0);
    TR::Node * receiverHandle = callNode->getArgument(0);
-   callNode->getByteCodeInfo().setDoNotProfile(true);
+   comp()->setCannotOSRAt(callNode);
 
    insertCustomizationLogicTreeIfEnabled(tree, receiverHandle);
    expandInvokeExact(tree);
@@ -3113,7 +3113,7 @@ void TR_J9ByteCodeIlGenerator::expandInvokeHandleGeneric(TR::TreeTop *tree)
 
    TR::Node * callNode = tree->getNode()->getChild(0);
    TR::Node * receiverHandle = callNode->getArgument(0);
-   callNode->getByteCodeInfo().setDoNotProfile(true);
+   comp()->setCannotOSRAt(callNode);
 
    TR::Node* callSiteMethodType = loadCallSiteMethodType(callNode);
    if (callSiteMethodType->getSymbolReference()->isUnresolved())
@@ -3126,7 +3126,7 @@ void TR_J9ByteCodeIlGenerator::expandInvokeHandleGeneric(TR::TreeTop *tree)
    TR::Node* asType = TR::Node::createWithSymRef(callNode, TR::acall, 2, typeConversionSymRef);
    asType->setAndIncChild(0, receiverHandle);
    asType->setAndIncChild(1, callSiteMethodType);
-   asType->getByteCodeInfo().setDoNotProfile(true);
+   comp()->setCannotOSRAt(asType);
    tree->insertBefore(TR::TreeTop::create(comp(), TR::Node::create(callNode, TR::treetop, 1, asType)));
 
    if (comp()->getOption(TR_TraceILGen))
@@ -3184,7 +3184,7 @@ void TR_J9ByteCodeIlGenerator::expandInvokeExact(TR::TreeTop *tree)
 
    TR::Node * callNode = tree->getNode()->getChild(0);
    TR::Node * receiverHandle = callNode->getArgument(0);
-   callNode->getByteCodeInfo().setDoNotProfile(true);
+   comp()->setCannotOSRAt(callNode);
 
    // Get the method address
    uint32_t offset = fej9()->getInstanceFieldOffsetIncludingHeader("Ljava/lang/invoke/MethodHandle;", "thunks", "Ljava/lang/invoke/ThunkTuple;", method());
