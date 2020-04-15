@@ -37,47 +37,14 @@
 
 extern "C" {
 
-static J9Method*
-findFieldContext(J9VMThread *currentThread, IDATA *pcOffset)
-{
-	IDATA bytecodePCOffset = 0;
-	J9Method *method = VM_VMHelpers::findNativeMethodFrame(currentThread)->method;
-	if (NULL == method) {
-		J9StackWalkState *walkState = currentThread->stackWalkState;
-		walkState->walkThread = currentThread;
-		walkState->flags = J9_STACKWALK_VISIBLE_ONLY | J9_STACKWALK_INCLUDE_NATIVES | J9_STACKWALK_COUNT_SPECIFIED | J9_STACKWALK_RECORD_BYTECODE_PC_OFFSET;
-		walkState->maxFrames = 1;
-		walkState->skipCount = 0;
-		currentThread->javaVM->walkStackFrames(currentThread, walkState);
-		IDATA offset = walkState->bytecodePCOffset;
-		if (offset >= 0) {
-			bytecodePCOffset = offset;
-		}
-		method = walkState->method;
-	}
-	*pcOffset = bytecodePCOffset;
-	return method;
-}
-
 jboolean JNICALL
 getBooleanField(JNIEnv *env, jobject obj, jfieldID fieldID)
 {
 	J9VMThread *currentThread = (J9VMThread *)env;
-	J9JavaVM *vm = currentThread->javaVM;
 	VM_VMAccess::inlineEnterVMFromJNI(currentThread);
 	J9JNIFieldID *j9FieldID = (J9JNIFieldID *)fieldID;
 	UDATA valueOffset = j9FieldID->offset;
 
-	if (J9_EVENT_IS_HOOKED(vm->hookInterface, J9HOOK_VM_GET_FIELD)) {
-		j9object_t object = J9_JNI_UNWRAP_REFERENCE(obj);
-		if (J9_ARE_ANY_BITS_SET(J9OBJECT_CLAZZ(currentThread, object)->classFlags, J9ClassHasWatchedFields)) {
-			IDATA location = 0;
-			J9Method *method = findFieldContext(currentThread, &location);
-			if (NULL != method) {
-				ALWAYS_TRIGGER_J9HOOK_VM_GET_FIELD(vm->hookInterface, currentThread, method, location, object, j9FieldID->offset);
-			}
-		}
-	}
 
 	j9object_t object = J9_JNI_UNWRAP_REFERENCE(obj);
 	valueOffset += J9VMTHREAD_OBJECT_HEADER_SIZE(currentThread);
@@ -95,21 +62,10 @@ jbyte JNICALL
 getByteField(JNIEnv *env, jobject obj, jfieldID fieldID)
 {
 	J9VMThread *currentThread = (J9VMThread *)env;
-	J9JavaVM *vm = currentThread->javaVM;
 	VM_VMAccess::inlineEnterVMFromJNI(currentThread);
 	J9JNIFieldID *j9FieldID = (J9JNIFieldID *)fieldID;
 	UDATA valueOffset = j9FieldID->offset;
 
-	if (J9_EVENT_IS_HOOKED(vm->hookInterface, J9HOOK_VM_GET_FIELD)) {
-		j9object_t object = J9_JNI_UNWRAP_REFERENCE(obj);
-		if (J9_ARE_ANY_BITS_SET(J9OBJECT_CLAZZ(currentThread, object)->classFlags, J9ClassHasWatchedFields)) {
-			IDATA location = 0;
-			J9Method *method = findFieldContext(currentThread, &location);
-			if (NULL != method) {
-				ALWAYS_TRIGGER_J9HOOK_VM_GET_FIELD(vm->hookInterface, currentThread, method, location, object, j9FieldID->offset);
-			}
-		}
-	}
 
 	j9object_t object = J9_JNI_UNWRAP_REFERENCE(obj);
 	valueOffset += J9VMTHREAD_OBJECT_HEADER_SIZE(currentThread);
@@ -127,21 +83,10 @@ jchar JNICALL
 getCharField(JNIEnv *env, jobject obj, jfieldID fieldID)
 {
 	J9VMThread *currentThread = (J9VMThread *)env;
-	J9JavaVM *vm = currentThread->javaVM;
 	VM_VMAccess::inlineEnterVMFromJNI(currentThread);
 	J9JNIFieldID *j9FieldID = (J9JNIFieldID *)fieldID;
 	UDATA valueOffset = j9FieldID->offset;
 
-	if (J9_EVENT_IS_HOOKED(vm->hookInterface, J9HOOK_VM_GET_FIELD)) {
-		j9object_t object = J9_JNI_UNWRAP_REFERENCE(obj);
-		if (J9_ARE_ANY_BITS_SET(J9OBJECT_CLAZZ(currentThread, object)->classFlags, J9ClassHasWatchedFields)) {
-			IDATA location = 0;
-			J9Method *method = findFieldContext(currentThread, &location);
-			if (NULL != method) {
-				ALWAYS_TRIGGER_J9HOOK_VM_GET_FIELD(vm->hookInterface, currentThread, method, location, object, j9FieldID->offset);
-			}
-		}
-	}
 
 	j9object_t object = J9_JNI_UNWRAP_REFERENCE(obj);
 	valueOffset += J9VMTHREAD_OBJECT_HEADER_SIZE(currentThread);
@@ -159,21 +104,10 @@ jshort JNICALL
 getShortField(JNIEnv *env, jobject obj, jfieldID fieldID)
 {
 	J9VMThread *currentThread = (J9VMThread *)env;
-	J9JavaVM *vm = currentThread->javaVM;
 	VM_VMAccess::inlineEnterVMFromJNI(currentThread);
 	J9JNIFieldID *j9FieldID = (J9JNIFieldID *)fieldID;
 	UDATA valueOffset = j9FieldID->offset;
 
-	if (J9_EVENT_IS_HOOKED(vm->hookInterface, J9HOOK_VM_GET_FIELD)) {
-		j9object_t object = J9_JNI_UNWRAP_REFERENCE(obj);
-		if (J9_ARE_ANY_BITS_SET(J9OBJECT_CLAZZ(currentThread, object)->classFlags, J9ClassHasWatchedFields)) {
-			IDATA location = 0;
-			J9Method *method = findFieldContext(currentThread, &location);
-			if (NULL != method) {
-				ALWAYS_TRIGGER_J9HOOK_VM_GET_FIELD(vm->hookInterface, currentThread, method, location, object, j9FieldID->offset);
-			}
-		}
-	}
 
 	j9object_t object = J9_JNI_UNWRAP_REFERENCE(obj);
 	valueOffset += J9VMTHREAD_OBJECT_HEADER_SIZE(currentThread);
@@ -191,21 +125,10 @@ jint JNICALL
 getIntField(JNIEnv *env, jobject obj, jfieldID fieldID)
 {
 	J9VMThread *currentThread = (J9VMThread *)env;
-	J9JavaVM *vm = currentThread->javaVM;
 	VM_VMAccess::inlineEnterVMFromJNI(currentThread);
 	J9JNIFieldID *j9FieldID = (J9JNIFieldID *)fieldID;
 	UDATA valueOffset = j9FieldID->offset;
 
-	if (J9_EVENT_IS_HOOKED(vm->hookInterface, J9HOOK_VM_GET_FIELD)) {
-		j9object_t object = J9_JNI_UNWRAP_REFERENCE(obj);
-		if (J9_ARE_ANY_BITS_SET(J9OBJECT_CLAZZ(currentThread, object)->classFlags, J9ClassHasWatchedFields)) {
-			IDATA location = 0;
-			J9Method *method = findFieldContext(currentThread, &location);
-			if (NULL != method) {
-				ALWAYS_TRIGGER_J9HOOK_VM_GET_FIELD(vm->hookInterface, currentThread, method, location, object, j9FieldID->offset);
-			}
-		}
-	}
 
 	j9object_t object = J9_JNI_UNWRAP_REFERENCE(obj);
 	valueOffset += J9VMTHREAD_OBJECT_HEADER_SIZE(currentThread);
@@ -223,21 +146,9 @@ jlong JNICALL
 getLongField(JNIEnv *env, jobject obj, jfieldID fieldID)
 {
 	J9VMThread *currentThread = (J9VMThread *)env;
-	J9JavaVM *vm = currentThread->javaVM;
 	VM_VMAccess::inlineEnterVMFromJNI(currentThread);
 	J9JNIFieldID *j9FieldID = (J9JNIFieldID *)fieldID;
 	UDATA valueOffset = j9FieldID->offset;
-
-	if (J9_EVENT_IS_HOOKED(vm->hookInterface, J9HOOK_VM_GET_FIELD)) {
-		j9object_t object = J9_JNI_UNWRAP_REFERENCE(obj);
-		if (J9_ARE_ANY_BITS_SET(J9OBJECT_CLAZZ(currentThread, object)->classFlags, J9ClassHasWatchedFields)) {
-			IDATA location = 0;
-			J9Method *method = findFieldContext(currentThread, &location);
-			if (NULL != method) {
-				ALWAYS_TRIGGER_J9HOOK_VM_GET_FIELD(vm->hookInterface, currentThread, method, location, object, j9FieldID->offset);
-			}
-		}
-	}
 
 	j9object_t object = J9_JNI_UNWRAP_REFERENCE(obj);
 	valueOffset += J9VMTHREAD_OBJECT_HEADER_SIZE(currentThread);
@@ -255,21 +166,10 @@ jfloat JNICALL
 getFloatField(JNIEnv *env, jobject obj, jfieldID fieldID)
 {
 	J9VMThread *currentThread = (J9VMThread *)env;
-	J9JavaVM *vm = currentThread->javaVM;
 	VM_VMAccess::inlineEnterVMFromJNI(currentThread);
 	J9JNIFieldID *j9FieldID = (J9JNIFieldID *)fieldID;
 	UDATA valueOffset = j9FieldID->offset;
 
-	if (J9_EVENT_IS_HOOKED(vm->hookInterface, J9HOOK_VM_GET_FIELD)) {
-		j9object_t object = J9_JNI_UNWRAP_REFERENCE(obj);
-		if (J9_ARE_ANY_BITS_SET(J9OBJECT_CLAZZ(currentThread, object)->classFlags, J9ClassHasWatchedFields)) {
-			IDATA location = 0;
-			J9Method *method = findFieldContext(currentThread, &location);
-			if (NULL != method) {
-				ALWAYS_TRIGGER_J9HOOK_VM_GET_FIELD(vm->hookInterface, currentThread, method, location, object, j9FieldID->offset);
-			}
-		}
-	}
 
 	j9object_t object = J9_JNI_UNWRAP_REFERENCE(obj);
 	valueOffset += J9VMTHREAD_OBJECT_HEADER_SIZE(currentThread);
@@ -288,21 +188,10 @@ jdouble JNICALL
 getDoubleField(JNIEnv *env, jobject obj, jfieldID fieldID)
 {
 	J9VMThread *currentThread = (J9VMThread *)env;
-	J9JavaVM *vm = currentThread->javaVM;
 	VM_VMAccess::inlineEnterVMFromJNI(currentThread);
 	J9JNIFieldID *j9FieldID = (J9JNIFieldID *)fieldID;
 	UDATA valueOffset = j9FieldID->offset;
 
-	if (J9_EVENT_IS_HOOKED(vm->hookInterface, J9HOOK_VM_GET_FIELD)) {
-		j9object_t object = J9_JNI_UNWRAP_REFERENCE(obj);
-		if (J9_ARE_ANY_BITS_SET(J9OBJECT_CLAZZ(currentThread, object)->classFlags, J9ClassHasWatchedFields)) {
-			IDATA location = 0;
-			J9Method *method = findFieldContext(currentThread, &location);
-			if (NULL != method) {
-				ALWAYS_TRIGGER_J9HOOK_VM_GET_FIELD(vm->hookInterface, currentThread, method, location, object, j9FieldID->offset);
-			}
-		}
-	}
 
 	j9object_t object = J9_JNI_UNWRAP_REFERENCE(obj);
 	valueOffset += J9VMTHREAD_OBJECT_HEADER_SIZE(currentThread);
@@ -321,23 +210,10 @@ void JNICALL
 setByteField(JNIEnv *env, jobject obj, jfieldID fieldID, jbyte value)
 {
 	J9VMThread *currentThread = (J9VMThread *)env;
-	J9JavaVM *vm = currentThread->javaVM;
 	VM_VMAccess::inlineEnterVMFromJNI(currentThread);
 	J9JNIFieldID *j9FieldID = (J9JNIFieldID *)fieldID;
 	UDATA valueOffset = j9FieldID->offset;
 
-	if (J9_EVENT_IS_HOOKED(vm->hookInterface, J9HOOK_VM_PUT_FIELD)) {
-		j9object_t object = J9_JNI_UNWRAP_REFERENCE(obj);
-		if (J9_ARE_ANY_BITS_SET(J9OBJECT_CLAZZ(currentThread, object)->classFlags, J9ClassHasWatchedFields)) {
-			IDATA location = 0;
-			J9Method *method = findFieldContext(currentThread, &location);
-			if (NULL != method) {
-				U_64 newValue = 0;
-				*(I_32*)&newValue = (I_32)value;
-				ALWAYS_TRIGGER_J9HOOK_VM_PUT_FIELD(vm->hookInterface, currentThread, method, location, object, j9FieldID->offset, newValue);
-			}
-		}
-	}
 
 	bool isVolatile = J9_ARE_ANY_BITS_SET(j9FieldID->field->modifiers, J9AccVolatile);
 	if (isVolatile) {
@@ -359,23 +235,10 @@ void JNICALL
 setBooleanField(JNIEnv *env, jobject obj, jfieldID fieldID, jboolean value)
 {
 	J9VMThread *currentThread = (J9VMThread *)env;
-	J9JavaVM *vm = currentThread->javaVM;
 	VM_VMAccess::inlineEnterVMFromJNI(currentThread);
 	J9JNIFieldID *j9FieldID = (J9JNIFieldID *)fieldID;
 	UDATA valueOffset = j9FieldID->offset;
 
-	if (J9_EVENT_IS_HOOKED(vm->hookInterface, J9HOOK_VM_PUT_FIELD)) {
-		j9object_t object = J9_JNI_UNWRAP_REFERENCE(obj);
-		if (J9_ARE_ANY_BITS_SET(J9OBJECT_CLAZZ(currentThread, object)->classFlags, J9ClassHasWatchedFields)) {
-			IDATA location = 0;
-			J9Method *method = findFieldContext(currentThread, &location);
-			if (NULL != method) {
-				U_64 newValue = 0;
-				*(I_32*)&newValue = (I_32)value;
-				ALWAYS_TRIGGER_J9HOOK_VM_PUT_FIELD(vm->hookInterface, currentThread, method, location, object, j9FieldID->offset, newValue);
-			}
-		}
-	}
 
 	bool isVolatile = J9_ARE_ANY_BITS_SET(j9FieldID->field->modifiers, J9AccVolatile);
 	if (isVolatile) {
@@ -397,23 +260,10 @@ void JNICALL
 setCharField(JNIEnv *env, jobject obj, jfieldID fieldID, jchar value)
 {
 	J9VMThread *currentThread = (J9VMThread *)env;
-	J9JavaVM *vm = currentThread->javaVM;
 	VM_VMAccess::inlineEnterVMFromJNI(currentThread);
 	J9JNIFieldID *j9FieldID = (J9JNIFieldID *)fieldID;
 	UDATA valueOffset = j9FieldID->offset;
 
-	if (J9_EVENT_IS_HOOKED(vm->hookInterface, J9HOOK_VM_PUT_FIELD)) {
-		j9object_t object = J9_JNI_UNWRAP_REFERENCE(obj);
-		if (J9_ARE_ANY_BITS_SET(J9OBJECT_CLAZZ(currentThread, object)->classFlags, J9ClassHasWatchedFields)) {
-			IDATA location = 0;
-			J9Method *method = findFieldContext(currentThread, &location);
-			if (NULL != method) {
-				U_64 newValue = 0;
-				*(I_32*)&newValue = (I_32)value;
-				ALWAYS_TRIGGER_J9HOOK_VM_PUT_FIELD(vm->hookInterface, currentThread, method, location, object, j9FieldID->offset, newValue);
-			}
-		}
-	}
 
 	bool isVolatile = J9_ARE_ANY_BITS_SET(j9FieldID->field->modifiers, J9AccVolatile);
 	if (isVolatile) {
@@ -435,23 +285,10 @@ void JNICALL
 setShortField(JNIEnv *env, jobject obj, jfieldID fieldID, jshort value)
 {
 	J9VMThread *currentThread = (J9VMThread *)env;
-	J9JavaVM *vm = currentThread->javaVM;
 	VM_VMAccess::inlineEnterVMFromJNI(currentThread);
 	J9JNIFieldID *j9FieldID = (J9JNIFieldID *)fieldID;
 	UDATA valueOffset = j9FieldID->offset;
 
-	if (J9_EVENT_IS_HOOKED(vm->hookInterface, J9HOOK_VM_PUT_FIELD)) {
-		j9object_t object = J9_JNI_UNWRAP_REFERENCE(obj);
-		if (J9_ARE_ANY_BITS_SET(J9OBJECT_CLAZZ(currentThread, object)->classFlags, J9ClassHasWatchedFields)) {
-			IDATA location = 0;
-			J9Method *method = findFieldContext(currentThread, &location);
-			if (NULL != method) {
-				U_64 newValue = 0;
-				*(I_32*)&newValue = (I_32)value;
-				ALWAYS_TRIGGER_J9HOOK_VM_PUT_FIELD(vm->hookInterface, currentThread, method, location, object, j9FieldID->offset, newValue);
-			}
-		}
-	}
 
 	bool isVolatile = J9_ARE_ANY_BITS_SET(j9FieldID->field->modifiers, J9AccVolatile);
 	if (isVolatile) {
@@ -473,23 +310,10 @@ void JNICALL
 setIntField(JNIEnv *env, jobject obj, jfieldID fieldID, jint value)
 {
 	J9VMThread *currentThread = (J9VMThread *)env;
-	J9JavaVM *vm = currentThread->javaVM;
 	VM_VMAccess::inlineEnterVMFromJNI(currentThread);
 	J9JNIFieldID *j9FieldID = (J9JNIFieldID *)fieldID;
 	UDATA valueOffset = j9FieldID->offset;
 
-	if (J9_EVENT_IS_HOOKED(vm->hookInterface, J9HOOK_VM_PUT_FIELD)) {
-		j9object_t object = J9_JNI_UNWRAP_REFERENCE(obj);
-		if (J9_ARE_ANY_BITS_SET(J9OBJECT_CLAZZ(currentThread, object)->classFlags, J9ClassHasWatchedFields)) {
-			IDATA location = 0;
-			J9Method *method = findFieldContext(currentThread, &location);
-			if (NULL != method) {
-				U_64 newValue = 0;
-				*(I_32*)&newValue = (I_32)value;
-				ALWAYS_TRIGGER_J9HOOK_VM_PUT_FIELD(vm->hookInterface, currentThread, method, location, object, j9FieldID->offset, newValue);
-			}
-		}
-	}
 
 	bool isVolatile = J9_ARE_ANY_BITS_SET(j9FieldID->field->modifiers, J9AccVolatile);
 	if (isVolatile) {
@@ -511,22 +335,10 @@ void JNICALL
 setLongField(JNIEnv *env, jobject obj, jfieldID fieldID, jlong value)
 {
 	J9VMThread *currentThread = (J9VMThread *)env;
-	J9JavaVM *vm = currentThread->javaVM;
 	VM_VMAccess::inlineEnterVMFromJNI(currentThread);
 	J9JNIFieldID *j9FieldID = (J9JNIFieldID *)fieldID;
 	UDATA valueOffset = j9FieldID->offset;
 
-	if (J9_EVENT_IS_HOOKED(vm->hookInterface, J9HOOK_VM_PUT_FIELD)) {
-		j9object_t object = J9_JNI_UNWRAP_REFERENCE(obj);
-		if (J9_ARE_ANY_BITS_SET(J9OBJECT_CLAZZ(currentThread, object)->classFlags, J9ClassHasWatchedFields)) {
-			IDATA location = 0;
-			J9Method *method = findFieldContext(currentThread, &location);
-			if (NULL != method) {
-				U_64 newValue = (U_64)value;
-				ALWAYS_TRIGGER_J9HOOK_VM_PUT_FIELD(vm->hookInterface, currentThread, method, location, object, j9FieldID->offset, newValue);
-			}
-		}
-	}
 
 	bool isVolatile = J9_ARE_ANY_BITS_SET(j9FieldID->field->modifiers, J9AccVolatile);
 	if (isVolatile) {
@@ -548,23 +360,10 @@ void JNICALL
 setFloatField(JNIEnv *env, jobject obj, jfieldID fieldID, jfloat value)
 {
 	J9VMThread *currentThread = (J9VMThread *)env;
-	J9JavaVM *vm = currentThread->javaVM;
 	VM_VMAccess::inlineEnterVMFromJNI(currentThread);
 	J9JNIFieldID *j9FieldID = (J9JNIFieldID *)fieldID;
 	UDATA valueOffset = j9FieldID->offset;
 
-	if (J9_EVENT_IS_HOOKED(vm->hookInterface, J9HOOK_VM_PUT_FIELD)) {
-		j9object_t object = J9_JNI_UNWRAP_REFERENCE(obj);
-		if (J9_ARE_ANY_BITS_SET(J9OBJECT_CLAZZ(currentThread, object)->classFlags, J9ClassHasWatchedFields)) {
-			IDATA location = 0;
-			J9Method *method = findFieldContext(currentThread, &location);
-			if (NULL != method) {
-				U_64 newValue = 0;
-				*(jfloat*)&newValue = value;
-				ALWAYS_TRIGGER_J9HOOK_VM_PUT_FIELD(vm->hookInterface, currentThread, method, location, object, j9FieldID->offset, newValue);
-			}
-		}
-	}
 
 	bool isVolatile = J9_ARE_ANY_BITS_SET(j9FieldID->field->modifiers, J9AccVolatile);
 	if (isVolatile) {
@@ -586,24 +385,11 @@ void JNICALL
 setDoubleField(JNIEnv *env, jobject obj, jfieldID fieldID, jdouble value)
 {
 	J9VMThread *currentThread = (J9VMThread *)env;
-	J9JavaVM *vm = currentThread->javaVM;
 	VM_VMAccess::inlineEnterVMFromJNI(currentThread);
 	J9JNIFieldID *j9FieldID = (J9JNIFieldID *)fieldID;
 	UDATA valueOffset = j9FieldID->offset;
 
 
-	if (J9_EVENT_IS_HOOKED(vm->hookInterface, J9HOOK_VM_PUT_FIELD)) {
-		j9object_t object = J9_JNI_UNWRAP_REFERENCE(obj);
-		if (J9_ARE_ANY_BITS_SET(J9OBJECT_CLAZZ(currentThread, object)->classFlags, J9ClassHasWatchedFields)) {
-			IDATA location = 0;
-			J9Method *method = findFieldContext(currentThread, &location);
-			if (NULL != method) {
-				U_64 newValue = 0;
-				*(jdouble*)&newValue = value;
-				ALWAYS_TRIGGER_J9HOOK_VM_PUT_FIELD(vm->hookInterface, currentThread, method, location, object, j9FieldID->offset, newValue);
-			}
-		}
-	}
 
 	bool isVolatile = J9_ARE_ANY_BITS_SET(j9FieldID->field->modifiers, J9AccVolatile);
 	if (isVolatile) {
@@ -625,21 +411,10 @@ jobject JNICALL
 getObjectField(JNIEnv *env, jobject obj, jfieldID fieldID)
 {
 	J9VMThread *currentThread = (J9VMThread *)env;
-	J9JavaVM *vm = currentThread->javaVM;
 	VM_VMAccess::inlineEnterVMFromJNI(currentThread);
 	J9JNIFieldID *j9FieldID = (J9JNIFieldID *)fieldID;
 	UDATA valueOffset = j9FieldID->offset;
 
-	if (J9_EVENT_IS_HOOKED(vm->hookInterface, J9HOOK_VM_GET_FIELD)) {
-		j9object_t object = J9_JNI_UNWRAP_REFERENCE(obj);
-		if (J9_ARE_ANY_BITS_SET(J9OBJECT_CLAZZ(currentThread, object)->classFlags, J9ClassHasWatchedFields)) {
-			IDATA location = 0;
-			J9Method *method = findFieldContext(currentThread, &location);
-			if (NULL != method) {
-				ALWAYS_TRIGGER_J9HOOK_VM_GET_FIELD(vm->hookInterface, currentThread, method, location, object, j9FieldID->offset);
-			}
-		}
-	}
 
 	j9object_t object = J9_JNI_UNWRAP_REFERENCE(obj);
 	valueOffset += J9VMTHREAD_OBJECT_HEADER_SIZE(currentThread);
@@ -658,25 +433,10 @@ void JNICALL
 setObjectField(JNIEnv *env, jobject obj, jfieldID fieldID, jobject valueRef)
 {
 	J9VMThread *currentThread = (J9VMThread *)env;
-	J9JavaVM *vm = currentThread->javaVM;
 	VM_VMAccess::inlineEnterVMFromJNI(currentThread);
 	J9JNIFieldID *j9FieldID = (J9JNIFieldID *)fieldID;
 	UDATA valueOffset = j9FieldID->offset;
 
-	if (J9_EVENT_IS_HOOKED(vm->hookInterface, J9HOOK_VM_PUT_FIELD)) {
-		j9object_t object = J9_JNI_UNWRAP_REFERENCE(obj);
-		if (J9_ARE_ANY_BITS_SET(J9OBJECT_CLAZZ(currentThread, object)->classFlags, J9ClassHasWatchedFields)) {
-			IDATA location = 0;
-			J9Method *method = findFieldContext(currentThread, &location);
-			if (NULL != method) {
-				U_64 newValue = 0;
-				if (NULL != valueRef) {
-					*(j9object_t*)&newValue = J9_JNI_UNWRAP_REFERENCE(valueRef);
-				}
-				ALWAYS_TRIGGER_J9HOOK_VM_PUT_FIELD(vm->hookInterface, currentThread, method, location, object, j9FieldID->offset, newValue);
-			}
-		}
-	}
 
 	bool isVolatile = J9_ARE_ANY_BITS_SET(j9FieldID->field->modifiers, J9AccVolatile);
 	if (isVolatile) {
@@ -699,7 +459,6 @@ jint JNICALL
 getStaticIntField(JNIEnv *env, jclass clazz, jfieldID fieldID)
 {
 	J9VMThread *currentThread = (J9VMThread*)env;
-	J9JavaVM *vm = currentThread->javaVM;
 	VM_VMAccess::inlineEnterVMFromJNI(currentThread);
 	J9JNIFieldID *id = (J9JNIFieldID*)fieldID;
 	J9Class *declaringClass = id->declaringClass;
@@ -707,15 +466,6 @@ getStaticIntField(JNIEnv *env, jclass clazz, jfieldID fieldID)
 	J9ROMFieldShape *field = id->field;
 	U_32 modifiers = field->modifiers;
 	void *valueAddress = (void*)((UDATA)declaringClass->ramStatics + offset);
-	if (J9_EVENT_IS_HOOKED(vm->hookInterface, J9HOOK_VM_GET_STATIC_FIELD)) {
-		if (J9_ARE_ANY_BITS_SET(declaringClass->classFlags, J9ClassHasWatchedFields)) {
-			IDATA location = 0;
-			J9Method *method = findFieldContext(currentThread, &location);
-			if (NULL != method) {
-				ALWAYS_TRIGGER_J9HOOK_VM_GET_STATIC_FIELD(vm->hookInterface, currentThread, method, location, declaringClass, valueAddress);
-			}
-		}
-	}
 	bool isVolatile = J9_ARE_ANY_BITS_SET(modifiers, J9AccVolatile);
 	MM_ObjectAccessBarrierAPI objectAccessBarrier(currentThread);
 	jint result = (jint)objectAccessBarrier.inlineStaticReadU32(currentThread, declaringClass, (U_32*)valueAddress, isVolatile);
@@ -727,7 +477,6 @@ void JNICALL
 setStaticIntField(JNIEnv *env, jclass clazz, jfieldID fieldID, jint value)
 {
 	J9VMThread *currentThread = (J9VMThread*)env;
-	J9JavaVM *vm = currentThread->javaVM;
 	VM_VMAccess::inlineEnterVMFromJNI(currentThread);
 	J9JNIFieldID *id = (J9JNIFieldID*)fieldID;
 	J9Class *declaringClass = id->declaringClass;
@@ -735,17 +484,6 @@ setStaticIntField(JNIEnv *env, jclass clazz, jfieldID fieldID, jint value)
 	J9ROMFieldShape *field = id->field;
 	U_32 modifiers = field->modifiers;
 	void *valueAddress = (void*)((UDATA)declaringClass->ramStatics + offset);
-	if (J9_EVENT_IS_HOOKED(vm->hookInterface, J9HOOK_VM_PUT_STATIC_FIELD)) {
-		if (J9_ARE_ANY_BITS_SET(declaringClass->classFlags, J9ClassHasWatchedFields)) {
-			IDATA location = 0;
-			J9Method *method = findFieldContext(currentThread, &location);
-			if (NULL != method) {
-				U_64 newValue = 0;
-				*(I_32*)&newValue = (I_32)value;
-				ALWAYS_TRIGGER_J9HOOK_VM_PUT_STATIC_FIELD(vm->hookInterface, currentThread, method, location, declaringClass, valueAddress, newValue);
-			}
-		}
-	}
 
 	if (J9_ARE_ANY_BITS_SET(modifiers, J9AccFinal)) {
 		VM_VMHelpers::reportFinalFieldModified(currentThread, declaringClass);
@@ -767,7 +505,6 @@ jlong JNICALL
 getStaticLongField(JNIEnv *env, jclass clazz, jfieldID fieldID)
 {
 	J9VMThread *currentThread = (J9VMThread*)env;
-	J9JavaVM *vm = currentThread->javaVM;
 	VM_VMAccess::inlineEnterVMFromJNI(currentThread);
 	J9JNIFieldID *id = (J9JNIFieldID*)fieldID;
 	J9Class *declaringClass = id->declaringClass;
@@ -775,15 +512,6 @@ getStaticLongField(JNIEnv *env, jclass clazz, jfieldID fieldID)
 	J9ROMFieldShape *field = id->field;
 	U_32 modifiers = field->modifiers;
 	void *valueAddress = (void*)((UDATA)declaringClass->ramStatics + offset);
-	if (J9_EVENT_IS_HOOKED(vm->hookInterface, J9HOOK_VM_GET_STATIC_FIELD)) {
-		if (J9_ARE_ANY_BITS_SET(declaringClass->classFlags, J9ClassHasWatchedFields)) {
-			IDATA location = 0;
-			J9Method *method = findFieldContext(currentThread, &location);
-			if (NULL != method) {
-				ALWAYS_TRIGGER_J9HOOK_VM_GET_STATIC_FIELD(vm->hookInterface, currentThread, method, location, declaringClass, valueAddress);
-			}
-		}
-	}
 	bool isVolatile = J9_ARE_ANY_BITS_SET(modifiers, J9AccVolatile);
 	MM_ObjectAccessBarrierAPI objectAccessBarrier(currentThread);
 	jlong result = (jlong)objectAccessBarrier.inlineStaticReadU64(currentThread, declaringClass, (U_64*)valueAddress, isVolatile);
@@ -795,7 +523,6 @@ static void JNICALL
 setStaticDoubleFieldIndirect(JNIEnv *env, jobject clazz, jfieldID fieldID, void *value)
 {
 	J9VMThread *currentThread = (J9VMThread*)env;
-	J9JavaVM *vm = currentThread->javaVM;
 	VM_VMAccess::inlineEnterVMFromJNI(currentThread);
 	J9JNIFieldID *id = (J9JNIFieldID*)fieldID;
 	J9Class *declaringClass = id->declaringClass;
@@ -803,15 +530,6 @@ setStaticDoubleFieldIndirect(JNIEnv *env, jobject clazz, jfieldID fieldID, void 
 	J9ROMFieldShape *field = id->field;
 	U_32 modifiers = field->modifiers;
 	void *valueAddress = (void*)((UDATA)declaringClass->ramStatics + offset);
-	if (J9_EVENT_IS_HOOKED(vm->hookInterface, J9HOOK_VM_PUT_STATIC_FIELD)) {
-		if (J9_ARE_ANY_BITS_SET(declaringClass->classFlags, J9ClassHasWatchedFields)) {
-			IDATA location = 0;
-			J9Method *method = findFieldContext(currentThread, &location);
-			if (NULL != method) {
-				ALWAYS_TRIGGER_J9HOOK_VM_PUT_STATIC_FIELD(vm->hookInterface, currentThread, method, location, declaringClass, valueAddress, *(U_64*)value);
-			}
-		}
-	}
 
 	if (J9_ARE_ANY_BITS_SET(modifiers, J9AccFinal)) {
 		VM_VMHelpers::reportFinalFieldModified(currentThread, declaringClass);
@@ -839,7 +557,6 @@ jobject JNICALL
 getStaticObjectField(JNIEnv *env, jclass clazz, jfieldID fieldID)
 {
 	J9VMThread *currentThread = (J9VMThread*)env;
-	J9JavaVM *vm = currentThread->javaVM;
 	VM_VMAccess::inlineEnterVMFromJNI(currentThread);
 	J9JNIFieldID *id = (J9JNIFieldID*)fieldID;
 	J9Class *declaringClass = id->declaringClass;
@@ -847,15 +564,6 @@ getStaticObjectField(JNIEnv *env, jclass clazz, jfieldID fieldID)
 	J9ROMFieldShape *field = id->field;
 	U_32 modifiers = field->modifiers;
 	void *valueAddress = (void*)((UDATA)declaringClass->ramStatics + offset);
-	if (J9_EVENT_IS_HOOKED(vm->hookInterface, J9HOOK_VM_GET_STATIC_FIELD)) {
-		if (J9_ARE_ANY_BITS_SET(declaringClass->classFlags, J9ClassHasWatchedFields)) {
-			IDATA location = 0;
-			J9Method *method = findFieldContext(currentThread, &location);
-			if (NULL != method) {
-				ALWAYS_TRIGGER_J9HOOK_VM_GET_STATIC_FIELD(vm->hookInterface, currentThread, method, location, declaringClass, valueAddress);
-			}
-		}
-	}
 	bool isVolatile = J9_ARE_ANY_BITS_SET(modifiers, J9AccVolatile);
 	MM_ObjectAccessBarrierAPI objectAccessBarrier(currentThread);
 	j9object_t resultObject = objectAccessBarrier.inlineStaticReadObject(currentThread, declaringClass, (j9object_t*)valueAddress, isVolatile);
@@ -868,7 +576,6 @@ void JNICALL
 setStaticObjectField(JNIEnv *env, jclass clazz, jfieldID fieldID, jobject value)
 {
 	J9VMThread *currentThread = (J9VMThread*)env;
-	J9JavaVM *vm = currentThread->javaVM;
 	VM_VMAccess::inlineEnterVMFromJNI(currentThread);
 	J9JNIFieldID *id = (J9JNIFieldID*)fieldID;
 	J9Class *declaringClass = id->declaringClass;
@@ -876,19 +583,6 @@ setStaticObjectField(JNIEnv *env, jclass clazz, jfieldID fieldID, jobject value)
 	J9ROMFieldShape *field = id->field;
 	U_32 modifiers = field->modifiers;
 	void *valueAddress = (void*)((UDATA)declaringClass->ramStatics + offset);
-	if (J9_EVENT_IS_HOOKED(vm->hookInterface, J9HOOK_VM_PUT_STATIC_FIELD)) {
-		if (J9_ARE_ANY_BITS_SET(declaringClass->classFlags, J9ClassHasWatchedFields)) {
-			IDATA location = 0;
-			J9Method *method = findFieldContext(currentThread, &location);
-			if (NULL != method) {
-				U_64 newValue = 0;
-				if (NULL != value) {
-					*(j9object_t*)&newValue = J9_JNI_UNWRAP_REFERENCE(value);
-				}
-				ALWAYS_TRIGGER_J9HOOK_VM_PUT_STATIC_FIELD(vm->hookInterface, currentThread, method, location, declaringClass, valueAddress, newValue);
-			}
-		}
-	}
 
 	if (J9_ARE_ANY_BITS_SET(modifiers, J9AccFinal)) {
 		VM_VMHelpers::reportFinalFieldModified(currentThread, declaringClass);
