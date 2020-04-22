@@ -4166,19 +4166,29 @@ inline void generateInlinedCheckCastOrInstanceOfForClass(TR::Node* node, TR_Opaq
 TR::Register *J9::X86::TreeEvaluator::checkcastinstanceofEvaluator(TR::Node *node, TR::CodeGenerator *cg)
    {
    bool isCheckCast = false;
+   char* opcodeName = NULL;
    switch (node->getOpCodeValue())
       {
       case TR::checkcast:
       case TR::checkcastAndNULLCHK:
          isCheckCast = true;
+         opcodeName = "checkcast";
          break;
       case TR::instanceof:
+         opcodeName = "instanceof";
+         break;
       case TR::icall: // TR_checkAssignable
+         opcodeName = "assignable";
          break;
       default:
          TR_ASSERT(false, "Incorrect Op Code %d.", node->getOpCodeValue());
          break;
       }
+
+   cg->generateDebugCounter(
+          TR::DebugCounter::debugCounterName(cg->comp(), "cainst/%s/(%s %s)", opcodeName, cg->comp()->signature(), cg->comp()->getHotnessName()),
+          1, TR::DebugCounter::Cheap);
+
    auto clazz = TR::TreeEvaluator::getCastClassAddress(node->getChild(1));
    if (isCheckCast && !clazz && !cg->comp()->getOption(TR_DisableInlineCheckCast) && (!cg->comp()->compileRelocatableCode() || cg->comp()->getOption(TR_UseSymbolValidationManager)))
       {
