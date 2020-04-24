@@ -4004,7 +4004,7 @@ inline void generateInlinedCheckCastOrInstanceOfForInterface(TR::Node* node, TR_
       }
    }
 
-inline void generateInlinedCheckCastOrInstanceOfForClass(TR::Node* node, TR_OpaqueClassBlock* clazz, TR::CodeGenerator* cg, bool isCheckCast, bool ifInstanceof = false)
+inline void generateInlinedCheckCastOrInstanceOfForClass(TR::Node* node, TR_OpaqueClassBlock* clazz, TR::CodeGenerator* cg, bool isCheckCast)
    {
    auto fej9 = (TR_J9VMBase*)(cg->fe());
 
@@ -4098,8 +4098,7 @@ inline void generateInlinedCheckCastOrInstanceOfForClass(TR::Node* node, TR_Opaq
             generateLabelInstruction(JBE4, node, outlineLabel, cg);
 
             TR_OutlinedInstructionsGenerator og(outlineLabel, node, cg);
-            if (!ifInstanceof)
-               generateInstruction(CLC, node, cg);
+            generateInstruction(CLC, node, cg);
             generateLabelInstruction(JMP4, node, failLabel, cg);
             }
          else
@@ -4164,11 +4163,7 @@ inline void generateInlinedCheckCastOrInstanceOfForClass(TR::Node* node, TR_Opaq
    cg->stopUsingRegister(tmp);
    }
 
-static ifInstanceofEvaluator(TR::Node* node, TR::CodeGenerator *cg)
-   {
-   }
-
-TR::Register *J9::X86::TreeEvaluator::checkcastinstanceofEvaluator(TR::Node *node, TR::CodeGenerator *cg, bool ifInstanceof)
+TR::Register *J9::X86::TreeEvaluator::checkcastinstanceofEvaluator(TR::Node *node, TR::CodeGenerator *cg)
    {
    bool isCheckCast = false;
    char* opcodeName = NULL;
@@ -4212,9 +4207,9 @@ TR::Register *J9::X86::TreeEvaluator::checkcastinstanceofEvaluator(TR::Node *nod
          }
       else
          {
-         generateInlinedCheckCastOrInstanceOfForClass(node, clazz, cg, isCheckCast, ifInstanceof);
+         generateInlinedCheckCastOrInstanceOfForClass(node, clazz, cg, isCheckCast);
          }
-      if (!isCheckCast && !ifInstanceof)
+      if (!isCheckCast)
          {
          auto result = cg->allocateRegister();
          generateRegInstruction(SETB1Reg, node, result, cg);
