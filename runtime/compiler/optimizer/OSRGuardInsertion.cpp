@@ -421,6 +421,7 @@ void TR_OSRGuardInsertion::removeHCRGuards(TR_BitVector &fearGeneratingNodes, TR
 int32_t TR_OSRGuardInsertion::insertOSRGuards(TR_BitVector &fearGeneratingNodes)
    {
    static char *forceOSRInsertion = feGetEnv("TR_ForceOSRGuardInsertion");
+   static char *dontInsertOSRGuard = feGetEnv("TR_dontInsertOSRGuard");
 
    if (!comp()->getFlowGraph()->getStructure())
       comp()->getFlowGraph()->setStructure(fakeRegion(comp()));
@@ -475,12 +476,16 @@ int32_t TR_OSRGuardInsertion::insertOSRGuards(TR_BitVector &fearGeneratingNodes)
             {
             TR_VirtualGuard *guardInfo = comp()->findVirtualGuardInfo(cursor->getNode());
             TR_ASSERT(guardInfo, "guard info should exist for a virtual guard");
-            guardInfo->setMergedWithOSRGuard();
+
+            if (!dontInsertOSRGuard)
+               guardInfo->setMergedWithOSRGuard();
             fear.empty();
             }
          }
       else if (cursor == firstTree && (!fear.isEmpty() || forceOSRInsertion))
          {
+         if (dontInsertOSRGuard) continue;
+
          // As the method entry is an implicit OSR point, it is necessary to add a guard here
          // if fear can reach it
 
@@ -509,6 +514,12 @@ int32_t TR_OSRGuardInsertion::insertOSRGuards(TR_BitVector &fearGeneratingNodes)
          }
       else if (comp()->isPotentialOSRPointWithSupport(cursor))
          {
+         if (dontInsertOSRGuard)
+            {
+            fear.empty();
+            continue;
+            }
+
          const char *label = NULL;
          if (cursor->getNode()->getOpCodeValue() == TR::asynccheck)
             label = "asynccheck";
