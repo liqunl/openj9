@@ -33,6 +33,7 @@
 #include "optimizer/TransformUtil.hpp"
 #include "ras/DebugCounter.hpp"
 #include "infra/Checklist.hpp"
+#include "optimizer/StructuralAnalysis.hpp"
 
 TR_Structure* fakeRegion(TR::Compilation *comp);
 
@@ -284,6 +285,9 @@ TR_OSRGuardInsertion::optDetailString() const throw()
  */
 TR_Structure* fakeRegion(TR::Compilation *comp)
    {
+   if (comp->mayHaveLoops())
+      return TR_RegionAnalysis::getRegions(comp);
+
    TR::CFG* cfg = comp->getFlowGraph();
    // This is the memory region into which we allocate structure nodes
    TR::Region &structureRegion = cfg->structureRegion();
@@ -430,7 +434,7 @@ int32_t TR_OSRGuardInsertion::insertOSRGuards(TR_BitVector &fearGeneratingNodes)
       fearGeneratingNodes, true, trace());
    // Structure is no longer needed after completing the fear analysis and
    // will potentially slow down manipulations to the CFG, so it is remove
-   comp()->getFlowGraph()->invalidateStructure();
+   //comp()->getFlowGraph()->invalidateStructure();
 
    TR::TreeTop * cfgEnd = comp()->getFlowGraph()->findLastTreeTop();
 
@@ -574,6 +578,7 @@ int32_t TR_OSRGuardInsertion::insertOSRGuards(TR_BitVector &fearGeneratingNodes)
             static char *disableNormalCallOSRInduction = feGetEnv("TR_disableNormalCallOSRInduction");
             static char *osrNormalGuardThreshold = feGetEnv("TR_osrNormalGuardThreshold");
             static char *osrCallExcludeLoopsOnly = feGetEnv("TR_osrCallExcludeLoopsOnly");
+
             if (cursor->getNode()->getOpCodeValue() != TR::asynccheck && cursor->getNode()->getOpCodeValue() != TR::monent
                 && !cursor->getNode()->getFirstChild()->isTheVirtualCallNodeForAGuardedInlinedCall())
                {
@@ -584,7 +589,12 @@ int32_t TR_OSRGuardInsertion::insertOSRGuards(TR_BitVector &fearGeneratingNodes)
                else if (osrNormalGuardThreshold != NULL
                         && block->getFrequency() >= atoi(osrNormalGuardThreshold))
                   {
-                  shouldInduce = !(osrCallExcludeLoopsOnly == NULL || block->getStructureOf()->getContainingLoop());
+                  TR::DebugCounter::incStaticDebugCounter(comp(), TR::DebugCounter::debugCounterName(comp(), "osrCallExclude/(%s %s)",
+                      comp()->signature(), comp()->getHotnessName()));
+                  shouldInduce = !(osrCallExcludeLoopsOnly == NULL || (block->getStructureOf() && block->getStructureOf()->getContainingLoop()));
+                  if (!shouldInduce)
+                     TR::DebugCounter::incStaticDebugCounter(comp(), TR::DebugCounter::debugCounterName(comp(), "osrCallExcludeLoopsOnly/(%s %s)",
+                        comp()->signature(), comp()->getHotnessName()));
                   }
                }
 
@@ -637,6 +647,7 @@ int32_t TR_OSRGuardInsertion::insertOSRGuards(TR_BitVector &fearGeneratingNodes)
          }
       else if (cursor->getNode()->getOpCodeValue() == TR::asynccheck)
          {
+         // asynccheck that is not potentialOSRPoint, it's asynccheck in short running methods, i.e. whitelisted methods
          TR::DebugCounter::prependDebugCounter(comp(), TR::DebugCounter::debugCounterName(comp(), "osrGuardSummary/whitelist/asynccheck/%s/=%d", comp()->getHotnessName(comp()->getMethodHotness()), block->getFrequency()), cursor);
          }
       else
@@ -645,6 +656,9 @@ int32_t TR_OSRGuardInsertion::insertOSRGuards(TR_BitVector &fearGeneratingNodes)
             fear |= *fearAnalysis.generatedFear(cursor->getNode());
          }
       }
+
+   // invalidate at the end so that the env var can work
+   comp()->getFlowGraph()->invalidateStructure();
 
    // HCR in the new world is only allowed to happen at three kinds of async points:
    // calls, asyncchecks and monents.
