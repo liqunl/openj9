@@ -1785,9 +1785,8 @@ void methodHandleJ2I(j9object_t methodHandle, void **stack, J9VMThread *vmThread
       // TODO: Adjust "stack" so it points at the MethodHandle.  +1 for return address, +N for n argument slots
       uintptr_t methodType = fej9->getReferenceField ((uintptr_t)methodHandle, "type",     "Ljava/lang/invoke/MethodType;");
       uintptr_t methodTypeForm = fej9->getReferenceField (          methodType, "form",     "Ljava/lang/invoke/MethodTypeForm;");
-      int64_t    argCounts  = fej9->getInt64Field     (          methodTypeForm, "argCounts");
-      int32_t    argSlots   = (int32_t)((argCounts >> 16) & 0xFFFF);
-      void **methodHandleOnStack = stack + argSlots;
+      int64_t    argCounts  = fej9->getInt32Field     (          methodTypeForm, "parameterSlotCount");
+      void **methodHandleOnStack = stack + argCounts;
       printMethodHandleArgs(methodHandle, methodHandleOnStack, vmThread, TR_Vlog_J2I, fej9);
       }
    }

@@ -299,7 +299,7 @@ SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-excepti
 	<fieldref class="java/lang/invoke/MethodType" name="rtype" signature="Ljava/lang/Class;" flags="opt_methodHandle"/>
 	<fieldref class="java/lang/invoke/MethodType" name="form" signature="Ljava/lang/invoke/MethodTypeForm;" flags="opt_methodHandle"/>
 	<fieldref class="java/lang/invoke/MethodType" name="methodDescriptor" signature="Ljava/lang/String;" flags="opt_methodHandle"/>
-	<fieldref class="java/lang/invoke/MethodTypeForm" name="argCounts" signature="J" flags="opt_methodHandle"/>
+	<fieldref class="java/lang/invoke/MethodTypeForm" name="parameterSlotCount" signature="S" flags="opt_methodHandle"/>
 	<fieldref class="java/lang/invoke/DynamicInvokerHandle" name="site" signature="Ljava/lang/invoke/CallSite;" flags="opt_methodHandle"/>
 	<fieldref class="java/lang/invoke/FilterReturnHandle" name="filter" signature="Ljava/lang/invoke/MethodHandle;" flags="opt_methodHandle"/>
 	<fieldref class="java/lang/invoke/VarargsCollectorHandle" name="next" signature="Ljava/lang/invoke/MethodHandle;" flags="opt_methodHandle"/>

@@ -1709,9 +1709,9 @@ exit:
 	static VMINLINE U_32
 	getArgSlotFromMethodType(J9VMThread *currentThread, j9object_t methodType) {
 		j9object_t methodTypeForm = (j9object_t)J9VMJAVALANGINVOKEMETHODTYPE_FORM(currentThread, methodType);
-		U_64 argCounts = (U_64)J9VMJAVALANGINVOKEMETHODTYPEFORM_ARGCOUNTS(currentThread, methodTypeForm);
+		U_32 argCounts = (U_32)(I_16)J9VMJAVALANGINVOKEMETHODTYPEFORM_PARAMETERSLOTCOUNT(currentThread, methodTypeForm);
 
-		return (U_32)((argCounts >> 16) & 0xFFFF);
+		return argCounts;
 	}
 
 };
