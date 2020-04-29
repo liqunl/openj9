@@ -388,19 +388,16 @@ public abstract class VarHandle extends VarHandleInternal
 		for (int i = 0; i < numAccessModes; i++) {
 			MemberName memberName = varForm.memberName_table[i];
 			if (memberName != null) {
-				Method method = memberName.method;
-				if (method != null) {
-					operationMTs[i] = MethodType.methodType(method.getReturnType(), method.getParameterTypes());
+					operationMTs[i] = memberName.getMethodType();
 					if (operationMTsExact != null) {
-						/* Replace with the actual receiver, which is expected when the operation method
-						 * is invoked. The receiver is the second argument. 
-						 */
-						operationMTsExact[i] = operationMTs[i].changeParameterType(1, receiverActual);
+							/* Replace with the actual receiver, which is expected when the operation method
+							 * is invoked. The receiver is the second argument.
+							 */
+							operationMTsExact[i] = operationMTs[i].changeParameterType(1, receiverActual);
 					}
 					if (operationsClass == null) {
-						operationsClass = method.getDeclaringClass();
+							operationsClass = memberName.getDeclaringClass();
 					}
-				}
 			}
 		}
 
