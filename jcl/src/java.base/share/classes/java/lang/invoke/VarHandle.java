@@ -50,10 +50,8 @@ import java.util.Objects;
 import java.util.Map;
 import java.util.HashMap;
 
-/*[IF Java14]*/
 import java.util.function.BiFunction;
 import java.lang.reflect.Method;
-/*[ENDIF] Java14 */
 
 /**
  * Dynamically typed reference to a field, allowing read and write operations, 
@@ -340,10 +338,8 @@ public abstract class VarHandle extends VarHandleInternal
 	static final Unsafe _unsafe = Unsafe.getUnsafe();
 	static final Lookup _lookup = Lookup.internalPrivilegedLookup;
 
-/*[IF Java14]*/
 	static final BiFunction<String, List<Integer>, ArrayIndexOutOfBoundsException> AIOOBE_SUPPLIER = null;
-	private boolean varFormUsed = false;
-/*[ENDIF] Java14 */
+	VarForm vform = null;
 	
 	private final MethodHandle[] handleTable;
 	final Class<?> fieldType;
@@ -368,7 +364,6 @@ public abstract class VarHandle extends VarHandleInternal
 		this.modifiers = modifiers;
 	}
 
-/*[IF Java14]*/
 	/**
 	 * Constructs a generic VarHandle instance.
 	 *
@@ -396,16 +391,16 @@ public abstract class VarHandle extends VarHandleInternal
 		for (int i = 0; i < numAccessModes; i++) {
 			MemberName memberName = varForm.memberName_table[i];
 			if (memberName != null) {
-					operationMTs[i] = memberName.getMethodType();
-					if (operationMTsExact != null) {
-							/* Replace with the actual receiver, which is expected when the operation method
-							 * is invoked. The receiver is the second argument.
-							 */
-							operationMTsExact[i] = operationMTs[i].changeParameterType(1, receiverActual);
-					}
-					if (operationsClass == null) {
-							operationsClass = memberName.getDeclaringClass();
-					}
+				operationMTs[i] = memberName.getMethodType();
+				if (operationMTsExact != null) {
+					/* Replace with the actual receiver, which is expected when the operation method
+					 * is invoked. The receiver is the second argument.
+					 */
+					operationMTsExact[i] = operationMTs[i].changeParameterType(1, receiverActual);
+				}
+				if (operationsClass == null) {
+					operationsClass = memberName.getDeclaringClass();
+				}
 			}
 		}
 
@@ -432,7 +427,7 @@ public abstract class VarHandle extends VarHandleInternal
 		}
 		
 		this.modifiers = 0;
-		this.varFormUsed = true;
+		this.vform = varForm;
 	}
 
 	/**
@@ -507,7 +502,6 @@ public abstract class VarHandle extends VarHandleInternal
 
 		return MethodHandles.permuteArguments(methodHandle, permuteMethodType, reorder);
 	}
-/*[ENDIF] Java14 */
 
 	Class<?> getDefiningClass() {
 		/*[MSG "K0627", "Expected override of this method."]*/
@@ -676,11 +670,9 @@ public abstract class VarHandle extends VarHandleInternal
 	 * @return A boolean value indicating whether the {@link AccessMode} is supported.
 	 */
 	boolean isAccessModeSupportedHelper(AccessMode accessMode) {
-/*[IF Java14]*/
-		if (varFormUsed) {
+		if (vform != null) {
 			return (handleTable[accessMode.ordinal()] != null);
 		}
-/*[ENDIF] Java14 */
 		
 		switch (accessMode) {
 		case GET:
