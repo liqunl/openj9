@@ -1550,4 +1550,9 @@ public abstract class VarHandle extends VarHandleInternal
 			this.mode = mode;
 		}
 	}
+/*[IF OPENJDK_METHODHANDLES]*/
+	final MethodHandle getMethodHandle(int i) {
+		throw OpenJDKCompileStub.OpenJDKCompileStubThrowError();
+	}
+/*[ENDIF] OPENJDK_METHODHANDLES */
 }
