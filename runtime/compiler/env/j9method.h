@@ -452,6 +452,7 @@ public:
    virtual TR_ResolvedMethod *     getResolvedSpecialMethod( TR::Compilation *, int32_t cpIndex, bool * unresolvedInCP);
    virtual TR_ResolvedMethod *     getResolvedVirtualMethod( TR::Compilation *, int32_t cpIndex, bool ignoreRtResolve, bool * unresolvedInCP);
    virtual TR_ResolvedMethod *     getResolvedPossiblyPrivateVirtualMethod( TR::Compilation *, int32_t cpIndex, bool ignoreRtResolve, bool * unresolvedInCP);
+   virtual TR_OpaqueClassBlock*    getVirtualCallSiteClassFromCP( TR::Compilation *, int32_t cpIndex);
    virtual TR_OpaqueClassBlock *   getResolvedInterfaceMethod(int32_t cpIndex, uintptr_t * pITableIndex);
 
    virtual TR_ResolvedMethod *     getResolvedDynamicMethod( TR::Compilation *, int32_t cpIndex, bool * unresolvedInCP);

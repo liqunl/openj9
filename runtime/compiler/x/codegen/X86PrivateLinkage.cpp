@@ -44,6 +44,7 @@
 #include "env/StackMemoryRegion.hpp"
 #include "env/jittypes.h"
 #include "env/VMJ9.h"
+#include "env/j9method.h"
 #include "il/DataTypes.hpp"
 #include "il/Node.hpp"
 #include "il/Node_inlines.hpp"
@@ -1286,10 +1287,71 @@ void TR::X86CallSite::setupVirtualGuardInfo()
                getSymbolReference()->getOwningMethodIndex(), -1, _devirtualizedMethod, TR::MethodSymbol::Virtual);
          }
       }
+   else if (getMethodSymbol()->isInterface() && _callNode->getOpCode().isIndirect())
+      {
+      if ((!getMethodSymbol()->isVMInternalNative() || !comp()->getOption(TR_FullSpeedDebug)) &&
+          !_callNode->isTheVirtualCallNodeForAGuardedInlinedCall())
+         {
+         TR::SymbolReference *methodSymRef = getSymbolReference();
+         int32_t cpIndex = methodSymRef->getCPIndex();
+         TR_ResolvedMethod* caller = methodSymRef->getOwningMethod(comp());
+         TR_ResolvedMethod* calleeMethod = comp()->getPersistentInfo()->getPersistentCHTable()->findSingleImplementer(_interfaceClassOfMethod, cpIndex, caller, comp(), false, TR_yes);
+
+         if (calleeMethod &&
+             ((calleeMethod->isSameMethod(comp()->getCurrentMethod()) && !comp()->isDLT()) ||
+              !calleeMethod->isInterpreted() ||
+              calleeMethod->isJITInternalNative()))
+             calleeMethod = NULL;
+
+         if (!comp()->performVirtualGuardNOPing() || (comp()->compileRelocatableCode() && !TR::Options::getCmdLineOptions()->allowRecompilation()))
+           {
+           calleeMethod = NULL;
+           }
+
+        if (calleeMethod && !calleeMethod->virtualMethodIsOverridden())
+           {
+           _virtualGuardKind = TR_InterfaceGuard;
+           _devirtualizedMethod = calleeMethod;
+           _devirtualizedMethodSymRef = comp()->getSymRefTab()->findOrCreateMethodSymbol(
+              getSymbolReference()->getOwningMethodIndex(), -1, _devirtualizedMethod, TR::MethodSymbol::Virtual);
+
+           if (comp()->getOption(TR_TraceCG))
+              traceMsg(comp(), "Devirtualize interface method with InterfaceGuard\n");
+           }
+         }
+      }
 
    // Some self-consistency conditions
    TR_ASSERT((_virtualGuardKind == TR_NoGuard) == (_devirtualizedMethod == NULL), "Virtual guard requires _devirtualizedMethod");
    TR_ASSERT((_devirtualizedMethod == NULL) == (_devirtualizedMethodSymRef == NULL), "_devirtualizedMethod requires _devirtualizedMethodSymRef");
+   }
+
+static void dumpResolvedMethodInfo()
+   {
+   }
+
+static void dumpProfiledClasses(ListIterator<TR_ExtraAddressInfo>& sortedValuesIt, uint32_t totalFrequency, TR::Compilation* comp)
+   {
+      TR_ExtraAddressInfo *profiledInfo;
+      for (profiledInfo = sortedValuesIt.getFirst(); profiledInfo != NULL; profiledInfo = sortedValuesIt.getNext())
+         {
+         int32_t freq = profiledInfo->_frequency;
+         TR_OpaqueClassBlock* tempreceiverClass = (TR_OpaqueClassBlock *) profiledInfo->_value;
+         float val = (float)freq/(float)totalFrequency;
+         int32_t len = 1;
+         bool isClassObsolete = comp->getPersistentInfo()->isObsoleteClass((void*)tempreceiverClass, comp->fe());
+
+         if(!isClassObsolete)
+           {
+           const char *className = TR::Compiler->cls.classNameChars(comp, tempreceiverClass, len);
+           traceMsg(comp , "receiverClass %s has a profiled frequency of %f\n", className,val);
+           }
+         else
+           {
+           traceMsg(comp, "receiverClass %p is obsolete and has profiled frequency of %f\n",tempreceiverClass,val);
+           }
+         }
+
    }
 
 void TR::X86CallSite::computeProfiledTargets()
@@ -1308,6 +1370,67 @@ void TR::X86CallSite::computeProfiledTargets()
    TR::SymbolReference *methodSymRef = getSymbolReference();
    TR::Node            *callNode     = getCallNode();
 
+   // find out number of implementers
+   bool isInterface = getMethodSymbol()->isInterface();
+   int32_t implCount = 0;
+   static const char *dumpImplemeters = feGetEnv("TR_dumpImplemeters");
+   if (((getMethodSymbol()->isVirtual() && !callNode->getSymbolReference()->isUnresolved() &&
+       (callNode->getSymbolReference() != comp()->getSymRefTab()->findObjectNewInstanceImplSymbol()) &&
+       !callNode->isTheVirtualCallNodeForAGuardedInlinedCall() &&
+       callNode->getOpCode().isIndirect()) || isInterface) && comp()->getOption(TR_TraceCG) && dumpImplemeters)
+         {
+         if (comp()->getOption(TR_DisableCHOpts))
+            traceMsg(comp(), "CH opts disabled\n");
+
+         int32_t maxImplementersToGet = 20;
+         TR_ResolvedMethod *implArray[maxImplementersToGet];
+         int32_t cpIndexOrVftSlot = isInterface ? methodSymRef->getCPIndex() : methodSymRef->getOffset();
+         TR_OpaqueClassBlock* thisClass = NULL;
+         if (isInterface)
+            thisClass = _interfaceClassOfMethod;
+         else
+            {
+            TR_ResolvedJ9Method* owningMethod = (TR_ResolvedJ9Method*)methodSymRef->getOwningMethod(comp());
+            thisClass = owningMethod->getVirtualCallSiteClassFromCP(comp(), methodSymRef->getCPIndex());
+            //thisClass = methodSymRef->getSymbol()->getResolvedMethodSymbol()->getResolvedMethod()->classOfMethod();
+            }
+
+         if (thisClass)
+            {
+            int32_t len;
+            const char *className = TR::Compiler->cls.classNameChars(comp(), thisClass, len);
+            traceMsg(comp(), "this class %p %.*s isInterface %d\n", thisClass, len, className, TR::Compiler->cls.isInterfaceClass(comp(), thisClass));
+            traceMsg(comp(), "cpIndexOrVftSlot %d\n", cpIndexOrVftSlot);
+
+            TR_PersistentClassInfo * classInfo = comp()->getPersistentInfo()->getPersistentCHTable()->findClassInfoAfterLocking(thisClass, comp(), true);
+            TR_YesNoMaybe useGetResolvedInterfaceMethod = isInterface ? TR_yes : TR_no;
+            if (classInfo)
+               {
+               implCount = TR_ClassQueries::collectImplementorsCapped(classInfo, implArray, maxImplementersToGet, cpIndexOrVftSlot, methodSymRef->getOwningMethod(comp()), comp(), false, useGetResolvedInterfaceMethod);
+               }
+
+               if (implCount > 0 && implCount < maxImplementersToGet)
+                  traceMsg(comp(), "Found %d implementers\n", implCount);
+               else
+                  traceMsg(comp(), "Can't find implementers\n");
+            }
+         else
+            traceMsg(comp(), "Can't get call site class\n");
+
+         // find profiling info
+         TR_AddressInfo *valueInfo = static_cast<TR_AddressInfo*>(TR_ValueProfileInfoManager::getProfiledValueInfo(callNode, comp(), AddressInfo));
+         if (valueInfo)
+            {
+            TR_ScratchList<TR_ExtraAddressInfo> valuesSortedByFrequency(comp()->trMemory());
+            valueInfo->getSortedList(comp(), &valuesSortedByFrequency);
+            ListIterator<TR_ExtraAddressInfo> sortedValuesIt(&valuesSortedByFrequency);
+
+            uint32_t totalFrequency = valueInfo->getTotalFrequency();
+            if (comp()->getOption(TR_TraceCG))
+               dumpProfiledClasses(sortedValuesIt, totalFrequency, comp());
+            }
+         }
+
    // TODO: Note the different logic for virtual and interface calls.  Is this necessary?
    //
 
@@ -1319,6 +1442,7 @@ void TR::X86CallSite::computeProfiledTargets()
           TR_ValueProfileInfoManager::get(comp()))
          {
          TR::Node *callNode = getCallNode();
+
          TR_AddressInfo *valueInfo = static_cast<TR_AddressInfo*>(TR_ValueProfileInfoManager::getProfiledValueInfo(callNode, comp(), AddressInfo));
 
          // PMR 05447,379,000 getTopValue may return array length profile data instead of a class pointer
@@ -1329,6 +1453,7 @@ void TR::X86CallSite::computeProfiledTargets()
          // if the call to hashcode is a virtual call node, the top value was already inlined.
          if (callNode->isTheVirtualCallNodeForAGuardedInlinedCall())
             topValue = 0;
+
 
          // Is the topValue valid?
          if (topValue)
@@ -1469,15 +1594,22 @@ void TR::X86CallSite::computeProfiledTargets()
          {
          J9::X86::PrivateLinkage *privateLinkage = static_cast<J9::X86::PrivateLinkage *>(getLinkage());
          int32_t numPICSlots = numStaticPICSlots + privateLinkage->IPicParameters.defaultNumberOfSlots;
-         TR_ResolvedMethod **implArray = new (comp()->trStackMemory()) TR_ResolvedMethod*[numPICSlots+1];
+         //TR_ResolvedMethod **implArray = new (comp()->trStackMemory()) TR_ResolvedMethod*[numPICSlots+1];
+         int32_t maxImplementersToGet = 10;
+         TR_ResolvedMethod *implArray[maxImplementersToGet];
          TR_PersistentCHTable * chTable = comp()->getPersistentInfo()->getPersistentCHTable();
          int32_t cpIndex = getSymbolReference()->getCPIndex();
-         int32_t numImplementers = chTable->findnInterfaceImplementers(_interfaceClassOfMethod, numPICSlots+1, implArray, cpIndex, getSymbolReference()->getOwningMethod(comp()), comp());
+         int32_t numImplementers = chTable->findnInterfaceImplementers(_interfaceClassOfMethod, maxImplementersToGet, implArray, cpIndex, getSymbolReference()->getOwningMethod(comp()), comp());
+         if (numImplementers <= maxImplementersToGet)
+            {
+            if (comp()->getOption(TR_TraceCG))
+              traceMsg(comp(),"Found %d implementers for call to %s\n", numImplementers, getMethodSymbol()->getMethod()->signature(comp()->trMemory()));
+            }
          if (numImplementers <= numPICSlots)
             {
             _useLastITableCache = false;
             if (comp()->getOption(TR_TraceCG))
-               traceMsg(comp(),"Found %d implementers for call to %s, can be fit into %d pic slots, disabling lastITable cache\n", numImplementers, getMethodSymbol()->getMethod()->signature(comp()->trMemory()), numPICSlots);
+               traceMsg(comp(),"can be fit into %d pic slots, disabling lastITable cache\n", numPICSlots);
             }
          }
       else if (_useLastITableCache && cg()->comp()->target().is32Bit())  // Use the original heuristic for ia32 due to defect 111651
@@ -1953,6 +2085,7 @@ void J9::X86::PrivateLinkage::buildDirectCall(TR::SymbolReference *methodSymRef,
       cg()->addSnippet(snippet);
       snippet->gcMap().setGCRegisterMask(site.getPreservedRegisterMask());
 
+      // Call the snippet
       callInstr = generateImmSymInstruction(CALLImm4, callNode, 0, new (trHeapMemory()) TR::SymbolReference(comp()->getSymRefTab(), label), cg());
       generateBoundaryAvoidanceInstruction(TR::X86BoundaryAvoidanceInstruction::unresolvedAtomicRegions, 8, 8, callInstr, cg());
 

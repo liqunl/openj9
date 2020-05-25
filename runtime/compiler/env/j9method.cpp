@@ -6640,6 +6640,27 @@ TR_ResolvedJ9Method::getResolvedSpecialMethod(TR::Compilation * comp, I_32 cpInd
    return resolvedMethod;
    }
 
+// vtable slot for a resolved j9method is vtableOffset, use it to, need to get owning method,
+// from owning method, we'll have the constant pool
+TR_OpaqueClassBlock*
+TR_ResolvedJ9Method::getVirtualCallSiteClassFromCP(TR::Compilation * comp, I_32 cpIndex)
+   {
+   TR_ASSERT(cpIndex != -1, "cpIndex shouldn't be -1");
+   J9RAMConstantPoolItem *literals = (J9RAMConstantPoolItem *)cp();
+   UDATA vTableOffset = 0;
+   vTableOffset = (((J9RAMVirtualMethodRef*) literals)[cpIndex]).methodIndexAndArgCount;
+   vTableOffset >>= 8;
+   if (J9VTABLE_INITIAL_VIRTUAL_OFFSET == vTableOffset)
+      return NULL;
+
+   if (isInvokePrivateVTableOffset(vTableOffset))
+      return NULL;
+
+   uint32_t classIndex = ((J9ROMMethodRef *) cp()->romConstantPool)[cpIndex].classRefCPIndex;
+   J9Class * classObject = (((J9RAMClassRef*) literals)[classIndex]).value;
+   return (TR_OpaqueClassBlock*)classObject;
+   }
+
 TR_ResolvedMethod *
 TR_ResolvedJ9Method::getResolvedPossiblyPrivateVirtualMethod(TR::Compilation * comp, I_32 cpIndex, bool ignoreRtResolve, bool * unresolvedInCP)
    {
@@ -6671,6 +6692,7 @@ TR_ResolvedJ9Method::getResolvedPossiblyPrivateVirtualMethod(TR::Compilation * c
 
       if (vTableOffset)
          {
+         TR_ASSERT(ramMethod, "rameMethod shouldn't be null");
          TR_AOTInliningStats *aotStats = NULL;
          if (comp->getOption(TR_EnableAOTStats))
             aotStats = & (((TR_JitPrivateConfig *)_fe->_jitConfig->privateConfig)->aotStats->virtualMethods);
