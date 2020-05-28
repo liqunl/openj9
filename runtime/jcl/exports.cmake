@@ -577,3 +577,17 @@ if(NOT JAVA_SPEC_VERSION LESS 11)
 		Java_java_lang_invoke_MethodHandle_getCPConstantDynamicAt
 	)
 endif()
+
+#OPENJDK_METHODHANDLES
+if(OPENJDK_METHODHANDLES)
+	omr_add_exports(jclse
+		Java_java_lang_invoke_MethodHandleNatives_init
+		Java_java_lang_invoke_MethodHandleNatives_expand
+		Java_java_lang_invoke_MethodHandleNatives_resolve
+		Java_java_lang_invoke_MethodHandleNatives_getMembers
+		Java_java_lang_invoke_MethodHandleNatives_objectFieldOffset
+		Java_java_lang_invoke_MethodHandleNatives_staticFieldOffset
+		Java_java_lang_invoke_MethodHandleNatives_staticFieldBase
+		Java_java_lang_invoke_MethodHandleNatives_getMemberVMInfo
+	)
+endif()

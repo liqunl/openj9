@@ -126,6 +126,7 @@ target_sources(jclse
 		${CMAKE_CURRENT_SOURCE_DIR}/common/java_lang_Access.c
 		${CMAKE_CURRENT_SOURCE_DIR}/common/java_lang_Class.cpp
 		${CMAKE_CURRENT_SOURCE_DIR}/common/java_lang_J9VMInternals.cpp
+		${CMAKE_CURRENT_SOURCE_DIR}/common/java_lang_invoke_MethodHandleNatives.cpp
 		${CMAKE_CURRENT_SOURCE_DIR}/common/java_lang_ref_Finalizer.c
 		${CMAKE_CURRENT_SOURCE_DIR}/common/java_lang_ref_Reference.cpp
 		${CMAKE_CURRENT_SOURCE_DIR}/common/jclcinit.c
