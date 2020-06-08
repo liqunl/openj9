@@ -31,6 +31,7 @@
 #include "env/CHTable.hpp"
 #include "env/PersistentCHTable.hpp"
 #include "env/VMJ9.h"
+#include "env/j9method.h"
 #include "env/jittypes.h"
 #include "env/VMAccessCriticalSection.hpp"
 #include "il/Block.hpp"
@@ -552,6 +553,20 @@ bool TR_J9VirtualCallSite::findCallSiteTarget(TR_CallStack *callStack, TR_Inline
 
    tryToRefineReceiverClassBasedOnResolvedTypeArgInfo(inliner);
 
+// liqun: invokevirtual on a interface method rarely happens, comment out the folowing code
+/*
+   TR_OpaqueClassBlock* callSiteClass = ((TR_ResolvedJ9Method*)_callerResolvedMethod)->getVirtualCallSiteClassFromCP(comp(), _cpIndex);
+   if (_receiverClass != callSiteClass &&
+       callSiteClass &&
+       _receiverClass &&
+       TR::Compiler->cls.isAbstractClass(comp(), callSiteClass) &&
+       fe()->isInstanceOf(callSiteClass, _receiverClass, true) == TR_yes &&
+       fe()->isInstanceOf(_receiverClass, callSiteClass, true) == TR_no)
+      {
+      _callSiteClass = callSiteClass;
+      }
+*/
+
    if (addTargetIfMethodIsNotOverriden(inliner) ||
       addTargetIfMethodIsNotOverridenInReceiversHierarchy(inliner) ||
       findCallSiteForAbstractClass(inliner) ||
@@ -885,6 +900,7 @@ void TR_ProfileableCallSite::findSingleProfiledReceiver(ListIterator<TR_ExtraAdd
             preferMethodTest = true;
             }
          }
+      // liqun: shouldn't we continue if class is obsolete?
 
 
       static const char* userMinProfiledCallFreq = feGetEnv("TR_MinProfiledCallFrequency");

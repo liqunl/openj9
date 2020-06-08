@@ -95,6 +95,74 @@ void operator delete(void *)
 #endif /* !defined(J9VM_OPT_JITSERVER) */
 
 
+TR_OpaqueClassBlock *
+getTopProfiledClass(TR::Compilation *comp, TR::Node* node, int32_t &numProfiledClass)
+   {
+   numProfiledClass = 0;
+   uint32_t source = TR_ValueProfileInfoManager::allProfileInfo;
+   if (node->getOpCodeValue() == TR::instanceof)
+      source = TR_ValueProfileInfoManager::justInterpreterProfileInfo;
+
+   // find profiling info
+   TR_AddressInfo *valueInfo = static_cast<TR_AddressInfo*>(TR_ValueProfileInfoManager::getProfiledValueInfo(node, comp, AddressInfo, source));
+   if (!valueInfo) return NULL;
+
+   numProfiledClass = valueInfo->getNumProfiledValues();
+
+   TR_OpaqueClassBlock *topValue = (TR_OpaqueClassBlock *) valueInfo->getTopValue();
+   if (!topValue)
+      {
+      return NULL;
+      }
+
+   if (valueInfo->getTopProbability() < TR::Options::getMinProfiledCheckcastFrequency())
+      return NULL;
+
+   if (comp->getPersistentInfo()->isObsoleteClass(topValue, comp->fe()))
+      {
+      return NULL;
+      }
+
+   return topValue;
+   }
+
+void dumpProfiledClasses(TR::Compilation* comp, TR::Node* node)
+   {
+   uint32_t source = TR_ValueProfileInfoManager::allProfileInfo;
+   if (node->getOpCodeValue() == TR::instanceof)
+      source = TR_ValueProfileInfoManager::justInterpreterProfileInfo;
+
+   // find profiling info
+   TR_AddressInfo *valueInfo = static_cast<TR_AddressInfo*>(TR_ValueProfileInfoManager::getProfiledValueInfo(node, comp, AddressInfo, source));
+   if (valueInfo)
+      {
+      TR_ScratchList<TR_ExtraAddressInfo> valuesSortedByFrequency(comp->trMemory());
+      valueInfo->getSortedList(comp, &valuesSortedByFrequency);
+      ListIterator<TR_ExtraAddressInfo> sortedValuesIt(&valuesSortedByFrequency);
+      uint32_t totalFrequency = valueInfo->getTotalFrequency();
+
+      TR_ExtraAddressInfo *profiledInfo;
+      for (profiledInfo = sortedValuesIt.getFirst(); profiledInfo != NULL; profiledInfo = sortedValuesIt.getNext())
+         {
+         int32_t freq = profiledInfo->_frequency;
+         TR_OpaqueClassBlock* tempreceiverClass = (TR_OpaqueClassBlock *) profiledInfo->_value;
+         float val = (float)freq/(float)totalFrequency;
+         int32_t len = 1;
+         bool isClassObsolete = comp->getPersistentInfo()->isObsoleteClass((void*)tempreceiverClass, comp->fe());
+
+         if(!isClassObsolete)
+           {
+           const char *className = TR::Compiler->cls.classNameChars(comp, tempreceiverClass, len);
+           traceMsg(comp , "receiverClass %s has a profiled frequency of %f\n", className,val);
+           }
+         else
+           {
+           traceMsg(comp, "receiverClass %p is obsolete and has profiled frequency of %f\n",tempreceiverClass,val);
+           }
+         }
+      }
+   }
+
 
 
 uint64_t J9::Compilation::_maxYieldIntervalS = 0;

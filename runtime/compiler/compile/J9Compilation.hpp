@@ -76,6 +76,11 @@ struct SerializedRuntimeAssumption;
 
 
 
+TR_OpaqueClassBlock *
+getTopProfiledClass(TR::Compilation *comp, TR::Node* node, int32_t &numProfiledClass);
+
+void dumpProfiledClasses(TR::Compilation* comp, TR::Node* node);
+
 namespace J9
 {
 

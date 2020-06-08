@@ -181,6 +181,7 @@ class X86CallSite
 
    bool useLastITableCache(){ return _useLastITableCache; }
 
+   TR_VirtualGuardKind  _canDevirtualizeGuard;
    private:
 
    TR::Node       *_callNode;

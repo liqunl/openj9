@@ -124,6 +124,34 @@
 #define JSR292_forGenericInvokeSig "(Ljava/lang/invoke/MethodType;Z)Ljava/lang/invoke/MethodHandle;"
 
 
+static void getSingleProfiledClassForParm(TR::Compilation* comp, TR::Node* object, TR::Node* profiledNode, bool traceIt = false)
+   {
+   TR::ParameterSymbol* p = NULL;
+   if (comp->isOutermostMethod() &&
+       object->getOpCode().hasSymbolReference() &&
+       object->getSymbol()->getParmSymbol())
+      p = object->getSymbol()->getParmSymbol();
+
+   if (p &&
+       p->getIsInvariant() &&
+       p->hasMoreThanOneProfiledClass() != TR_yes)
+      {
+      int32_t numProfiledClass = 0;
+      TR_OpaqueClassBlock* topValue = getTopProfiledClass(comp, profiledNode, numProfiledClass);
+      if (numProfiledClass == 1)
+         {
+         p->setSingleProfiledClass(topValue);
+         }
+      else if (numProfiledClass > 1)
+         {
+         p->setHasMoreThanOneProfiledClass();
+         }
+
+      if (p->hasMoreThanOneProfiledClass() == TR_yes && traceIt)
+         dumpProfiledClasses(comp, profiledNode);
+      }
+   }
+
 static void printStack(TR::Compilation *comp, TR_Stack<TR::Node*> *stack, const char *message)
    {
    // TODO: This should be in the debug DLL
@@ -2407,6 +2435,10 @@ TR_J9ByteCodeIlGenerator::genInstanceof(int32_t cpIndex)
       // Anchor to ensure sequencing for the implied (conditional) ResolveCHK.
       genTreeTop(node);
       }
+   else
+      {
+      getSingleProfiledClassForParm(comp(), node->getFirstChild(), node, trace());
+      }
    _methodSymbol->setHasInstanceOfs(true);
    }
 
@@ -3374,7 +3406,10 @@ TR_J9ByteCodeIlGenerator::genInvokeWithVFTChild(TR::SymbolReference *symRef)
    {
    TR::Node *receiver = getReceiverFor(symRef);
    TR::Node *vftLoad = TR::Node::createWithSymRef(TR::aloadi, 1, 1, receiver, symRefTab()->findOrCreateVftSymbolRef());
-   return genInvoke(symRef, vftLoad);
+   TR::Node* callNode = genInvoke(symRef, vftLoad);
+
+   getSingleProfiledClassForParm(comp(), receiver, callNode, trace());
+   return callNode;
    }
 
 
@@ -6861,6 +6896,11 @@ TR_J9ByteCodeIlGenerator::storeAuto(TR::DataType type, int32_t slot, bool isAdju
       }
 
    symRef = symRefTab()->findOrCreateAutoSymbol(_methodSymbol, slot, type, true, false, true, isAdjunct);
+   int32_t numParmSlots =  _methodSymbol->getNumParameterSlots();
+
+   if (slot < numParmSlots)
+      symRef->getSymbol()->getParmSymbol()->setIsVariant();
+
    if (storeValue->isDualHigh() || storeValue->isSelectHigh() || isAdjunct)
       symRef->setIsDual();
 
@@ -6868,7 +6908,6 @@ TR_J9ByteCodeIlGenerator::storeAuto(TR::DataType type, int32_t slot, bool isAdju
 
    //Partial Inlining: if we store into a parameter we need to create a temporary for the callback.  We need to create the store for the temp in the first block.
 
-   int32_t numParmSlots =  _methodSymbol->getNumParameterSlots();
 
    if(_blocksToInline)
       {

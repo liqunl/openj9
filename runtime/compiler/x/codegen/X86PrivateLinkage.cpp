@@ -1156,6 +1156,49 @@ J9::X86::PrivateLinkage::buildDirectDispatch(
    return returnRegister;
    }
 
+static const char *
+getVirtualGuardKindName(TR_VirtualGuardKind kind)
+   {
+   switch (kind)
+      {    
+      case TR_NoGuard:
+         return "NoGuard";
+      case TR_ProfiledGuard:
+         return "ProfiledGuard";
+      case TR_InterfaceGuard:
+         return "InterfaceGuard";
+      case TR_AbstractGuard:
+         return "AbstractGuard";
+      case TR_HierarchyGuard:
+         return "HierarchyGuard";
+      case TR_NonoverriddenGuard:
+         return "NonoverriddenGuard";
+      case TR_SideEffectGuard:
+         return "SideEffectGuard";
+      case TR_DummyGuard:
+         return "DummyGuard";
+      case TR_HCRGuard:
+         return "HCRGuard";
+      case TR_MutableCallSiteTargetGuard:
+         return "MutableCallSiteTargetGuard";
+      case TR_MethodEnterExitGuard:
+         return "MethodEnterExitGuard";
+      case TR_DirectMethodGuard:
+         return "DirectMethodGuard";
+      case TR_InnerGuard:
+         return "InnerGuard";
+      case TR_ArrayStoreCheckGuard:
+         return "ArrayStoreCheckGuard";
+      case TR_OSRGuard:
+         return "OSRGuard";
+      case TR_BreakpointGuard:
+         return "BreakpointGuard";
+      default:
+         break;
+      }    
+   TR_ASSERT(0, "Unknown virtual guard kind");
+   return "(unknown virtual guard kind)";
+   }
 
 TR::X86CallSite::X86CallSite(TR::Node *callNode, TR::Linkage *calleeLinkage)
    :_callNode(callNode)
@@ -1218,6 +1261,7 @@ void TR::X86CallSite::setupVirtualGuardInfo()
    {
    TR_J9VMBase *fej9 = (TR_J9VMBase *)(fe());
    _virtualGuardKind    = TR_NoGuard;
+   _canDevirtualizeGuard = TR_NoGuard;
    _devirtualizedMethod = NULL;
    _devirtualizedMethodSymRef = NULL;
 
@@ -1251,6 +1295,28 @@ void TR::X86CallSite::setupVirtualGuardInfo()
 
             TR::SymbolReference *methodSymRef = getSymbolReference();
             TR_PersistentCHTable * chTable = comp()->getPersistentInfo()->getPersistentCHTable();
+
+/*
+         TR_ResolvedJ9Method* owningMethod = (TR_ResolvedJ9Method*)methodSymRef->getOwningMethod(comp());
+         TR_OpaqueClassBlock* callSiteClass = owningMethod->getVirtualCallSiteClassFromCP(comp(), methodSymRef->getCPIndex());
+         if (thisClass != callSiteClass &&
+             thisClass && callSiteClass &&
+             TR::Compiler->cls.isAbstractClass(comp(), callSiteClass) &&
+             TR::Compiler->cls.isInterfaceClass(comp(), thisClass) &&
+             fej9->isInstanceOf(callSiteClass, thisClass, true) == TR_yes &&
+             fej9->isInstanceOf(thisClass, callSiteClass, true) == TR_no)
+            {
+               TR_ResolvedMethod * method = chTable->findSingleAbstractImplementer(callSiteClass, methodSymRef->getOffset(), methodSymRef->getOwningMethod(comp()), comp());
+               if (method &&
+                   ((method->isSameMethod(comp()->getCurrentMethod()) && !comp()->isDLT()) ||
+                    !method->isInterpreted() ||
+                    method->isJITInternalNative()))
+                  {
+                  _canDevirtualizeGuard = TR_AbstractGuard;
+                  }
+            }
+*/
+
             /* Devirtualization is not currently supported for AOT compilations */
             if (thisClass && TR::Compiler->cls.isAbstractClass(comp(), thisClass) && !comp()->compileRelocatableCode())
                {
@@ -1310,6 +1376,8 @@ void TR::X86CallSite::setupVirtualGuardInfo()
 
         if (calleeMethod && !calleeMethod->virtualMethodIsOverridden())
            {
+           _canDevirtualizeGuard = TR_InterfaceGuard;
+           /*
            _virtualGuardKind = TR_InterfaceGuard;
            _devirtualizedMethod = calleeMethod;
            _devirtualizedMethodSymRef = comp()->getSymRefTab()->findOrCreateMethodSymbol(
@@ -1317,6 +1385,7 @@ void TR::X86CallSite::setupVirtualGuardInfo()
 
            if (comp()->getOption(TR_TraceCG))
               traceMsg(comp(), "Devirtualize interface method with InterfaceGuard\n");
+           */
            }
          }
       }
@@ -1324,34 +1393,6 @@ void TR::X86CallSite::setupVirtualGuardInfo()
    // Some self-consistency conditions
    TR_ASSERT((_virtualGuardKind == TR_NoGuard) == (_devirtualizedMethod == NULL), "Virtual guard requires _devirtualizedMethod");
    TR_ASSERT((_devirtualizedMethod == NULL) == (_devirtualizedMethodSymRef == NULL), "_devirtualizedMethod requires _devirtualizedMethodSymRef");
-   }
-
-static void dumpResolvedMethodInfo()
-   {
-   }
-
-static void dumpProfiledClasses(ListIterator<TR_ExtraAddressInfo>& sortedValuesIt, uint32_t totalFrequency, TR::Compilation* comp)
-   {
-      TR_ExtraAddressInfo *profiledInfo;
-      for (profiledInfo = sortedValuesIt.getFirst(); profiledInfo != NULL; profiledInfo = sortedValuesIt.getNext())
-         {
-         int32_t freq = profiledInfo->_frequency;
-         TR_OpaqueClassBlock* tempreceiverClass = (TR_OpaqueClassBlock *) profiledInfo->_value;
-         float val = (float)freq/(float)totalFrequency;
-         int32_t len = 1;
-         bool isClassObsolete = comp->getPersistentInfo()->isObsoleteClass((void*)tempreceiverClass, comp->fe());
-
-         if(!isClassObsolete)
-           {
-           const char *className = TR::Compiler->cls.classNameChars(comp, tempreceiverClass, len);
-           traceMsg(comp , "receiverClass %s has a profiled frequency of %f\n", className,val);
-           }
-         else
-           {
-           traceMsg(comp, "receiverClass %p is obsolete and has profiled frequency of %f\n",tempreceiverClass,val);
-           }
-         }
-
    }
 
 void TR::X86CallSite::computeProfiledTargets()
@@ -1417,18 +1458,8 @@ void TR::X86CallSite::computeProfiledTargets()
          else
             traceMsg(comp(), "Can't get call site class\n");
 
-         // find profiling info
-         TR_AddressInfo *valueInfo = static_cast<TR_AddressInfo*>(TR_ValueProfileInfoManager::getProfiledValueInfo(callNode, comp(), AddressInfo));
-         if (valueInfo)
-            {
-            TR_ScratchList<TR_ExtraAddressInfo> valuesSortedByFrequency(comp()->trMemory());
-            valueInfo->getSortedList(comp(), &valuesSortedByFrequency);
-            ListIterator<TR_ExtraAddressInfo> sortedValuesIt(&valuesSortedByFrequency);
-
-            uint32_t totalFrequency = valueInfo->getTotalFrequency();
-            if (comp()->getOption(TR_TraceCG))
-               dumpProfiledClasses(sortedValuesIt, totalFrequency, comp());
-            }
+         if (comp()->getOption(TR_TraceCG))
+            dumpProfiledClasses(comp(), callNode);
          }
 
    // TODO: Note the different logic for virtual and interface calls.  Is this necessary?
@@ -1861,10 +1892,10 @@ TR::Register *J9::X86::PrivateLinkage::buildIndirectDispatch(TR::Node *callNode)
    // Allocate thunk if necessary
    //
    void *virtualThunk = NULL;
-   if (getProperties().getNeedsThunksForIndirectCalls())
-      {
       TR::MethodSymbol *methodSymbol = callNode->getSymbol()->castToMethodSymbol();
       TR::Method       *method       = methodSymbol->getMethod();
+   if (getProperties().getNeedsThunksForIndirectCalls())
+      {
       if (methodSymbol->isComputed())
          {
          switch (method->getMandatoryRecognizedMethod())
@@ -1901,15 +1932,72 @@ TR::Register *J9::X86::PrivateLinkage::buildIndirectDispatch(TR::Node *callNode)
 
       site.setThunkAddress((uint8_t *)virtualThunk);
       }
+         TR::Node* receiver = callNode->getFirstArgument();
+         TR::ILOpCode opcode = receiver->getOpCode();
+         TR::ParameterSymbol* p = NULL;
+         bool hasSingleProfiledClass = false;
+         if ((opcode.hasSymbolReference() || opcode.isLoadReg()) &&
+             receiver->getSymbolReference() &&
+             receiver->getSymbol()->isParm())
+            p = receiver->getSymbol()->getParmSymbol();
+
+         if (p &&
+             p->getIsInvariant() &&
+             p->getSingleProfiledClass())
+            {
+            hasSingleProfiledClass = true;
+            }
+
+   const char* receiverType = NULL;
+   if (p)
+      {
+      if (hasSingleProfiledClass)
+         receiverType = "receiverIsParm/singleProfiledClass";
+      else
+         receiverType = "receiverIsParm/parmHasMoreThanOneProfiledClass";
+      }
+   else
+      receiverType = "receiverIsNotParm";
 
    TR::LabelSymbol *revirtualizeLabel  = generateLabelSymbol(cg());
    if (site.getVirtualGuardKind() != TR_NoGuard && fej9->canDevirtualizeDispatch() && buildVirtualGuard(site, revirtualizeLabel) )
       {
+      cg()->generateDebugCounter(
+         TR::DebugCounter::debugCounterName(comp(), "quarkus-indirectcall/%s/notInlined/devirt/%s",
+                                    receiverType,
+                                    getVirtualGuardKindName(site.getVirtualGuardKind())));
+
+      cg()->generateDebugCounter(
+         TR::DebugCounter::debugCounterName(comp(), "quarkus-calls/notInlined/devirtualized/virtual/%s/(%s)",
+                                    getVirtualGuardKindName(site.getVirtualGuardKind()),
+                                    method->signature(comp()->trMemory())));
+
       buildDirectCall(site.getDevirtualizedMethodSymRef(), site);
       buildRevirtualizedCall(site, revirtualizeLabel, doneLabel);
       }
    else
       {
+      const char* callType = methodSymbol->isInterface() ? "interface" : "virtual";
+      const char* canDevirt = site._canDevirtualizeGuard != TR_NoGuard ? "canDevirtualize" : "canNotDevirtualize";
+
+      if (site._canDevirtualizeGuard != TR_NoGuard)
+         {
+         cg()->generateDebugCounter(
+            TR::DebugCounter::debugCounterName(comp(), "quarkus-calls/notInlined/%s/%s/%s/(%s)",
+                                    canDevirt,
+                                    callType,
+                                    getVirtualGuardKindName(site._canDevirtualizeGuard),
+                                    method->signature(comp()->trMemory())));
+         }
+      else
+         {
+         cg()->generateDebugCounter(
+            TR::DebugCounter::debugCounterName(comp(), "quarkus-calls/notInlined/%s/%s/(%s)",
+                                    canDevirt,
+                                    callType,
+                                    method->signature(comp()->trMemory())));
+         }
+
       // Build static PIC if profiling targets available.
       //
       TR_ASSERT(skipVFTmaskInstruction == false, "VFT mask instruction is skipped in early evaluation");
@@ -1918,6 +2006,48 @@ TR::Register *J9::X86::PrivateLinkage::buildIndirectDispatch(TR::Node *callNode)
       TR_ScratchList<TR::X86PICSlot> *profiledTargets = site.getProfiledTargets();
       if (profiledTargets)
          {
+         cg()->generateDebugCounter(
+            TR::DebugCounter::debugCounterName(comp(), "quarkus-indirectcall/%s/notInlined/devirt/ProfiledGuard",
+                                    receiverType));
+
+         TR::Node* callNode = site.getCallNode();
+         TR::Node* receiver = callNode->getFirstArgument();
+         TR::ILOpCode opcode = receiver->getOpCode();
+         TR::ParameterSymbol* p = NULL;
+         if ((opcode.hasSymbolReference() || opcode.isLoadReg()) &&
+             receiver->getSymbolReference() &&
+             receiver->getSymbol()->isParm())
+            p = receiver->getSymbol()->getParmSymbol();
+
+         if (p &&
+             p->getIsInvariant() &&
+             p->getSingleProfiledClass())
+            {
+            TR::DebugCounter::incStaticDebugCounter(comp(), TR::DebugCounter::debugCounterName(comp(), "quarkus-guard/singleProfiledClass/codegen/ProfiledGuard"));
+
+            int32_t len = 0;
+            const char* className = p->getSingleProfiledType(comp(), len);
+            cg()->generateDebugCounter(
+               TR::DebugCounter::debugCounterName(comp(), "quarkus-typetest/singleProfiledClass/codegen/(%s)/parm%d-%.*s", comp()->signature(), p->getOrdinal(), len, className));
+            }
+         else if (p)
+            {
+            TR::DebugCounter::incStaticDebugCounter(comp(), TR::DebugCounter::debugCounterName(comp(), "quarkus-guard/parmHasMoreThanOneProfiledClass/codegen/ProfiledGuard"));
+
+            cg()->generateDebugCounter(
+               TR::DebugCounter::debugCounterName(comp(), "quarkus-typetest/parmHasMoreThanOneProfiledClass/codegen/(%s)/parm%d", comp()->signature(), p->getOrdinal()));
+            }
+         else
+            {
+            TR::DebugCounter::incStaticDebugCounter(comp(), TR::DebugCounter::debugCounterName(comp(), "quarkus-guard/receiverIsNotParm/codegen"));
+
+            cg()->generateDebugCounter(
+               TR::DebugCounter::debugCounterName(comp(), "quarkus-typetest/receiverIsNotParm/codegen"));
+            }
+
+         cg()->generateDebugCounter(
+            TR::DebugCounter::debugCounterName(comp(), "quarkus-calls/typetest/codegen/(%s)", comp()->signature()));
+
          ListIterator<TR::X86PICSlot> i(profiledTargets);
          TR::X86PICSlot *picSlot = i.getFirst();
          while (picSlot)
@@ -1944,6 +2074,12 @@ TR::Register *J9::X86::PrivateLinkage::buildIndirectDispatch(TR::Node *callNode)
             }
 
          site.setFirstPICSlotInstruction(NULL);
+         }
+      else
+         {
+         cg()->generateDebugCounter(
+            TR::DebugCounter::debugCounterName(comp(), "quarkus-indirectcall/%s/notInlined",
+                                    receiverType));
          }
 
       // Build the call
@@ -2079,6 +2215,9 @@ void J9::X86::PrivateLinkage::buildDirectCall(TR::SymbolReference *methodSymRef,
    else if (methodSymRef->isUnresolved() || methodSymbol->isInterpreted()
             || (cg()->comp()->compileRelocatableCode() && !methodSymbol->isHelper()) )
       {
+      cg()->generateDebugCounter(
+         TR::DebugCounter::debugCounterName(comp(), "quarkus-calls/notInlined/direct"));
+
       TR::LabelSymbol *label   = generateLabelSymbol(cg());
 
       TR::Snippet *snippet = (TR::Snippet*)new (trHeapMemory()) TR::X86CallSnippet(cg(), callNode, label, false);
@@ -2099,6 +2238,8 @@ void J9::X86::PrivateLinkage::buildDirectCall(TR::SymbolReference *methodSymRef,
 
       if (cg()->comp()->target().isSMP() && !methodSymbol->isHelper())
          {
+      cg()->generateDebugCounter(
+         TR::DebugCounter::debugCounterName(comp(), "quarkus-calls/notInlined/direct"));
          // Make sure it's patchable in case it gets (re)compiled
          generatePatchableCodeAlignmentInstruction(callSiteAtomicRegions, callInstr, cg());
          }
