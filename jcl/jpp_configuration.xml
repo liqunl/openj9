@@ -40,7 +40,7 @@
 		for debugging, and are not yet used in a configuration. -->
 	<set
 		label="newflags"
-		flags="AnnotateOverride,Sidecar15,OPENJDK_METHODHANDLES"/>
+		flags="AnnotateOverride,Sidecar15"/>
 
 	<set
 		label="oldflags"
@@ -78,7 +78,7 @@
 	<configuration
 		  label="SIDECAR18-SE-OPENJ9"
 		  outputpath="SIDECAR18-SE-OPENJ9/src"
-		  flags="Sidecar18-SE-OpenJ9,DAA"
+		  flags="Sidecar18-SE-OpenJ9,DAA,OPENJDK_METHODHANDLES"
 		  dependencies="SIDECAR18-SE"
 		  jdkcompliance="1.8">
 		<classpathentry kind="lib" path="/binaries/vm/third/rt-compressed.sun180.jar"/>

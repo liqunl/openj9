@@ -1813,6 +1813,9 @@ Only available on zOS</description>
 		<description>Enables support for Project Panama features such as native method handles</description>
 		<ifRemoved>No support for Project Panama features such as native method handles</ifRemoved>
 	</flag>
+	<flag id="opt_openjdk_methodhandle">
+		<description>Enables support for OpenJDK method handles</description>
+	</flag>
 	<flag id="opt_valhallaValueTypes">
 		<description>Enables support for Project Valhalla L-World Value Types</description>
 		<ifRemoved>No support for Project Valhalla L-World Value Types</ifRemoved>
