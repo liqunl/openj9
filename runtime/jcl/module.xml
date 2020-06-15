@@ -79,7 +79,7 @@ SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-excepti
 			<group name="se6_vm-side_lifecycle"/>
 			<group name="se6_vm-side_natives"/>
 			<group name="java_lang_invoke_MethodHandleNatives">
-				<include-if condition="OPENJDK_METHODHANDLES"/>
+				<include-if condition="spec.flags.opt_openjdk_methodhandle"/>
 			</group>
 			<group name="jithelpers"/>
 			<group name="sun_misc_Unsafe"/>
