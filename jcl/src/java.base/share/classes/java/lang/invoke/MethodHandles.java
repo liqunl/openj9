@@ -2334,7 +2334,6 @@ public class MethodHandles {
 			return cls;
 		}
 		/*[ENDIF] Java15 */		
-		/*[ENDIF]*/
 		
 		/*[IF OPENJDK_METHODHANDLES]*/
 		MemberName resolveOrFail(byte b, MemberName mn) throws ReflectiveOperationException {
