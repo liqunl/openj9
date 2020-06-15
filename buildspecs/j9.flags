@@ -1815,6 +1815,7 @@ Only available on zOS</description>
 	</flag>
 	<flag id="opt_openjdk_methodhandle">
 		<description>Enables support for OpenJDK method handles</description>
+		<ifRemoved></ifRemoved>
 	</flag>
 	<flag id="opt_valhallaValueTypes">
 		<description>Enables support for Project Valhalla L-World Value Types</description>
