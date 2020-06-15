@@ -89,6 +89,8 @@ computeJCLRuntimeFlags(J9JavaVM *vm)
 	flags |= JCL_RTFLAG_OPT_REFLECT;
 #endif
 
+	flags |= JCL_RTFLAG_OPT_OPENJDK_METHODHANDLE;
+
 	return flags;
 }
 
