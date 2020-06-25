@@ -44,18 +44,10 @@ extern "C" {
 #define MN_CALLER_SENSITIVE	0x00100000
 
 #define MN_REFERENCE_KIND_SHIFT	24
-#define MN_REFERENCE_KIND_MASK	(0x0F000000 >> MN_REFERENCE_KIND_SHIFT)
+#define MN_REFERENCE_KIND_MASK	0xF
 
 #define MN_SEARCH_SUPERCLASSES	0x00100000
 #define MN_SEARCH_INTERFACES	0x00200000
-
-typedef struct IteratorData {
-	J9VMThread *currentThread;
-	j9object_t fieldNameObj;
-	J9ROMFieldShape *foundField;  /**< [out] field with name matching fieldNameObj */
-	J9Class *declaringClass;  /**< [out] class that declares foundField */
-} FindFieldData;
-
 
 void
 initImpl(J9VMThread *currentThread, j9object_t membernameObject, j9object_t refObject)
@@ -82,7 +74,7 @@ initImpl(J9VMThread *currentThread, j9object_t membernameObject, j9object_t refO
 
 		flags = fieldID->field->modifiers & CFR_FIELD_ACCESS_MASK;
 		flags |= MN_IS_FIELD;
-		flags |= (J9_ARE_ANY_BITS_SET(flags, J9AccStatic) ? MH_REF_GETSTATIC : MH_REF_GETFIELD) << REFERENCE_KIND_SHIFT;
+		flags |= (J9_ARE_ANY_BITS_SET(flags, J9AccStatic) ? MH_REF_GETSTATIC : MH_REF_GETFIELD) << MN_REFERENCE_KIND_SHIFT;
 		J9UTF8 *name = J9ROMNAMEANDSIGNATURE_NAME(fieldID->field->nameAndSignature);
 		J9UTF8 *signature = J9ROMNAMEANDSIGNATURE_SIGNATURE(fieldID->field->nameAndSignature);
 
@@ -99,12 +91,16 @@ initImpl(J9VMThread *currentThread, j9object_t membernameObject, j9object_t refO
 
 		J9ROMMethod *romMethod = J9_ROM_METHOD_FROM_RAM_METHOD(methodID->method);
 
-		flags = romMethod & CFR_METHOD_ACCESS_MASK;
+		flags = romMethod->modifiers & CFR_METHOD_ACCESS_MASK;
 		flags |= MN_IS_METHOD;
 		if (J9_ARE_ANY_BITS_SET(methodID->vTableIndex, J9_JNI_MID_INTERFACE) {
-			flags |= MH_REF_INVOKEINTERFACE << REFERENCE_KIND_SHIFT;
+			flags |= MH_REF_INVOKEINTERFACE << MN_REFERENCE_KIND_SHIFT;
+		} else if (J9_ARE_ANY_BITS_SET(romMethod->modifiers , J9AccStatic)) {
+			flags |= MH_REF_INVOKESTATIC << MN_REFERENCE_KIND_SHIFT;
+		} else if (J9_ARE_ANY_BITS_SET(romMethod->modifiers , J9AccFinal) || !J9ROMMETHOD_HAS_VTABLE(romMethod)) {
+			flags |= MH_REF_INVOKESPECIAL << MN_REFERENCE_KIND_SHIFT;
 		} else {
-			flags |= MH_REF_INVOKEVIRTUAL << REFERENCE_KIND_SHIFT;
+			flags |= MH_REF_INVOKEVIRTUAL << MN_REFERENCE_KIND_SHIFT;
 		}
 
 		clazzObject = J9VMJAVALANGREFLECTMETHOD_DECLARINGCLASS(currentThread, refObject);
@@ -114,8 +110,8 @@ initImpl(J9VMThread *currentThread, j9object_t membernameObject, j9object_t refO
 
 		J9ROMMethod *romMethod = J9_ROM_METHOD_FROM_RAM_METHOD(methodID->method);
 
-		flags = romMethod & CFR_METHOD_ACCESS_MASK;
-		flags |= MN_IS_CONSTRUCTOR | (MH_REF_INVOKESPECIAL << REFERENCE_KIND_SHIFT);
+		flags = romMethod->modifiers & CFR_METHOD_ACCESS_MASK;
+		flags |= MN_IS_CONSTRUCTOR | (MH_REF_INVOKESPECIAL << MN_REFERENCE_KIND_SHIFT);
 
 		clazzObject = J9VMJAVALANGREFLECTMETHOD_DECLARINGCLASS(currentThread, refObject);
 	} else {
@@ -170,12 +166,10 @@ Java_java_lang_invoke_MethodHandleNatives_expand(JNIEnv *env, jclass clazz, jobj
 		j9object_t nameObject = J9VMJAVALANGINVOKEMEMBERNAME_NAME(currentThread, membernameObject);
 		j9object_t typeObject = J9VMJAVALANGINVOKEMEMBERNAME_TYPE(currentThread, membernameObject);
 		j9object_t resolvedMethodObject = J9VMJAVALANGINVOKEMEMBERNAME_METHOD(currentThread, membernameObject);
-		j9object_t targetObject, holderObject;
-		jlong vmindex;
+		jlong vmindex, target;
 
 		if (resolvedMethodObject != NULL) {
 			target = J9VMJAVALANGINVOKERESOLVEDMETHODNAME_VMTARGET(currentThread, resolvedMethodObject);
-			holderObject = J9VMJAVALANGINVOKERESOLVEDMETHODNAME_VMHOLDER(currentThread, resolvedMethodObject);
 			vmindex = J9VMJAVALANGINVOKERESOLVEDMETHODNAME_VMINDEX(currentThread, resolvedMethodObject);
 		}
 		jint flags = J9VMJAVALANGINVOKEMEMBERNAME_FLAGS(currentThread, membernameObject);
@@ -232,10 +226,136 @@ Java_java_lang_invoke_MethodHandleNatives_expand(JNIEnv *env, jclass clazz, jobj
  * static native MemberName resolve(MemberName self, Class<?> caller,
  *      boolean speculativeResolve) throws LinkageError, ClassNotFoundException;
  */
-void JNICALL
+jobject JNICALL
 Java_java_lang_invoke_MethodHandleNatives_resolve(JNIEnv *env, jclass clazz, jobject self, jclass caller, jboolean speculativeResolve)
 {
-	// TODO
+	J9VMThread *currentThread = (J9VMThread*)env;
+	J9JavaVM *vm = currentThread->javaVM;
+	J9InternalVMFunctions *vmFuncs = vm->internalVMFunctions;
+	jobject result = NULL;
+	vmFuncs->internalEnterVMFromJNI(currentThread);
+
+	if (NULL == self) {
+		vmFuncs->setCurrentExceptionUTF(currentThread, J9VMCONSTANTPOOL_JAVALANGINTERNALERROR, NULL);
+	} else {
+		j9object_t callerObject = (NULL == caller) ? NULL : J9_JNI_UNWRAP_REFERENCE(caller);
+		j9object_t membernameObject = J9_JNI_UNWRAP_REFERENCE(self);
+		j9object_t clazzObject = J9VMJAVALANGINVOKEMEMBERNAME_CLAZZ(currentThread, membernameObject);
+		j9object_t nameObject = J9VMJAVALANGINVOKEMEMBERNAME_NAME(currentThread, membernameObject);
+		j9object_t typeObject = J9VMJAVALANGINVOKEMEMBERNAME_TYPE(currentThread, membernameObject);
+		j9object_t resolvedMethodObject = J9VMJAVALANGINVOKEMEMBERNAME_METHOD(currentThread, membernameObject);
+		jlong vmindex, target;
+
+		if (resolvedMethodObject != NULL) {
+			target = J9VMJAVALANGINVOKERESOLVEDMETHODNAME_VMTARGET(currentThread, resolvedMethodObject);
+		}
+		jint flags = J9VMJAVALANGINVOKEMEMBERNAME_FLAGS(currentThread, membernameObject);
+
+		if (NULL != target) {
+			result = self;
+		} else {
+			J9Class *resolvedClass = J9VM_J9CLASS_FROM_HEAPCLASS(clazzObject);
+			J9Class *callerClass = J9VM_J9CLASS_FROM_HEAPCLASS(callerObject);
+
+			int ref_kind = (flags >> MN_REFERENCE_KIND_SHIFT) & MN_REFERENCE_KIND_MASK;
+
+			UDATA nameLength = vmFuncs->getStringUTF8Length(currentThread, nameObject) + 1;
+			char *name = (char*)j9mem_allocate_memory(nameLength, OMRMEM_CATEGORY_VM);
+			UDATA signatureLength = vmFuncs->getStringUTF8Length(currentThread, typeObject) + 1;
+			char *signature = (char*)j9mem_allocate_memory(signatureLength, OMRMEM_CATEGORY_VM);
+
+			vmFuncs->copyStringToUTF8Helper(currentThread, nameObject, J9_STR_NULL_TERMINATE_RESULT | J9_STR_XLAT , 0, J9VMJAVALANGSTRING_LENGTH(currentThread, nameObject), (U_8 *)name, nameLength);
+			vmFuncs->copyStringToUTF8Helper(currentThread, typeObject, J9_STR_NULL_TERMINATE_RESULT | J9_STR_XLAT , 0, J9VMJAVALANGSTRING_LENGTH(currentThread, typeObject), (U_8 *)signature, signatureLength);
+			if (J9_ARE_ANY_BITS_SET(flags, MN_IS_METHOD | MN_IS_CONSTRUCTOR)) {
+				J9JNINameAndSignature nas;
+				UDATA lookupOptions = J9_LOOK_JNI;
+
+				if (JNI_TRUE == speculativeResolve) {
+					lookupOptions |= J9_LOOK_NO_THROW;
+				}
+				if (J9_ARE_ANY_BITS_SET(ref_kind, MH_REF_INVOKEINTERFACE)) {
+					lookupOptions |= J9_LOOK_INTERFACE;
+				} else if (J9_ARE_ANY_BITS_SET(ref_kind, MH_REF_INVOKESPECIAL)) {
+					lookupOptions |= (J9_LOOK_VIRTUAL | J9_LOOK_ALLOW_FWD | J9_LOOK_HANDLE_DEFAULT_METHOD_CONFLICTS);
+				} else if (J9_ARE_ANY_BITS_SET(ref_kind, MH_REF_INVOKESTATIC)) {
+					lookupOptions |= J9_LOOK_STATIC;
+					if (J9_ARE_ANY_BITS_SET(resolvedClass->romClass->modifiers, J9AccInterface) {
+						lookupOptions |= J9_LOOK_INTERFACE;
+					}
+				} else {
+					lookupOptions |= J9_LOOK_VIRTUAL;
+				}
+
+				nas.name = name;
+				nas.signature = signature;
+				nas.nameLength = (U_32)strlen(name);
+				nas.signatureLength = (U_32)strlen(signature);
+
+				J9Method *method = javaLookupMethod(vmThread, resolvedClass, (J9ROMNameAndSignature*)&nas, callerClass, lookupOptions);
+
+				J9JNIMethodID *methodID = vmFunc->getJNIMethodID(currentThread, method);
+				vmindex = (jlong)(UDATA)methodID;
+				target = (jlong)(UDATA)method;
+			} if (J9_ARE_ANY_BITS_SET(flags, MN_IS_FIELD)) {
+				J9Class *declaringClass = NULL;
+				J9ROMFieldShape *romField = NULL;
+				UDATA lookupOptions = 0;
+				UDATA offset = 0;
+				if (JNI_TRUE == speculativeResolve) {
+					lookupOptions |= J9_RESOLVE_FLAG_NO_THROW_ON_FAIL;
+				}
+				
+				if (J9_ARE_ANY_BITS_SET(ref_kind, MH_REF_GETSTATIC | MH_REF_PUTSTATIC)) {
+					void* fieldAddress = staticFieldAddress(currentThread,
+						resolvedClass,
+						(U_8*)name, strlen(name),
+						(U_8*)signature, strlen(signature),
+						&declaringClass, &romField,
+						lookupOptions,
+						NULL);
+
+					if (fieldAddress == NULL) {
+						declaringClass = NULL;
+					} else {
+						offset = (UDATA)fieldAddress - (UDATA)declaringClass->ramStatics;
+					}
+
+				} else {
+					offset = instanceFieldOffset(currentThread,
+						resolvedClass,
+						(U_8*)name, strlen(name),
+						(U_8*)signature, strlen(signature),
+						&declaringClass, &romField,
+						lookupOptions);
+
+					if (offset == (UDATA)-1) {
+						declaringClass = NULL;
+					}
+				}
+
+				UDATA inconsistentData = 0;
+				J9JNIFieldID *fieldID = vmFunc->getJNIFieldID(vmThread, declaringClass, (J9ROMFieldShape *) element, offset, &inconsistentData);
+				vmindex = (jlong)(UDATA)fieldID;
+				target = (jlong)offset;
+			}
+
+			J9VMJAVALANGINVOKERESOLVEDMETHODNAME_SET_VMINDEX(currentThread, resolvedMethodObject, vmindex);
+			J9VMJAVALANGINVOKERESOLVEDMETHODNAME_SET_VMINDEX(currentThread, resolvedMethodObject, target);
+			j9mem_free_memory(name);
+			j9mem_free_memory(signature);
+		}
+		if (NULL == result) {
+			if (J9_ARE_ANY_BITS_SET(flags, MN_IS_FIELD)) {
+				vmFuncs->setCurrentExceptionUTF(currentThread, J9VMCONSTANTPOOL_JAVALANGNOSUCHFIELDERROR, NULL);
+			} else if (J9_ARE_ANY_BITS_SET(flags, MN_IS_CONSTRUCTOR | MN_IS_METHOD)) {
+				vmFuncs->setCurrentExceptionUTF(currentThread, J9VMCONSTANTPOOL_JAVALANGNOSUCHMETHODERROR, NULL);
+			} else {
+				vmFuncs->setCurrentExceptionUTF(currentThread, J9VMCONSTANTPOOL_JAVALANGLINKAGEERROR, NULL);
+			}
+		}
+	}
+
+	return result;
 }
 
 /**
