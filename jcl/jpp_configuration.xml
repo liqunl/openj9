@@ -54,7 +54,7 @@
 	<configuration
 		  label="SIDECAR18-SE"
 		  outputpath="SIDECAR18-SE/src"
-		  flags="Sidecar18-SE,Sidecar70_27,Sidecar17,Sidecar16,SharedClasses"
+		  flags="Sidecar18-SE,Sidecar70_27,Sidecar17,Sidecar16,SharedClasses,OPENJDK_METHODHANDLES"
 		  jdkcompliance="1.8">
 		<classpathentry kind="lib" path="/binaries/vm/third/rt-compressed.sun180.jar"/>
 		<source path="src/java.base/share/classes"/>
@@ -78,7 +78,7 @@
 	<configuration
 		  label="SIDECAR18-SE-OPENJ9"
 		  outputpath="SIDECAR18-SE-OPENJ9/src"
-		  flags="Sidecar18-SE-OpenJ9,DAA,OPENJDK_METHODHANDLES"
+		  flags="Sidecar18-SE-OpenJ9,DAA"
 		  dependencies="SIDECAR18-SE"
 		  jdkcompliance="1.8">
 		<classpathentry kind="lib" path="/binaries/vm/third/rt-compressed.sun180.jar"/>

@@ -254,6 +254,7 @@ extern J9_CDATA char * const sunJavaBCNames[];
 #define JBastorew 226
 #define JBreturnFromConstructor 228
 #define JBgenericReturn 229
+#define JBinvokehandlebasic 230
 #define JBinvokeinterface2 231
 #define JBinvokehandle 232
 #define JBinvokehandlegeneric 233

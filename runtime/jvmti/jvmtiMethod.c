@@ -597,6 +597,7 @@ jvmtiGetBytecodes(jvmtiEnv* env,
 				case JBnewdup:
 				case JBinvokehandle:
 				case JBinvokehandlegeneric:
+				case JBinvokehandlebasic:
 				case JBinvokestaticsplit:
 				case JBinvokespecialsplit:
 				case JBinvokedynamic:
@@ -624,6 +625,7 @@ jvmtiGetBytecodes(jvmtiEnv* env,
 							break;
 						case JBinvokehandle:
 						case JBinvokehandlegeneric:
+						case JBinvokehandlebasic:
 							bytecodes[index] = CFR_BC_invokevirtual;
 							/* intentional fall-through */
 						default:

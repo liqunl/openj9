@@ -253,7 +253,7 @@ const U_16 J9JavaBytecodeVerificationTable[] = {
 		0x1700 /* JBunimplemented - 227 */,
 		0x0F00 /* JBreturnFromConstructor - 228 */,
 		0x0F00 /* JBgenericReturn - 229 */,
-		0x1700 /* JBunimplemented - 230 */,
+		0x1100 /* JBinvokehandlebasic - 230 */,
 		0x1100 /* JBinvokeinterface2 - 231 */,
 		0x1100 /* JBinvokehandle - 232 */,
 		0x1100 /* JBinvokehandlegeneric - 233 */,
