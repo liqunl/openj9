@@ -244,11 +244,17 @@ Java_java_lang_invoke_MethodHandleNatives_resolve(JNIEnv *env, jclass clazz, job
 		j9object_t nameObject = J9VMJAVALANGINVOKEMEMBERNAME_NAME(currentThread, membernameObject);
 		j9object_t typeObject = J9VMJAVALANGINVOKEMEMBERNAME_TYPE(currentThread, membernameObject);
 		j9object_t resolvedMethodObject = J9VMJAVALANGINVOKEMEMBERNAME_METHOD(currentThread, membernameObject);
-		jlong vmindex, target;
+		jlong vmindex = NULL;
+		jlong target = NULL;
 
 		if (resolvedMethodObject != NULL) {
 			target = J9VMJAVALANGINVOKERESOLVEDMETHODNAME_VMTARGET(currentThread, resolvedMethodObject);
+		} else {
+			// Create ResolvedMethodName Object
+			resolvedMethodObject = vm->memoryManagerFunctions->J9AllocateObject(currentThread, J9VMJAVALANGINVOKERESOLVEDMETHODNAME(vm), J9_GC_ALLOCATE_OBJECT_INSTRUMENTABLE);
+			J9VMJAVALANGINVOKEMEMBERNAME_SET_METHOD(currentThread, membernameObject, resolvedMethodObject);
 		}
+
 		jint flags = J9VMJAVALANGINVOKEMEMBERNAME_FLAGS(currentThread, membernameObject);
 
 		if (NULL != target) {
@@ -340,7 +346,7 @@ Java_java_lang_invoke_MethodHandleNatives_resolve(JNIEnv *env, jclass clazz, job
 			}
 
 			J9VMJAVALANGINVOKERESOLVEDMETHODNAME_SET_VMINDEX(currentThread, resolvedMethodObject, vmindex);
-			J9VMJAVALANGINVOKERESOLVEDMETHODNAME_SET_VMINDEX(currentThread, resolvedMethodObject, target);
+			J9VMJAVALANGINVOKERESOLVEDMETHODNAME_SET_VMTARGET(currentThread, resolvedMethodObject, target);
 			j9mem_free_memory(name);
 			j9mem_free_memory(signature);
 		}
