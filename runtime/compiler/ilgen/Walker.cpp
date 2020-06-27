@@ -123,7 +123,7 @@
 #define JSR292_forGenericInvoke    "forGenericInvoke"
 #define JSR292_forGenericInvokeSig "(Ljava/lang/invoke/MethodType;Z)Ljava/lang/invoke/MethodHandle;"
 
-
+/*
 static void getSingleProfiledClassForParm(TR::Compilation* comp, TR::Node* object, TR::Node* profiledNode, bool traceIt = false)
    {
    TR::ParameterSymbol* p = NULL;
@@ -151,6 +151,7 @@ static void getSingleProfiledClassForParm(TR::Compilation* comp, TR::Node* objec
          dumpProfiledClasses(comp, profiledNode);
       }
    }
+*/
 
 static void printStack(TR::Compilation *comp, TR_Stack<TR::Node*> *stack, const char *message)
    {
@@ -2435,10 +2436,6 @@ TR_J9ByteCodeIlGenerator::genInstanceof(int32_t cpIndex)
       // Anchor to ensure sequencing for the implied (conditional) ResolveCHK.
       genTreeTop(node);
       }
-   else
-      {
-      getSingleProfiledClassForParm(comp(), node->getFirstChild(), node, trace());
-      }
    _methodSymbol->setHasInstanceOfs(true);
    }
 
@@ -3408,7 +3405,6 @@ TR_J9ByteCodeIlGenerator::genInvokeWithVFTChild(TR::SymbolReference *symRef)
    TR::Node *vftLoad = TR::Node::createWithSymRef(TR::aloadi, 1, 1, receiver, symRefTab()->findOrCreateVftSymbolRef());
    TR::Node* callNode = genInvoke(symRef, vftLoad);
 
-   getSingleProfiledClassForParm(comp(), receiver, callNode, trace());
    return callNode;
    }
 
