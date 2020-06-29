@@ -36,6 +36,8 @@
 #include "VMHelpers.hpp"
 
 extern "C" {
+#define J9VM_OPT_OPENJDK_METHODHANDLE 1
+#ifdef J9VM_OPT_OPENJDK_METHODHANDLE
 
 #define MN_IS_METHOD		0x00010000
 #define MN_IS_CONSTRUCTOR	0x00020000
@@ -59,18 +61,13 @@ initImpl(J9VMThread *currentThread, j9object_t membernameObject, j9object_t refO
 
 	jint flags;
 	jlong vmindex;
-	j9object_t clazzObject, nameObject, typeObject, targetObject;
-
-	j9object_t resolvedMethodObject = J9VMJAVALANGINVOKEMEMBERNAME_METHOD(currentThread, membernameObject);
-	if (NULL == resolvedMethodObject) {
-		// Create ResolvedMethodName Object
-		resolvedMethodObject = vm->memoryManagerFunctions->J9AllocateObject(currentThread, J9VMJAVALANGINVOKERESOLVEDMETHODNAME(vm), J9_GC_ALLOCATE_OBJECT_INSTRUMENTABLE);
-		J9VMJAVALANGINVOKEMEMBERNAME_SET_METHOD(currentThread, membernameObject, resolvedMethodObject);
-	}
+	jlong target;
+	j9object_t clazzObject, nameObject;
 
 	if (refClass == J9VM_JAVALANGREFLECTFIELD_OR_NULL(vm)) {
 		J9JNIFieldID *fieldID = vm->reflectFunctions.idFromFieldObject(currentThread, NULL, refObject);
 		vmindex = (jlong)fieldID;
+		target = (jlong)fieldID->field;
 
 		flags = fieldID->field->modifiers & CFR_FIELD_ACCESS_MASK;
 		flags |= MN_IS_FIELD;
@@ -88,6 +85,7 @@ initImpl(J9VMThread *currentThread, j9object_t membernameObject, j9object_t refO
 	} else if (refClass == J9VM_JAVALANGREFLECTMETHOD_OR_NULL(vm)) {
 		J9JNIMethodID *methodID = vm->reflectFunctions.idFromMethodObject(currentThread, NULL, refObject);
 		vmindex = (jlong)methodID;
+		target = (jlong)methodID->method;
 
 		J9ROMMethod *romMethod = J9_ROM_METHOD_FROM_RAM_METHOD(methodID->method);
 
@@ -107,6 +105,7 @@ initImpl(J9VMThread *currentThread, j9object_t membernameObject, j9object_t refO
 	} else if (refClass == J9VM_JAVALANGREFLECTCONSTRUCTOR_OR_NULL(vm)) {
 		J9JNIMethodID *methodID = vm->reflectFunctions.idFromConstructorObject(currentThread, NULL, refObject);
 		vmindex = (jlong)methodID;
+		target = (jlong)methodID->method;
 
 		J9ROMMethod *romMethod = J9_ROM_METHOD_FROM_RAM_METHOD(methodID->method);
 
@@ -121,7 +120,8 @@ initImpl(J9VMThread *currentThread, j9object_t membernameObject, j9object_t refO
 	if (!VM_VMHelpers::exceptionPending(currentThread)) {
 		J9VMJAVALANGINVOKEMEMBERNAME_SET_FLAGS(currentThread, membernameObject, flags);
 		J9VMJAVALANGINVOKEMEMBERNAME_SET_CLAZZ(currentThread, membernameObject, clazzObject);
-		J9VMJAVALANGINVOKERESOLVEDMETHODNAME_SET_VMINDEX(currentThread, resolvedMethodObject, vmindex);
+		J9OBJECT_ADDRESS_STORE(currentThread, membernameObject, vm->vmindexOffset, vmindex);
+		J9OBJECT_ADDRESS_STORE(currentThread, membernameObject, vm->vmtargetOffset, target);
 	}
 }
 
@@ -165,20 +165,14 @@ Java_java_lang_invoke_MethodHandleNatives_expand(JNIEnv *env, jclass clazz, jobj
 		j9object_t clazzObject = J9VMJAVALANGINVOKEMEMBERNAME_CLAZZ(currentThread, membernameObject);
 		j9object_t nameObject = J9VMJAVALANGINVOKEMEMBERNAME_NAME(currentThread, membernameObject);
 		j9object_t typeObject = J9VMJAVALANGINVOKEMEMBERNAME_TYPE(currentThread, membernameObject);
-		j9object_t resolvedMethodObject = J9VMJAVALANGINVOKEMEMBERNAME_METHOD(currentThread, membernameObject);
-		jlong vmindex, target;
-
-		if (resolvedMethodObject != NULL) {
-			target = J9VMJAVALANGINVOKERESOLVEDMETHODNAME_VMTARGET(currentThread, resolvedMethodObject);
-			vmindex = J9VMJAVALANGINVOKERESOLVEDMETHODNAME_VMINDEX(currentThread, resolvedMethodObject);
-		}
 		jint flags = J9VMJAVALANGINVOKEMEMBERNAME_FLAGS(currentThread, membernameObject);
+		jlong vmindex = J9OBJECT_ADDRESS_LOAD(currentThread, membernameObject, vm->vmindexOffset);
 
 		if (J9_ARE_ANY_BITS_SET(flags, MN_IS_FIELD)) {
 			if (clazzObject != NULL) {
 				J9Class *clazz = J9VM_J9CLASS_FROM_HEAPCLASS(currentThread, clazzObject);
 
-				J9JNIFieldID *field = (J9JNIFieldID*)vmindex; /* magically find this using vmindex */
+				J9JNIFieldID *field = (J9JNIFieldID*)vmindex;
 				J9UTF8 *name = J9ROMFIELDSHAPE_NAME(field->field);
 				J9UTF8 *signature = J9ROMFIELDSHAPE_SIGNATURE(field->field);
 
@@ -243,21 +237,12 @@ Java_java_lang_invoke_MethodHandleNatives_resolve(JNIEnv *env, jclass clazz, job
 		j9object_t clazzObject = J9VMJAVALANGINVOKEMEMBERNAME_CLAZZ(currentThread, membernameObject);
 		j9object_t nameObject = J9VMJAVALANGINVOKEMEMBERNAME_NAME(currentThread, membernameObject);
 		j9object_t typeObject = J9VMJAVALANGINVOKEMEMBERNAME_TYPE(currentThread, membernameObject);
-		j9object_t resolvedMethodObject = J9VMJAVALANGINVOKEMEMBERNAME_METHOD(currentThread, membernameObject);
-		jlong vmindex = NULL;
-		jlong target = NULL;
-
-		if (resolvedMethodObject != NULL) {
-			target = J9VMJAVALANGINVOKERESOLVEDMETHODNAME_VMTARGET(currentThread, resolvedMethodObject);
-		} else {
-			// Create ResolvedMethodName Object
-			resolvedMethodObject = vm->memoryManagerFunctions->J9AllocateObject(currentThread, J9VMJAVALANGINVOKERESOLVEDMETHODNAME(vm), J9_GC_ALLOCATE_OBJECT_INSTRUMENTABLE);
-			J9VMJAVALANGINVOKEMEMBERNAME_SET_METHOD(currentThread, membernameObject, resolvedMethodObject);
-		}
+		jlong vmindex = J9OBJECT_ADDRESS_LOAD(currentThread, membernameObject, vm->vmindexOffset);
+		jlong target = J9OBJECT_ADDRESS_LOAD(currentThread, membernameObject, vm->vmtargetOffset);
 
 		jint flags = J9VMJAVALANGINVOKEMEMBERNAME_FLAGS(currentThread, membernameObject);
 
-		if (NULL != target) {
+		if (0 != target) {
 			result = self;
 		} else {
 			J9Class *resolvedClass = J9VM_J9CLASS_FROM_HEAPCLASS(clazzObject);
@@ -345,8 +330,8 @@ Java_java_lang_invoke_MethodHandleNatives_resolve(JNIEnv *env, jclass clazz, job
 				target = (jlong)offset;
 			}
 
-			J9VMJAVALANGINVOKERESOLVEDMETHODNAME_SET_VMINDEX(currentThread, resolvedMethodObject, vmindex);
-			J9VMJAVALANGINVOKERESOLVEDMETHODNAME_SET_VMTARGET(currentThread, resolvedMethodObject, target);
+			J9OBJECT_ADDRESS_STORE(currentThread, membernameObject, vm->vmindexOffset, vmindex);
+			J9OBJECT_ADDRESS_STORE(currentThread, membernameObject, vm->vmtargetOffset, target);
 			j9mem_free_memory(name);
 			j9mem_free_memory(signature);
 		}
@@ -622,8 +607,7 @@ Java_java_lang_invoke_MethodHandleNatives_objectFieldOffset(JNIEnv *env, jclass 
 		} else {
 			jint flags = J9VMJAVALANGINVOKEMEMBERNAME_FLAGS(currentThread, membernameObject);
 			if (J9_ARE_ANY_BITS_SET(flags, MN_IS_FIELD) && J9_ARE_NO_BITS_SET(flags, J9AccStatic)) {
-				j9object_t resolvedMethodObject = J9VMJAVALANGINVOKEMEMBERNAME_METHOD(currentThread, membernameObject);
-				J9JNIFieldID *fieldID = (J9JNIFieldID*)J9VMJAVALANGINVOKERESOLVEDMETHODNAME_VMINDEX(currentThread, resolvedMethodObject);
+				J9JNIFieldID *fieldID = (J9JNIFieldID*)J9OBJECT_ADDRESS_LOAD(currentThread, membernameObject, vm->vmindexOffset);
 				result = (jlong)fieldID->offset + J9VMTHREAD_OBJECT_HEADER_SIZE(currentThread);
 			} else {
 				vmFuncs->setCurrentExceptionUTF(currentThread, J9VMCONSTANTPOOL_JAVALANGINTERNALERROR, NULL);
@@ -657,8 +641,7 @@ Java_java_lang_invoke_MethodHandleNatives_staticFieldOffset(JNIEnv *env, jclass 
 		} else {
 			jint flags = J9VMJAVALANGINVOKEMEMBERNAME_FLAGS(currentThread, membernameObject);
 			if (J9_ARE_ANY_BITS_SET(flags, MN_IS_FIELD & J9AccStatic)) {
-				j9object_t resolvedMethodObject = J9VMJAVALANGINVOKEMEMBERNAME_METHOD(currentThread, membernameObject);
-				J9JNIFieldID *fieldID = (J9JNIFieldID*)J9VMJAVALANGINVOKERESOLVEDMETHODNAME_VMINDEX(currentThread, resolvedMethodObject);
+				J9JNIFieldID *fieldID = (J9JNIFieldID*)J9OBJECT_ADDRESS_LOAD(currentThread, membernameObject, vm->vmindexOffset);
 				J9ROMFieldShape *romField = fieldID->field;
 				result = (jlong)fieldID->offset | J9_SUN_STATIC_FIELD_OFFSET_TAG;
 
@@ -723,8 +706,7 @@ Java_java_lang_invoke_MethodHandleNatives_getMemberVMInfo(JNIEnv *env, jclass cl
 		j9object_t membernameObject = J9_JNI_UNWRAP_REFERENCE(self);
 		j9object_t clazzObject = J9VMJAVALANGINVOKEMEMBERNAME_CLAZZ(currentThread, membernameObject);
 		jint flags = J9VMJAVALANGINVOKEMEMBERNAME_FLAGS(currentThread, membernameObject);
-		j9object_t resolvedMethodObject = J9VMJAVALANGINVOKEMEMBERNAME_METHOD(currentThread, membernameObject);
-		jlong vmindex = J9VMJAVALANGINVOKERESOLVEDMETHODNAME_VMINDEX(currentThread, resolvedMethodObject);
+		jlong vmindex = J9OBJECT_ADDRESS_LOAD(currentThread, membernameObject, vm->vmindexOffset);
 		j9object_t target;
 		if (J9_ARE_ANY_BITS_SET(flags, MN_IS_FIELD)) {
 			vmindex = ((J9JNIFieldID*)vmindex)->offset;
@@ -774,4 +756,7 @@ private static native void registerNatives();
 
 private static native int getNamedCon(int which, Object[] name);
 */
+
+#endif /* defined(J9VM_OPT_OPENJDK_METHODHANDLE) */
+
 } /* extern "C" */
