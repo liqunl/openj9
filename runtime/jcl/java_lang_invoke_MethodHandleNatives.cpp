@@ -723,15 +723,24 @@ Java_java_lang_invoke_MethodHandleNatives_getMemberVMInfo(JNIEnv *env, jclass cl
 		j9object_t membernameObject = J9_JNI_UNWRAP_REFERENCE(self);
 		j9object_t clazzObject = J9VMJAVALANGINVOKEMEMBERNAME_CLAZZ(currentThread, membernameObject);
 		jint flags = J9VMJAVALANGINVOKEMEMBERNAME_FLAGS(currentThread, membernameObject);
-
-		j9object_t target;
-		if (J9_ARE_ANY_BITS_SET(flags, MN_IS_FIELD)) {
-			target = clazzObject;
-		} else {
-			target = membernameObject;
-		}
 		j9object_t resolvedMethodObject = J9VMJAVALANGINVOKEMEMBERNAME_METHOD(currentThread, membernameObject);
 		jlong vmindex = J9VMJAVALANGINVOKERESOLVEDMETHODNAME_VMINDEX(currentThread, resolvedMethodObject);
+		j9object_t target;
+		if (J9_ARE_ANY_BITS_SET(flags, MN_IS_FIELD)) {
+			vmindex = ((J9JNIFieldID*)vmindex)->offset;
+			target = clazzObject;
+		} else {
+			J9JNIMethodID *methodID = (J9JNIMethodID*)vmindex;
+			if (J9_ARE_ANY_BITS_SET(methodID->vTableIndex, J9_JNI_MID_INTERFACE) {
+				vmindex = methodID->vTableIndex & ~J9_JNI_MID_INTERFACE;
+			} else if (0 == methodID->vTableIndex) {
+				vmindex = -1;
+			} else {
+				vmindex = methodID->vTableIndex;
+			}
+			target = membernameObject;
+		}
+
 		j9object_t box = vm->memoryManagerFunctions->J9AllocateObject(_currentThread, longWrapperClass, J9_GC_ALLOCATE_OBJECT_NON_INSTRUMENTABLE);
 		J9VMJAVALANGLONG_SET_VALUE(currentThread, box, vmindex);
 
