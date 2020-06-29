@@ -134,7 +134,6 @@ SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-excepti
 	<classref name="java/lang/invoke/VarHandleInvokeHandle" versions="9-"/>
 	<classref name="java/lang/invoke/FieldVarHandle" versions="9-"/>
 	<classref name="java/lang/invoke/MemberName" flags="opt_openjdkMethodhandle"/>
-	<classref name="java/lang/invoke/ResolvedMethodName" flags="opt_openjdkMethodhandle"/>
 	<classref name="java/lang/invoke/LambdaForm" flags="opt_openjdkMethodhandle"/>
 
 	<fieldref class="java/lang/ClassLoader" name="parent" signature="Ljava/lang/ClassLoader;"/>
@@ -340,10 +339,6 @@ SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-excepti
 	<fieldref class="java/lang/invoke/MemberName" name="type" signature="Ljava/lang/Object;" flags="opt_openjdkMethodhandle"/>
 	<fieldref class="java/lang/invoke/MemberName" name="flags" signature="I" flags="opt_openjdkMethodhandle"/>
 	<fieldref class="java/lang/invoke/MemberName" name="resolution" signature="Ljava/lang/Object;" flags="opt_openjdkMethodhandle"/>
-	<fieldref class="java/lang/invoke/MemberName" name="method" signature="Ljava/lang/invoke/ResolvedMethodName;" flags="opt_openjdkMethodhandle" versions="9-"/>
-	<fieldref class="java/lang/invoke/ResolvedMethodName" name="vmindex" signature="J" flags="opt_openjdkMethodhandle"/>
-	<fieldref class="java/lang/invoke/ResolvedMethodName" name="vmtarget" signature="J" flags="opt_openjdkMethodhandle"/>
-	<fieldref class="java/lang/invoke/ResolvedMethodName" name="vmholder" signature="Ljava/lang/Class;" flags="opt_openjdkMethodhandle"/>
 	<fieldref class="java/lang/invoke/MethodHandle" name="form" signature="Ljava/lang/invoke/LambdaForm;" flags="opt_openjdkMethodhandle"/>
 	<fieldref class="java/lang/invoke/LambdaForm" name="vmentry" signature="Ljava/lang/invoke/MemberName;" flags="opt_openjdkMethodhandle"/>
 	

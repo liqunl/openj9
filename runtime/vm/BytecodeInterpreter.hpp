@@ -8126,8 +8126,7 @@ done:
 
 		j9object_t lambdaForm = J9VMJAVALANGINVOKEMETHODHANDLE_FORM(_currentThread, mhReceiver);
 		j9object_t memberName = J9VMJAVALANGINVOKELAMBDAFORM_VMENTRY(_currentThread, lambdaForm);
-		j9object_t resolvedMethodName = J9VMJAVALANGINVOKEMEMBERNAME_METHOD(_currentThread, memberName);
-		_sendMethod = (J9Method *)J9VMJAVALANGINVOKERESOLVEDMETHODNAME_VMTARGET(_currentThread, resolvedMethodName);
+		_sendMethod = (J9Method *)J9OBJECT_ADDRESS_LOAD(_currentThread, memberName, _vm->vmtargetOffset);
 
 		return GOTO_RUN_METHOD;
 #else /* defined(J9VM_OPT_OPENJDK_METHODHANDLE) */
