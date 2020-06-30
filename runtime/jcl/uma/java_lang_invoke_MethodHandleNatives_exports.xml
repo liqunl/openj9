@@ -28,4 +28,10 @@
 		<export name="Java_java_lang_invoke_MethodHandleNatives_staticFieldOffset" />
 		<export name="Java_java_lang_invoke_MethodHandleNatives_staticFieldBase" />
 		<export name="Java_java_lang_invoke_MethodHandleNatives_getMemberVMInfo" />
+		<export name="Java_java_lang_invoke_MethodHandleNatives_setCallSiteTargetNormal" />
+		<export name="Java_java_lang_invoke_MethodHandleNatives_setCallSiteTargetVolatile" />
+		<export name="Java_java_lang_invoke_MethodHandleNatives_copyOutBootstrapArguments" />
+		<export name="Java_java_lang_invoke_MethodHandleNatives_clearCallSiteContext" />
+		<export name="Java_java_lang_invoke_MethodHandleNatives_getNamedCon" />
+		<export name="Java_java_lang_invoke_MethodHandleNatives_registerNatives" />
 </exports>
