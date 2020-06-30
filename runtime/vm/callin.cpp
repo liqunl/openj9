@@ -868,6 +868,7 @@ void JNICALL
 sendFromMethodDescriptorString(J9VMThread *currentThread, J9UTF8 *descriptor, J9ClassLoader *classLoader, J9Class *appendArgType)
 {
 	Trc_VM_sendFromMethodDescriptorString_Entry(currentThread);
+#if defined(J9VM_OPT_METHOD_HANDLE) || defined(J9VM_OPT_OPENJDK_METHODHANDLE)
 	J9VMEntryLocalStorage newELS;
 	if (buildCallInStackFrame(currentThread, &newELS, true, false)) {
 		/* Convert descriptor to a String */
@@ -885,6 +886,9 @@ sendFromMethodDescriptorString(J9VMThread *currentThread, J9UTF8 *descriptor, J9
 		}
 		restoreCallInFrame(currentThread);
 	}
+#else /* defined(J9VM_OPT_METHOD_HANDLE) || defined(J9VM_OPT_OPENJDK_METHODHANDLE) */
+	Assert_VM_unreachable();
+#endif /* defined(J9VM_OPT_METHOD_HANDLE) || defined(J9VM_OPT_OPENJDK_METHODHANDLE) */
 	Trc_VM_sendFromMethodDescriptorString_Exit(currentThread);
 }
 
@@ -892,6 +896,7 @@ void JNICALL
 sendResolveMethodHandle(J9VMThread *currentThread, UDATA cpIndex, J9ConstantPool *ramCP, J9Class *definingClass, J9ROMNameAndSignature* nameAndSig)
 {
 	Trc_VM_sendResolveMethodHandle_Entry(currentThread);
+#if defined(J9VM_OPT_METHOD_HANDLE) || defined(J9VM_OPT_OPENJDK_METHODHANDLE)
 	J9VMEntryLocalStorage newELS;
 	if (buildCallInStackFrame(currentThread, &newELS, true, false)) {
 		/* Convert name and signature to String objects */
@@ -921,6 +926,9 @@ sendResolveMethodHandle(J9VMThread *currentThread, UDATA cpIndex, J9ConstantPool
 		}
 		restoreCallInFrame(currentThread);
 	}
+#else /* defined(J9VM_OPT_METHOD_HANDLE) || defined(J9VM_OPT_OPENJDK_METHODHANDLE) */
+        Assert_VM_unreachable();
+#endif /* defined(J9VM_OPT_METHOD_HANDLE) || defined(J9VM_OPT_OPENJDK_METHODHANDLE) */
 	Trc_VM_sendResolveMethodHandle_Exit(currentThread);
 }
 
@@ -928,6 +936,7 @@ void JNICALL
 sendForGenericInvoke(J9VMThread *currentThread, j9object_t methodHandle, j9object_t methodType, UDATA dropFirstArg)
 {
 	Trc_VM_sendForGenericInvoke_Entry(currentThread);
+#if defined(J9VM_OPT_METHOD_HANDLE)
 	J9VMEntryLocalStorage newELS;
 	if (buildCallInStackFrame(currentThread, &newELS, true, false)) {
 		/* Run the method */
@@ -939,6 +948,9 @@ sendForGenericInvoke(J9VMThread *currentThread, j9object_t methodHandle, j9objec
 		c_cInterpreter(currentThread);
 		restoreCallInFrame(currentThread);
 	}
+#else /* defined(J9VM_OPT_METHOD_HANDLE) */
+        Assert_VM_unreachable();
+#endif /* defined(J9VM_OPT_METHOD_HANDLE) */
 	Trc_VM_sendForGenericInvoke_Exit(currentThread);
 }
 
@@ -946,6 +958,7 @@ void JNICALL
 sendResolveConstantDynamic(J9VMThread *currentThread, J9ConstantPool *ramCP, UDATA cpIndex, J9ROMNameAndSignature *nameAndSig, U_16 *bsmData)
 {
 	Trc_VM_sendResolveConstantDynamic_Entry(currentThread, ramCP, cpIndex, nameAndSig, bsmData);
+#if defined(J9VM_OPT_METHOD_HANDLE) || defined(J9VM_OPT_OPENJDK_METHODHANDLE)
 	J9VMEntryLocalStorage newELS;
 	if (buildCallInStackFrame(currentThread, &newELS, true, false)) {
 		/* Convert name and signature to String objects */
@@ -980,12 +993,15 @@ sendResolveConstantDynamic(J9VMThread *currentThread, J9ConstantPool *ramCP, UDA
 				currentThread->sp -= 2;
 				*(U_64*)currentThread->sp = (U_64)(UDATA)bsmData;
 				currentThread->returnValue = J9_BCLOOP_RUN_METHOD;
-				currentThread->returnValue2 = (UDATA)J9VMJAVALANGINVOKEMETHODHANDLE_RESOLVECONSTANTDYNAMICHELPER_METHOD(vm);
+				currentThread->returnValue2 = (UDATA)J9VMJAVALANGINVOKEMETHODHANDLEHELPER_RESOLVECONSTANTDYNAMIC_METHOD(vm);
 				c_cInterpreter(currentThread);
 			}
 		}
 		restoreCallInFrame(currentThread);
 	}
+#else /* defined(J9VM_OPT_METHOD_HANDLE) || defined(J9VM_OPT_OPENJDK_METHODHANDLE) */
+        Assert_VM_unreachable();
+#endif /* defined(J9VM_OPT_METHOD_HANDLE) || defined(J9VM_OPT_OPENJDK_METHODHANDLE) */
 	Trc_VM_sendResolveConstantDynamic_Exit(currentThread);
 }
 
@@ -993,6 +1009,7 @@ void JNICALL
 sendResolveInvokeDynamic(J9VMThread *currentThread, J9ConstantPool *ramCP, UDATA callSiteIndex, J9ROMNameAndSignature *nameAndSig, U_16 *bsmData)
 {
 	Trc_VM_sendResolveInvokeDynamic_Entry(currentThread);
+#if defined(J9VM_OPT_METHOD_HANDLE) || defined(J9VM_OPT_OPENJDK_METHODHANDLE)
 	J9VMEntryLocalStorage newELS;
 	if (buildCallInStackFrame(currentThread, &newELS, true, false)) {
 		/* Convert name and signature to String objects */
@@ -1031,6 +1048,9 @@ sendResolveInvokeDynamic(J9VMThread *currentThread, J9ConstantPool *ramCP, UDATA
 		}
 		restoreCallInFrame(currentThread);
 	}
+#else /* defined(J9VM_OPT_METHOD_HANDLE) || defined(J9VM_OPT_OPENJDK_METHODHANDLE) */
+        Assert_VM_unreachable();
+#endif /* defined(J9VM_OPT_METHOD_HANDLE) || defined(J9VM_OPT_OPENJDK_METHODHANDLE) */
 	Trc_VM_sendResolveInvokeDynamic_Exit(currentThread);
 }
 

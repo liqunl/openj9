@@ -8025,7 +8025,7 @@ done:
 	VMINLINE VM_BytecodeAction
 	invokedynamic(REGISTER_ARGS_LIST)
 	{
-#if defined(J9VM_OPT_METHOD_HANDLE)
+#if defined(J9VM_OPT_METHOD_HANDLE) || defined(J9VM_OPT_OPENJDK_METHODHANDLE)
 retry:
 		VM_BytecodeAction rc = GOTO_RUN_METHODHANDLE;
 		U_16 index = *(U_16*)(_pc + 1);
@@ -8055,10 +8055,10 @@ retry:
 			}
 		}
 		return rc;
-#else
+#else /* defined(J9VM_OPT_METHOD_HANDLE) || defined(J9VM_OPT_OPENJDK_METHODHANDLE) */
 	Assert_VM_unreachable();
 	return EXECUTE_BYTECODE;
-#endif /* J9VM_OPT_METHOD_HANDLE */
+#endif /* defined(J9VM_OPT_METHOD_HANDLE) || defined(J9VM_OPT_OPENJDK_METHODHANDLE) */
 	}
 
 	VMINLINE VM_BytecodeAction

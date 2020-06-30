@@ -39,6 +39,131 @@
 #include "j9vmconstantpool.h"
 #include "j9jclnls.h"
 
+#if defined(J9VM_OPT_OPENJDK_METHODHANDLE)
+/* Should already have VMAccess */
+UDATA
+lookupField(JNIEnv *env, jboolean isStatic, J9Class *j9LookupClass, jstring name, J9UTF8 *sigUTF, J9Class **definingClass, UDATA *romField, jclass accessClass)
+{
+	J9UTF8 *nameUTF8 = NULL;
+	char nameUTF8Buffer[256];
+	J9Class *j9AccessClass = NULL;	/* J9Class for java.lang.Class accessClass */
+	UDATA field = 0;
+	J9VMThread *vmThread = (J9VMThread *) env;
+	J9JavaVM *vm = vmThread->javaVM;
+	J9InternalVMFunctions *vmFuncs = vm->internalVMFunctions;
+	PORT_ACCESS_FROM_VMC(vmThread);
+
+	nameUTF8 = vmFuncs->copyStringToJ9UTF8WithMemAlloc(vmThread, J9_JNI_UNWRAP_REFERENCE(name), J9_STR_NONE, "", 0, nameUTF8Buffer, sizeof(nameUTF8Buffer));
+
+	if (NULL == nameUTF8) {
+		vmFuncs->setNativeOutOfMemoryError(vmThread, 0, 0);
+		Assert_JCL_notNull(vmThread->currentException);
+		goto _cleanup;
+	}
+
+	if (NULL != accessClass) {
+		j9AccessClass = J9VM_J9CLASS_FROM_JCLASS(vmThread, accessClass);
+	}
+
+	if (JNI_TRUE == isStatic) {
+		field = (UDATA) vmFuncs->staticFieldAddress(vmThread, j9LookupClass, J9UTF8_DATA(nameUTF8), J9UTF8_LENGTH(nameUTF8), J9UTF8_DATA(sigUTF), J9UTF8_LENGTH(sigUTF), definingClass, romField, 0, j9AccessClass);
+		if (0 == field) {
+			/* IllegalAccessError / IncompatibleClassChangeError / NoSuchFieldError will be pending */
+			Assert_JCL_notNull(vmThread->currentException);
+			goto _cleanup;
+		}
+		/* Turn field into an offset that is usable by Unsafe to support
+		 * the JIT implementation of static Field handles
+		 */
+		field = (UDATA) field - (UDATA) (*definingClass)->ramStatics;
+		field += J9_SUN_STATIC_FIELD_OFFSET_TAG;
+	} else {
+		field = (UDATA) vmFuncs->instanceFieldOffset(vmThread, j9LookupClass, J9UTF8_DATA(nameUTF8), J9UTF8_LENGTH(nameUTF8), J9UTF8_DATA(sigUTF), J9UTF8_LENGTH(sigUTF), definingClass, romField, 0);
+		if (-1 == field) {
+			/* IllegalAccessError / IncompatibleClassChangeError / NoSuchFieldError will be pending */
+			Assert_JCL_notNull(vmThread->currentException);
+			goto _cleanup;
+		}
+	}
+
+	/* definingClass & romField cannot be null here.  The field lookup would have failed if they were null and
+	 * would have done a goto _cleanup.
+	 */
+	Assert_JCL_notNull(*definingClass);
+	Assert_JCL_notNull((J9ROMFieldShape *)(*romField));
+
+_cleanup:
+
+	if (nameUTF8 != (J9UTF8*)nameUTF8Buffer) {
+		j9mem_free_memory(nameUTF8);
+	}
+
+	return field;
+}
+
+/**
+ * Fill in a parameterized NLS message.
+ *
+ * Does not require VM access.
+ *
+ * @param[in] vmThread The current VM thread.
+ * @param[in] nlsTemplate A parameterized NLS message, as returned from j9nls_lookup_message().
+ * @return An allocated buffer containing the expanded NLS message. Caller must free this
+ * buffer using j9mem_free_memory().
+ */
+static char *
+expandNLSTemplate(J9VMThread *vmThread, const char *nlsTemplate, ...)
+{
+        PORT_ACCESS_FROM_VMC(vmThread);
+        char *msg = NULL;
+
+        if (NULL != nlsTemplate) {
+                UDATA msgLen = 0;
+                va_list args;
+
+                va_start(args, nlsTemplate);
+                msgLen = j9str_vprintf(NULL, 0, nlsTemplate, args);
+                va_end(args);
+
+                msg = (char *)j9mem_allocate_memory(msgLen, OMRMEM_CATEGORY_VM);
+                if (NULL != msg) {
+                        va_start(args, nlsTemplate);
+                        j9str_vprintf(msg, msgLen, nlsTemplate, args);
+                        va_end(args);
+                }
+        }
+        return msg;
+}
+
+/**
+ * Set a LinkageError to indicate a class loading constraint violation between
+ * the MT and the looked up method or field.
+ *
+ * @param[in] vmThread The current J9VMThread *
+ * @param[in] methodOrFieldClass The defining class of the looked up field or method
+ * @param[in] signatureUTF8 The signature of the MethodType
+ */
+void
+setClassLoadingConstraintLinkageError(J9VMThread *vmThread, J9Class *methodOrFieldClass, J9UTF8 *signatureUTF8)
+{
+        J9JavaVM *vm = vmThread->javaVM;
+        J9InternalVMFunctions *vmFuncs = vm->internalVMFunctions;
+        PORT_ACCESS_FROM_VMC(vmThread);
+        J9UTF8 *className = J9ROMCLASS_CLASSNAME(methodOrFieldClass->romClass);
+        const char *nlsTemplate = j9nls_lookup_message(
+                        J9NLS_DO_NOT_PRINT_MESSAGE_TAG | J9NLS_DO_NOT_APPEND_NEWLINE,
+                        J9NLS_JCL_METHODTYPE_CLASS_LOADING_CONSTRAINT,
+                        "loading constraint violation: %.*s not visible from %.*s");
+        char * msg = expandNLSTemplate(
+                        vmThread,
+                        nlsTemplate,
+                        J9UTF8_LENGTH(signatureUTF8), J9UTF8_DATA(signatureUTF8),
+                        J9UTF8_LENGTH(className), J9UTF8_DATA(className));
+        vmFuncs->setCurrentExceptionUTF(vmThread, J9VMCONSTANTPOOL_JAVALANGLINKAGEERROR, msg);
+        j9mem_free_memory(msg);
+}
+#endif /* defined(J9VM_OPT_OPENJDK_METHODHANDLE) */
+
 static BOOLEAN
 accessCheckFieldType(J9VMThread *currentThread, J9Class* lookupClass, J9Class* type, J9UTF8 *lookupSig)
 {

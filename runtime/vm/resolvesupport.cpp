@@ -1321,7 +1321,6 @@ resolveVirtualMethodRefInto(J9VMThread *vmStruct, J9ConstantPool *ramCP, UDATA c
 	UDATA vTableOffset = 0;
 	J9ROMMethodRef *romMethodRef = NULL;
 	J9Class *resolvedClass = NULL;
-	J9JavaVM *vm = vmStruct->javaVM;
 	bool jitCompileTimeResolve = J9_ARE_ANY_BITS_SET(resolveFlags, J9_RESOLVE_FLAG_JIT_COMPILE_TIME);
 	bool canRunJavaCode = !jitCompileTimeResolve && J9_ARE_NO_BITS_SET(resolveFlags, J9_RESOLVE_FLAG_REDEFINE_CLASS);
 	bool throwException = canRunJavaCode && J9_ARE_NO_BITS_SET(resolveFlags, J9_RESOLVE_FLAG_NO_THROW_ON_FAIL);
@@ -1346,30 +1345,36 @@ resolveVirtualMethodRefInto(J9VMThread *vmStruct, J9ConstantPool *ramCP, UDATA c
 	/* If resolvedClass is NULL, the exception has already been set. */
 	if (NULL != resolvedClass) {
 		J9ROMNameAndSignature *nameAndSig = J9ROMFIELDREF_NAMEANDSIGNATURE(romMethodRef);
-		U_32 *cpShapeDescription = NULL;
 		J9Method *method = NULL;
 		J9Class *cpClass = NULL;
-
-		/* Stack allocate a byte array for VarHandle method name and signature. The array size is:
-		 *  - J9ROMNameAndSignature
-		 *  - Modified method name
-		 *      - U_16 for J9UTF8 length
-		 *      - 26 bytes for the original method name ("compareAndExchange" is the longest)
-		 *      - 5 bytes for "_impl".
-		 *  - J9UTF8 for empty signature
-		 */
-		U_8 nameAndNAS[sizeof(J9ROMNameAndSignature) + (sizeof(U_16) + 26 + 5) + sizeof(J9UTF8)];
+#if defined(J9VM_OPT_METHOD_HANDLE) || defined(J9VM_OPT_OPENJDK_METHODHANDLE)
+		U_32 *cpShapeDescription = NULL;
+#endif /* defined(J9VM_OPT_METHOD_HANDLE) || defined(J9VM_OPT_OPENJDK_METHODHANDLE) */
 
 		lookupOptions |= J9_LOOK_VIRTUAL;
 		if ((resolveFlags & J9_RESOLVE_FLAG_JCL_CONSTANT_POOL) == J9_RESOLVE_FLAG_JCL_CONSTANT_POOL) {
 			cpClass = NULL;
 		} else {
 			cpClass = J9_CLASS_FROM_CP(ramCP);
+#if defined(J9VM_OPT_METHOD_HANDLE) || defined(J9VM_OPT_OPENJDK_METHODHANDLE)
 			cpShapeDescription = J9ROMCLASS_CPSHAPEDESCRIPTION(cpClass->romClass);
+#endif /* defined(J9VM_OPT_METHOD_HANDLE) || defined(J9VM_OPT_OPENJDK_METHODHANDLE) */
 			lookupOptions |= J9_LOOK_CLCONSTRAINTS;
 		}
 		
-#if defined(J9VM_OPT_METHOD_HANDLE)
+#if defined(J9VM_OPT_METHOD_HANDLE) || defined(J9VM_OPT_OPENJDK_METHODHANDLE)
+		J9JavaVM *vm = vmStruct->javaVM;
+
+                /* Stack allocate a byte array for VarHandle method name and signature. The array size is:
+                 *  - J9ROMNameAndSignature
+                 *  - Modified method name
+                 *      - U_16 for J9UTF8 length
+                 *      - 26 bytes for the original method name ("compareAndExchange" is the longest)
+                 *      - 5 bytes for "_impl".
+                 *  - J9UTF8 for empty signature
+                 */
+		U_8 nameAndNAS[sizeof(J9ROMNameAndSignature) + (sizeof(U_16) + 26 + 5) + sizeof(J9UTF8)];
+
 		/*
 		 * Check for MH.invoke and MH.invokeExact.
 		 *
@@ -1611,7 +1616,7 @@ resolveVirtualMethodRefInto(J9VMThread *vmStruct, J9ConstantPool *ramCP, UDATA c
 				}
 			}
 		}
-#endif /* J9VM_OPT_METHOD_HANDLE */
+#endif /* defined(J9VM_OPT_METHOD_HANDLE) || defined(J9VM_OPT_OPENJDK_METHODHANDLE) */
 
 		method = (J9Method *)javaLookupMethod(vmStruct, resolvedClass, nameAndSig, cpClass, lookupOptions);
 
@@ -1658,9 +1663,9 @@ resolveVirtualMethodRefInto(J9VMThread *vmStruct, J9ConstantPool *ramCP, UDATA c
 		}
 	}
 
-#if defined(J9VM_OPT_METHOD_HANDLE)
+#if defined(J9VM_OPT_METHOD_HANDLE) || defined(J9VM_OPT_OPENJDK_METHODHANDLE)
 done:
-#endif /* J9VM_OPT_METHOD_HANDLE */
+#endif /* defined(J9VM_OPT_METHOD_HANDLE) || defined(J9VM_OPT_OPENJDK_METHODHANDLE) */
 	Trc_VM_resolveVirtualMethodRef_Exit(vmStruct, vTableOffset);
 	return vTableOffset;
 }
