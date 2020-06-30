@@ -121,20 +121,20 @@ public final class MethodHandleHelper {
 		}
 		Object[] staticArgs = new Object[BSM_OPTIONAL_ARGUMENTS_START_INDEX + bsmArgCount];
 		/* Mandatory arguments */
-		staticArgs[BSM_LOOKUP_ARGUMENT_INDEX] = new MethodHandles.Lookup(classObject, false);
+		staticArgs[BSM_LOOKUP_ARGUMENT_INDEX] = new MethodHandles.Lookup(classObject);
 		staticArgs[BSM_NAME_ARGUMENT_INDEX] = name;
 		staticArgs[BSM_TYPE_ARGUMENT_INDEX] = typeClass;
 
 		/* Static optional arguments */
-		int bsmTypeArgCount = bsm.type.parameterCount();
+		int bsmTypeArgCount = bsm.type().parameterCount();
 
 		/* JVMS JDK11 5.4.3.6 Dynamically-Computed Constant and Call Site Resolution
 		 * requires the first parameter of the bootstrap method to be java.lang.invoke.MethodHandles.Lookup
 		 * else fail resolution with BootstrapMethodError
 		 */
-		if (bsmTypeArgCount < 1 || MethodHandles.Lookup.class != bsm.type.parameterType(0)) {
+		if (bsmTypeArgCount < 1 || MethodHandles.Lookup.class != bsm.type().parameterType(0)) {
 			/*[MSG "K0A01", "Constant_Dynamic references bootstrap method '{0}' does not have java.lang.invoke.MethodHandles.Lookup as first parameter."]*/
-			throw new BootstrapMethodError(Msg.getString("K0A01", bsm.getMethodName())); //$NON-NLS-1$
+			throw new BootstrapMethodError(Msg.getString("K0A01", bsm)); //$NON-NLS-1$
 		}
 
 		for (int i = 0; i < bsmArgCount; i++) {
@@ -177,14 +177,14 @@ public final class MethodHandleHelper {
 			Class<?> classObject = getClassFromJ9Class(j9class);
 			
 			type = MethodTypeHelper.vmResolveFromMethodDescriptorString(methodDescriptor, access.getClassloader(classObject), null);
-			final MethodHandles.Lookup lookup = new MethodHandles.Lookup(classObject, false);
-			try {
-				lookup.accessCheckArgRetTypes(type);
-			} catch (IllegalAccessException e) {
-				IllegalAccessError err = new IllegalAccessError();
-				err.initCause(e);
-				throw err;
-			}
+			final MethodHandles.Lookup lookup = new MethodHandles.Lookup(classObject);
+//			try {
+//				lookup.accessCheckArgRetTypes(type);
+//			} catch (IllegalAccessException e) {
+//				IllegalAccessError err = new IllegalAccessError();
+//				err.initCause(e);
+//				throw err;
+//			}
 			int bsmIndex = UNSAFE.getShort(bsmData);
 			int bsmArgCount = UNSAFE.getShort(bsmData + BSM_ARGUMENT_COUNT_OFFSET);
 			long bsmArgs = bsmData + BSM_ARGUMENTS_OFFSET;
@@ -200,7 +200,7 @@ public final class MethodHandleHelper {
 			staticArgs[BSM_TYPE_ARGUMENT_INDEX] = type;
 		
 			/* Static optional arguments */
-			int bsmTypeArgCount = bsm.type.parameterCount();
+			int bsmTypeArgCount = bsm.type().parameterCount();
 			for (int i = 0; i < bsmArgCount; i++) {
 				staticArgs[BSM_OPTIONAL_ARGUMENTS_START_INDEX + i] = getAdditionalBsmArg(access, internalRamClass, classObject, bsm, bsmArgs, bsmTypeArgCount, i);
 			}
@@ -266,7 +266,7 @@ public final class MethodHandleHelper {
 			String typeDescriptor,
 			ClassLoader loader) throws Throwable {
 		try {
-			MethodHandles.Lookup lookup = new MethodHandles.Lookup(currentClass, false);
+			MethodHandles.Lookup lookup = new MethodHandles.Lookup(currentClass);
 			MethodType type = null;
 			MethodHandle result = null;
 
@@ -285,27 +285,27 @@ public final class MethodHandleHelper {
 				break;
 			case 5: /* invokeVirtual */
 				type = MethodTypeHelper.vmResolveFromMethodDescriptorString(typeDescriptor, loader, null);
-				lookup.accessCheckArgRetTypes(type);
+				//lookup.accessCheckArgRetTypes(type);
 				result = lookup.findVirtual(referenceClazz, name, type);
 				break;
 			case 6: /* invokeStatic */
 				type = MethodTypeHelper.vmResolveFromMethodDescriptorString(typeDescriptor, loader, null);
-				lookup.accessCheckArgRetTypes(type);
+				//lookup.accessCheckArgRetTypes(type);
 				result = lookup.findStatic(referenceClazz, name, type);
 				break;
 			case 7: /* invokeSpecial */ 
 				type = MethodTypeHelper.vmResolveFromMethodDescriptorString(typeDescriptor, loader, null);
-				lookup.accessCheckArgRetTypes(type);
+				//lookup.accessCheckArgRetTypes(type);
 				result = lookup.findSpecial(referenceClazz, name, type, currentClass);
 				break;
 			case 8: /* newInvokeSpecial */
 				type = MethodTypeHelper.vmResolveFromMethodDescriptorString(typeDescriptor, loader, null);
-				lookup.accessCheckArgRetTypes(type);
+				//lookup.accessCheckArgRetTypes(type);
 				result = lookup.findConstructor(referenceClazz, type);
 				break;
 			case 9: /* invokeInterface */
 				type = MethodTypeHelper.vmResolveFromMethodDescriptorString(typeDescriptor, loader, null);
-				lookup.accessCheckArgRetTypes(type);
+				//lookup.accessCheckArgRetTypes(type);
 				result = lookup.findVirtual(referenceClazz, name, type);
 				break;
 			default:
@@ -326,7 +326,7 @@ public final class MethodHandleHelper {
 	 */
 	private static final Class<?> resolveFieldHandleHelper(String typeDescriptor, Lookup lookup, ClassLoader loader) throws Throwable {
 		MethodType mt = MethodTypeHelper.vmResolveFromMethodDescriptorString("(" + typeDescriptor + ")V", loader, null); //$NON-NLS-1$ //$NON-NLS-2$
-		lookup.accessCheckArgRetTypes(mt);
+		//lookup.accessCheckArgRetTypes(mt);
 		return mt.parameterType(0);
 	}
 	
@@ -447,14 +447,14 @@ public final class MethodHandleHelper {
 			int cpValue = cp.getIntAt(index);
 			Class<?> argClass = null;
 			if (treatLastArgAsVarargs && (staticArgIndex >= (bsmTypeArgCount - 1))) {
-				argClass = bsm.type.lastParameterType().getComponentType(); /* varargs component type */
+				argClass = bsm.type().lastParameterType().getComponentType(); /* varargs component type */
 			} else {
 				/* Verify that a call to MethodType.parameterType will not cause an ArrayIndexOutOfBoundsException. 
 				* If the number of static arguments is greater than the number of argument slots in the bsm
 				* leave argClass unset. A more meaningful user error WrongMethodTypeException will be thrown later on.
 				*/
 				if (staticArgIndex < bsmTypeArgCount) {
-					argClass = bsm.type.parameterType(staticArgIndex);
+					argClass = bsm.type().parameterType(staticArgIndex);
 				}
 			}
 			if (argClass == Short.TYPE) {
