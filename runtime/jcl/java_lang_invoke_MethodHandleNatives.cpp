@@ -130,26 +130,27 @@ initImpl(J9VMThread *currentThread, j9object_t membernameObject, j9object_t refO
 static char *
 sigForPrimitiveOrVoid(J9JavaVM *vm, J9Class *clazz)
 {
+	char* result = NULL;
 	if (clazz == vm->booleanReflectClass)
-		return "Z";
+		*result = 'Z';
 	else if (clazz == vm->byteReflectClass)
-		return "B";
+		*result = 'B';
 	else if (clazz == vm->charReflectClass)
-		return "C";
+		*result = 'C';
 	else if (clazz == vm->shortReflectClass)
-		return "S";
+		*result = 'S';
 	else if (clazz == vm->intReflectClass)
-		return "I";
+		*result = 'I';
 	else if (clazz == vm->longReflectClass)
-		return "J";
+		*result = 'J';
 	else if (clazz == vm->floatReflectClass)
-		return "F";
+		*result = 'F';
 	else if (clazz == vm->doubleReflectClass)
-		return "D";
+		*result = 'D';
 	else if (clazz == vm->voidReflectClass)
-		return "V";
+		*result = 'V';
 
-	return NULL;
+	return result;
 }
 
 char *
@@ -157,7 +158,7 @@ getClassSignature(J9VMThread *currentThread, J9Class * clazz)
 {
 	PORT_ACCESS_FROM_JAVAVM(currentThread->javaVM);
 
-	int32_t numDims = 0;
+	U_32 numDims = 0;
 
 	J9Class * myClass = clazz;
 	while (J9ROMCLASS_IS_ARRAY(myClass->romClass))
@@ -170,15 +171,15 @@ getClassSignature(J9VMThread *currentThread, J9Class * clazz)
 		myClass = componentClass;
 	}
 	J9UTF8 * romName = J9ROMCLASS_CLASSNAME(myClass->romClass);
-	int32_t len = J9UTF8_LENGTH(romName);
-	char * name = J9UTF8_DATA(romName);
-	int32_t length = len + numDims;
+	U_32 len = J9UTF8_LENGTH(romName);
+	char * name =  (char *)J9UTF8_DATA(romName);
+	U_32 length = len + numDims;
 	if (* name != '[')
 		length += 2;
 
 	length++; //for null-termination
 	char * sig = (char *)j9mem_allocate_memory(length, OMRMEM_CATEGORY_VM);
-	int32_t i;
+	U_32 i;
 	for (i = 0; i < numDims; i++)
 		sig[i] = '[';
 	if (*name != '[')
@@ -192,8 +193,8 @@ getClassSignature(J9VMThread *currentThread, J9Class * clazz)
 	return sig;
 }
 
-void
-getSignatureFromMethodType(J9VMThread *currentThread, j9object_t typeObject, char *signature, UDATA *signatureLength)
+char *
+getSignatureFromMethodType(J9VMThread *currentThread, j9object_t typeObject, UDATA *signatureLength)
 {
 	J9JavaVM *vm = currentThread->javaVM;
 	j9object_t ptypes = J9VMJAVALANGINVOKEMETHODTYPE_PTYPES(currentThread, typeObject);
@@ -201,16 +202,16 @@ getSignatureFromMethodType(J9VMThread *currentThread, j9object_t typeObject, cha
 
 	PORT_ACCESS_FROM_JAVAVM(vm);
 
-	char** signatures = (char*)j9mem_allocate_memory((numArgs + 1) * sizeof(char*), OMRMEM_CATEGORY_VM);
-	signatureLength = 2; //space for '(', ')'
-	for (int32_t i = 0; i < numArgs; i++) {
+	char** signatures = (char**)j9mem_allocate_memory((numArgs + 1) * sizeof(char*), OMRMEM_CATEGORY_VM);
+	*signatureLength = 2; //space for '(', ')'
+	for (U_32 i = 0; i < numArgs; i++) {
 		j9object_t pObject = J9JAVAARRAYOFOBJECT_LOAD(currentThread, ptypes, i);
 		J9Class *pclass = J9VM_J9CLASS_FROM_HEAPCLASS(currentThread, pObject);
 		signatures[i] = sigForPrimitiveOrVoid(vm, pclass);
 		if (!signatures[i])
 			signatures[i] = getClassSignature(currentThread, pclass);
 
-		signatureLength += strlen(signatures[i]);
+		*signatureLength += strlen(signatures[i]);
 	}
 
 	// Return type
@@ -220,15 +221,15 @@ getSignatureFromMethodType(J9VMThread *currentThread, j9object_t typeObject, cha
 	if (!rSignature)
 		rSignature = getClassSignature(currentThread, rclass);
 
-	signatureLength += strlen(rSignature);
+	*signatureLength += strlen(rSignature);
 
-	char* methodDescriptor = (char*)j9mem_allocate_memory(signatureLength+1, OMRMEM_CATEGORY_VM);
+	char* methodDescriptor = (char*)j9mem_allocate_memory(*signatureLength+1, OMRMEM_CATEGORY_VM);
 	char* cursor = methodDescriptor;
 	*cursor++ = '(';
 
 	// Copy class signatures to descriptor string
-	for (int32_t i = 0; i < numArgs; i++) {
-		int32_t len = strlen(signatures[i]);
+	for (U_32 i = 0; i < numArgs; i++) {
+		U_32 len = strlen(signatures[i]);
 		strncpy(cursor, signatures[i], len);
 		cursor += len;
 		if (len > 1) {
@@ -656,7 +657,7 @@ Java_java_lang_invoke_MethodHandleNatives_resolve(JNIEnv *env, jclass clazz, job
 					signature = (char*)j9mem_allocate_memory(signatureLength, OMRMEM_CATEGORY_VM);
 					vmFuncs->copyStringToUTF8Helper(currentThread, typeObject, J9_STR_NULL_TERMINATE_RESULT | J9_STR_XLAT , 0, J9VMJAVALANGSTRING_LENGTH(currentThread, sigString), (U_8 *)signature, signatureLength);
 				} else {
-					getSignatureFromMethodType(currentThread, typeObject, signature, &signatureLength);
+					signature = getSignatureFromMethodType(currentThread, typeObject, &signatureLength);
 				}
 			} else {
 				signatureLength = vmFuncs->getStringUTF8Length(currentThread, typeObject) + 1;
