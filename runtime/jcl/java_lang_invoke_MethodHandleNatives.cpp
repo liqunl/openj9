@@ -31,6 +31,7 @@
 #include "util_api.h"
 #include "j9vmconstantpool.h"
 #include "ObjectAccessBarrierAPI.hpp"
+#include "objhelp.h"
 
 #include <string.h>
 #include <assert.h>
@@ -124,6 +125,79 @@ initImpl(J9VMThread *currentThread, j9object_t membernameObject, j9object_t refO
 		J9OBJECT_ADDRESS_STORE(currentThread, membernameObject, vm->vmindexOffset, (void*)vmindex);
 		J9OBJECT_ADDRESS_STORE(currentThread, membernameObject, vm->vmtargetOffset, (void*)target);
 	}
+}
+
+static J9Class *
+classForSignature(struct J9VMThread *vmThread, U_8 **sigDataPtr, struct J9ClassLoader *classLoader)
+{
+	U_8 *sigData = *sigDataPtr;
+	J9JavaVM *vm = vmThread->javaVM;
+	J9Class *clazz = NULL;
+	UDATA arity = 0;
+	U_8 c = 0;
+	UDATA i = 0;
+
+	for (c = *sigData++; '[' == c; c = *sigData++) {
+		arity++;
+	}
+
+	/* Non-array case */
+	switch (c) {
+	case 'Q':
+	case 'L': {
+		/* object case */
+		U_8 *tempData = sigData;
+		UDATA length = 0;
+
+		/* find the signature length -> up to the ";" */
+		while (';' != *sigData++) {
+			length++;
+		}
+
+		/* find the class from the signature chunk */
+		clazz = vm->internalVMFunctions->internalFindClassUTF8(vmThread, tempData, length, classLoader, J9_FINDCLASS_FLAG_THROW_ON_FAIL);
+		break;
+	}
+	case 'I':
+		clazz = vm->intReflectClass;
+		break;
+	case 'Z':
+		clazz = vm->booleanReflectClass;
+		break;
+	case 'J':
+		clazz = vm->longReflectClass;
+		break;
+#if defined(J9VM_INTERP_FLOAT_SUPPORT)
+	case 'D':
+		clazz = vm->doubleReflectClass;
+		break;
+	case 'F':
+		clazz = vm->floatReflectClass;
+		break;
+#endif
+	case 'C':
+		clazz = vm->charReflectClass;
+		break;
+	case 'B':
+		clazz = vm->byteReflectClass;
+		break;
+	case 'S':
+		clazz = vm->shortReflectClass;
+		break;
+	case 'V':
+		clazz = vm->voidReflectClass;
+		break;
+	}
+
+	for (i = 0; (i < arity) && (NULL != clazz); i++) {
+		clazz = fetchArrayClass(vmThread, clazz);
+	}
+
+	if (NULL != clazz) {
+		*sigDataPtr = sigData;
+	}
+
+	return clazz;
 }
 
 static j9object_t
@@ -221,13 +295,12 @@ createFieldObject(J9VMThread *currentThread, J9ROMFieldShape *romField, J9Class 
 {
 	J9InternalVMFunctions *vmFuncs = currentThread->javaVM->internalVMFunctions;
 
-	j9object_t result = NULL;
 	J9JNIFieldID *fieldID = NULL;
 	UDATA offset = 0;
 	UDATA *inconsistentData;
 
 	if (isStaticField) {
-		offset = vmFuncs->staticFieldAddress(currentThread, declaringClass, J9UTF8_DATA(name), J9UTF8_LENGTH(name), J9UTF8_DATA(sig), J9UTF8_LENGTH(sig), NULL, NULL, 0, NULL);
+		offset = (UDATA)vmFuncs->staticFieldAddress(currentThread, declaringClass, J9UTF8_DATA(name), J9UTF8_LENGTH(name), J9UTF8_DATA(sig), J9UTF8_LENGTH(sig), NULL, NULL, 0, NULL);
 		offset -= (UDATA)declaringClass->ramStatics;
 	} else {
 		offset = vmFuncs->instanceFieldOffset(currentThread, declaringClass, J9UTF8_DATA(name), J9UTF8_LENGTH(name), J9UTF8_DATA(sig), J9UTF8_LENGTH(sig), NULL, NULL, 0);
@@ -507,7 +580,7 @@ Java_java_lang_invoke_MethodHandleNatives_resolve(JNIEnv *env, jclass clazz, job
 						resolvedClass,
 						(U_8*)name, strlen(name),
 						(U_8*)signature, strlen(signature),
-						&declaringClass, romField,
+						&declaringClass, (UDATA*)romField,
 						lookupOptions,
 						NULL);
 
@@ -522,7 +595,7 @@ Java_java_lang_invoke_MethodHandleNatives_resolve(JNIEnv *env, jclass clazz, job
 						resolvedClass,
 						(U_8*)name, strlen(name),
 						(U_8*)signature, strlen(signature),
-						&declaringClass, romField,
+						&declaringClass, (UDATA*)romField,
 						lookupOptions);
 
 					if (offset == (UDATA)-1) {
@@ -618,7 +691,6 @@ Java_java_lang_invoke_MethodHandleNatives_getMembers(JNIEnv *env, jclass clazz, 
 												vmFuncs->internalExitVMToJNI(currentThread);
 												return -99;
 											}
-											UDATA inconsistentData = 0;
 											j9object_t fieldObj = NULL;
 											if (romField->modifiers & J9AccStatic) {
 												/* create static field object */
@@ -627,8 +699,6 @@ Java_java_lang_invoke_MethodHandleNatives_getMembers(JNIEnv *env, jclass clazz, 
 												/* create instance field object */
 												fieldObj = createFieldObject(currentThread, romField, defClass, nameUTF, signatureUTF, false);
 											}
-
-											idToReflectField
 											initImpl(currentThread, memberName, fieldObj);
 										}
 									}
@@ -668,14 +738,13 @@ Java_java_lang_invoke_MethodHandleNatives_getMembers(JNIEnv *env, jclass clazz, 
 													vmFuncs->internalExitVMToJNI(currentThread);
 													return -99;
 												}
-												UDATA inconsistentData = 0;
 												j9object_t fieldObj = NULL;
 												if (romField->modifiers & J9AccStatic) {
 													/* create static field object */
-													fieldObj = createStaticFieldObject(romField, currentClass, defClass, currentThread, &inconsistentData);
+													fieldObj = createFieldObject(currentThread, romField, defClass, nameUTF, signatureUTF, true);
 												} else {
 													/* create instance field object */
-													fieldObj = createInstanceFieldObject(romField, currentClass, defClass, currentThread, &inconsistentData);
+													fieldObj = createFieldObject(currentThread, romField, defClass, nameUTF, signatureUTF, false);
 												}
 												initImpl(currentThread, memberName, fieldObj);
 											}
@@ -999,7 +1068,7 @@ Java_java_lang_invoke_MethodHandleNatives_setCallSiteTargetVolatile(JNIEnv *env,
 
 		// SAME as setCallSiteTargetNormal, the use of nmethods seems to be JIT codecache related
 
-		UDATA offset = (UDATA)vmFuncs->instanceFieldOffset(currentThread, J9VM_J9CLASS_FROM_HEAPCLASS(currentThread, callsiteObject), "target", strlen("target"), "Ljava/lang/invoke/MethodHandle;", strlen("Ljava/lang/invoke/MethodHandle;"), NULL, NULL, 0);
+		UDATA offset = (UDATA)vmFuncs->instanceFieldOffset(currentThread, J9VM_J9CLASS_FROM_HEAPCLASS(currentThread, callsiteObject), (U_8*)"target", strlen("target"), (U_8*)"Ljava/lang/invoke/MethodHandle;", strlen("Ljava/lang/invoke/MethodHandle;"), NULL, NULL, 0);
 		MM_ObjectAccessBarrierAPI objectAccessBarrier = MM_ObjectAccessBarrierAPI(currentThread);
 		objectAccessBarrier.inlineMixedObjectStoreObject(currentThread, callsiteObject, offset, targetObject, true);
 	}
