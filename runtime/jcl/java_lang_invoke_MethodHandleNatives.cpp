@@ -746,18 +746,23 @@ Java_java_lang_invoke_MethodHandleNatives_resolve(JNIEnv *env, jclass clazz, job
 				target = (jlong)offset;
 			}
 
-			J9OBJECT_ADDRESS_STORE(currentThread, membernameObject, vm->vmindexOffset, (void*)vmindex);
-			J9OBJECT_ADDRESS_STORE(currentThread, membernameObject, vm->vmtargetOffset, (void*)target);
+			if ((0 != vmindex) && (0 != target)) {
+				J9OBJECT_ADDRESS_STORE(currentThread, membernameObject, vm->vmindexOffset, (void*)vmindex);
+				J9OBJECT_ADDRESS_STORE(currentThread, membernameObject, vm->vmtargetOffset, (void*)target);
+
+				result = vmFuncs->j9jni_createLocalRef(env, membernameObject);
+			}
 			j9mem_free_memory(name);
 			j9mem_free_memory(signature);
-		}
-		if (NULL == result) {
-			if (J9_ARE_ANY_BITS_SET(flags, MN_IS_FIELD)) {
-				vmFuncs->setCurrentExceptionUTF(currentThread, J9VMCONSTANTPOOL_JAVALANGNOSUCHFIELDERROR, NULL);
-			} else if (J9_ARE_ANY_BITS_SET(flags, MN_IS_CONSTRUCTOR | MN_IS_METHOD)) {
-				vmFuncs->setCurrentExceptionUTF(currentThread, J9VMCONSTANTPOOL_JAVALANGNOSUCHMETHODERROR, NULL);
-			} else {
-				vmFuncs->setCurrentExceptionUTF(currentThread, J9VMCONSTANTPOOL_JAVALANGLINKAGEERROR, NULL);
+
+			if (NULL == result) {
+				if (J9_ARE_ANY_BITS_SET(flags, MN_IS_FIELD)) {
+					vmFuncs->setCurrentExceptionUTF(currentThread, J9VMCONSTANTPOOL_JAVALANGNOSUCHFIELDERROR, NULL);
+				} else if (J9_ARE_ANY_BITS_SET(flags, MN_IS_CONSTRUCTOR | MN_IS_METHOD)) {
+					vmFuncs->setCurrentExceptionUTF(currentThread, J9VMCONSTANTPOOL_JAVALANGNOSUCHMETHODERROR, NULL);
+				} else {
+					vmFuncs->setCurrentExceptionUTF(currentThread, J9VMCONSTANTPOOL_JAVALANGLINKAGEERROR, NULL);
+				}
 			}
 		}
 	}
