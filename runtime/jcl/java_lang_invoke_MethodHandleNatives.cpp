@@ -297,7 +297,7 @@ createFieldObject(J9VMThread *currentThread, J9ROMFieldShape *romField, J9Class 
 
 	J9JNIFieldID *fieldID = NULL;
 	UDATA offset = 0;
-	UDATA *inconsistentData;
+	UDATA inconsistentData = 0;
 
 	if (isStaticField) {
 		offset = (UDATA)vmFuncs->staticFieldAddress(currentThread, declaringClass, J9UTF8_DATA(name), J9UTF8_LENGTH(name), J9UTF8_DATA(sig), J9UTF8_LENGTH(sig), NULL, NULL, 0, NULL);
@@ -306,7 +306,7 @@ createFieldObject(J9VMThread *currentThread, J9ROMFieldShape *romField, J9Class 
 		offset = vmFuncs->instanceFieldOffset(currentThread, declaringClass, J9UTF8_DATA(name), J9UTF8_LENGTH(name), J9UTF8_DATA(sig), J9UTF8_LENGTH(sig), NULL, NULL, 0);
 	}
 
-	fieldID = vmFuncs->getJNIFieldID(currentThread, declaringClass, romField, offset, inconsistentData);
+	fieldID = vmFuncs->getJNIFieldID(currentThread, declaringClass, romField, offset, &inconsistentData);
 
 	return createFieldFromID(currentThread, fieldID);
 }
