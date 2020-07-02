@@ -674,17 +674,23 @@ Java_java_lang_invoke_MethodHandleNatives_resolve(JNIEnv *env, jclass clazz, job
 				if (JNI_TRUE == speculativeResolve) {
 					lookupOptions |= J9_LOOK_NO_THROW;
 				}
-				if (J9_ARE_ANY_BITS_SET(ref_kind, MH_REF_INVOKEINTERFACE)) {
-					lookupOptions |= J9_LOOK_INTERFACE;
-				} else if (J9_ARE_ANY_BITS_SET(ref_kind, MH_REF_INVOKESPECIAL)) {
-					lookupOptions |= (J9_LOOK_VIRTUAL | J9_LOOK_ALLOW_FWD | J9_LOOK_HANDLE_DEFAULT_METHOD_CONFLICTS);
-				} else if (J9_ARE_ANY_BITS_SET(ref_kind, MH_REF_INVOKESTATIC)) {
-					lookupOptions |= J9_LOOK_STATIC;
-					if (J9_ARE_ANY_BITS_SET(resolvedClass->romClass->modifiers, J9AccInterface)) {
+				switch (ref_kind)
+				{
+					case MH_REF_INVOKEINTERFACE:
 						lookupOptions |= J9_LOOK_INTERFACE;
-					}
-				} else {
-					lookupOptions |= J9_LOOK_VIRTUAL;
+						break;
+					case MH_REF_INVOKESPECIAL:
+						lookupOptions |= (J9_LOOK_VIRTUAL | J9_LOOK_ALLOW_FWD | J9_LOOK_HANDLE_DEFAULT_METHOD_CONFLICTS);
+						break;
+					case MH_REF_INVOKESTATIC:
+						lookupOptions |= J9_LOOK_STATIC;
+						if (J9_ARE_ANY_BITS_SET(resolvedClass->romClass->modifiers, J9AccInterface)) {
+							lookupOptions |= J9_LOOK_INTERFACE;
+						}
+						break;
+					default:
+						lookupOptions |= J9_LOOK_VIRTUAL;
+						break;
 				}
 
 				nas.name = name;
@@ -706,7 +712,7 @@ Java_java_lang_invoke_MethodHandleNatives_resolve(JNIEnv *env, jclass clazz, job
 					lookupOptions |= J9_RESOLVE_FLAG_NO_THROW_ON_FAIL;
 				}
 				
-				if (J9_ARE_ANY_BITS_SET(ref_kind, MH_REF_GETSTATIC | MH_REF_PUTSTATIC)) {
+				if ((MH_REF_GETSTATIC == ref_kind) || (MH_REF_PUTSTATIC == ref_kind)) {
 					void* fieldAddress = vmFuncs->staticFieldAddress(currentThread,
 						resolvedClass,
 						(U_8*)name, strlen(name),
