@@ -938,6 +938,22 @@ Java_java_lang_invoke_MethodHandles_findNativeAddress(JNIEnv *env, jclass jlClas
 /* java_dyn_methodtype.c */
 jobject JNICALL Java_java_lang_invoke_MethodType_makeTenured(JNIEnv *env, jclass clazz, jobject receiverObject);
 
+/* java_lang_invoke_MethodHandleNatives.cpp */
+void JNICALL Java_java_lang_invoke_MethodHandleNatives_init(JNIEnv *env, jclass clazz, jobject self, jobject ref);
+void JNICALL Java_java_lang_invoke_MethodHandleNatives_expand(JNIEnv *env, jclass clazz, jobject self);
+jobject JNICALL Java_java_lang_invoke_MethodHandleNatives_resolve(JNIEnv *env, jclass clazz, jobject self, jclass caller, jboolean speculativeResolve);
+jint JNICALL Java_java_lang_invoke_MethodHandleNatives_getMembers(JNIEnv *env, jclass clazz, jclass defc, jstring matchName, jstring matchSig, jint matchFlags, jclass caller, jint skip, jobjectArray results);
+jlong JNICALL Java_java_lang_invoke_MethodHandleNatives_objectFieldOffset(JNIEnv *env, jclass clazz, jobject self);
+jlong JNICALL Java_java_lang_invoke_MethodHandleNatives_staticFieldOffset(JNIEnv *env, jclass clazz, jobject self);
+jobject JNICALL Java_java_lang_invoke_MethodHandleNatives_staticFieldBase(JNIEnv *env, jclass clazz, jobject self);
+jobject JNICALL Java_java_lang_invoke_MethodHandleNatives_getMemberVMInfo(JNIEnv *env, jclass clazz, jobject self);
+void JNICALL Java_java_lang_invoke_MethodHandleNatives_setCallSiteTargetNormal(JNIEnv *env, jclass clazz, jobject callsite, jobject target);
+void JNICALL Java_java_lang_invoke_MethodHandleNatives_setCallSiteTargetVolatile(JNIEnv *env, jclass clazz, jobject callsite, jobject target);
+void JNICALL Java_java_lang_invoke_MethodHandleNatives_copyOutBootstrapArguments(JNIEnv *env, jclass clazz, jclass caller, jintArray indexInfo, jint start, jint end, jobjectArray buf, jint pos, jboolean resolve, jobject ifNotAvailable);
+void JNICALL Java_java_lang_invoke_MethodHandleNatives_clearCallSiteContext(JNIEnv *env, jclass clazz, jobject context);
+jint JNICALL Java_java_lang_invoke_MethodHandleNatives_getNamedCon(JNIEnv *env, jclass clazz, jint which, jobjectArray name);
+void JNICALL Java_java_lang_invoke_MethodHandleNatives_registerNatives(JNIEnv *env, jclass clazz);
+
 /* java_lang_invoke_VarHandle.c */
 jlong JNICALL Java_java_lang_invoke_FieldVarHandle_lookupField(JNIEnv *env, jobject handle, jclass lookupClass, jstring name, jstring signature, jclass type, jboolean isStatic, jclass accessClass);
 jlong JNICALL Java_java_lang_invoke_FieldVarHandle_unreflectField(JNIEnv *env, jobject handle, jobject reflectField, jboolean isStatic);

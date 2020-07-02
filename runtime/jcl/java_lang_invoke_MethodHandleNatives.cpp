@@ -981,7 +981,7 @@ Java_java_lang_invoke_MethodHandleNatives_getNamedCon(JNIEnv *env, jclass clazz,
  * private static native void registerNatives();
  */
 void JNICALL
-Java_java_lang_invoke_MethodHandleNatives_registerNatives()
+Java_java_lang_invoke_MethodHandleNatives_registerNatives(JNIEnv *env, jclass clazz)
 {
 	return;
 }
