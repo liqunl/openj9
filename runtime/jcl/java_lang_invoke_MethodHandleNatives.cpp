@@ -576,7 +576,7 @@ Java_java_lang_invoke_MethodHandleNatives_resolve(JNIEnv *env, jclass clazz, job
 				}
 				
 				if (J9_ARE_ANY_BITS_SET(ref_kind, MH_REF_GETSTATIC | MH_REF_PUTSTATIC)) {
-					void* fieldAddress = staticFieldAddress(currentThread,
+					void* fieldAddress = vmFuncs->staticFieldAddress(currentThread,
 						resolvedClass,
 						(U_8*)name, strlen(name),
 						(U_8*)signature, strlen(signature),
@@ -591,7 +591,7 @@ Java_java_lang_invoke_MethodHandleNatives_resolve(JNIEnv *env, jclass clazz, job
 					}
 
 				} else {
-					offset = instanceFieldOffset(currentThread,
+					offset = vmFuncs->instanceFieldOffset(currentThread,
 						resolvedClass,
 						(U_8*)name, strlen(name),
 						(U_8*)signature, strlen(signature),
