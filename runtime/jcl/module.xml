@@ -42,6 +42,7 @@ SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-excepti
 		<xi:fallback/>
 	</xi:include>
 
+	<xi:include href="uma/java_lang_invoke_MethodHandleNatives_objects.xml"></xi:include>
 	<xi:include href="uma/sun_misc_Unsafe_objects.xml"></xi:include>
 	<xi:include href="uma/se6_vm-side_natives_objects.xml"></xi:include>
 	<xi:include href="uma/se6_vm-side_lifecycle_objects.xml"></xi:include>
@@ -142,6 +143,9 @@ SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-excepti
 			<group name="sun_misc_Unsafe"/>
 			<group name="attach">
 				<include-if condition="spec.flags.opt_sidecar"/>
+			</group>
+			<group name="java_lang_invoke_MethodHandleNatives">
+				<include-if condition="spec.flags.opt_openjdkMethodhandle"/>
 			</group>
 			<group name="se626_orb_ludcl"/>
 			<group name="se7"/>

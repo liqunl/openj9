@@ -36,7 +36,6 @@
 #include "VMHelpers.hpp"
 
 extern "C" {
-#define J9VM_OPT_OPENJDK_METHODHANDLE 1
 #ifdef J9VM_OPT_OPENJDK_METHODHANDLE
 
 #define MN_IS_METHOD		0x00010000
