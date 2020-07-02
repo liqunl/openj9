@@ -61,10 +61,12 @@ initImpl(J9VMThread *currentThread, j9object_t membernameObject, j9object_t refO
 
 	J9Class* refClass = J9OBJECT_CLAZZ(currentThread, refObject);
 
-	jint flags;
-	jlong vmindex;
-	jlong target;
-	j9object_t clazzObject, nameObject, typeObject;
+	jint flags = 0;
+	jlong vmindex = 0;
+	jlong target = 0;
+	j9object_t clazzObject = NULL;
+	j9object_t nameObject = NULL;
+	j9object_t typeObject = NULL;
 
 	if (refClass == J9VMJAVALANGREFLECTFIELD(vm)) {
 		J9JNIFieldID *fieldID = vm->reflectFunctions.idFromFieldObject(currentThread, NULL, refObject);
