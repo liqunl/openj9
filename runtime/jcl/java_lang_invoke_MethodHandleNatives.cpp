@@ -41,6 +41,18 @@
 extern "C" {
 #ifdef J9VM_OPT_OPENJDK_METHODHANDLE
 
+#define DEBUG_INFO true
+
+void debug_printf(char *fmt, ...)
+{
+  va_list args;
+  va_start (args, format);
+  vprintf (format, args);
+  va_end (args);
+}
+
+#define INFO(x) do { if (DEBUG_INFO) dbg_printf x; } while (0)
+
 #define MN_IS_METHOD		0x00010000
 #define MN_IS_CONSTRUCTOR	0x00020000
 #define MN_IS_FIELD			0x00040000
@@ -86,6 +98,7 @@ initImpl(J9VMThread *currentThread, j9object_t membernameObject, j9object_t refO
 
 		J9VMJAVALANGINVOKEMEMBERNAME_SET_NAME(currentThread, membernameObject, nameObject);
 		J9VMJAVALANGINVOKEMEMBERNAME_SET_TYPE(currentThread, membernameObject, typeObject);
+		INFO(("initImpl set field: name=%.*s, signature=%.*s\n", (U_32)J9UTF8_LENGTH(name), J9UTF8_DATA(name), (U_32)J9UTF8_LENGTH(signature), J9UTF8_DATA(signature)));
 	} else if (refClass == J9VMJAVALANGREFLECTMETHOD(vm)) {
 		J9JNIMethodID *methodID = vm->reflectFunctions.idFromMethodObject(currentThread, refObject);
 		vmindex = (jlong)methodID;
@@ -126,6 +139,7 @@ initImpl(J9VMThread *currentThread, j9object_t membernameObject, j9object_t refO
 		J9VMJAVALANGINVOKEMEMBERNAME_SET_CLAZZ(currentThread, membernameObject, clazzObject);
 		J9OBJECT_ADDRESS_STORE(currentThread, membernameObject, vm->vmindexOffset, (void*)vmindex);
 		J9OBJECT_ADDRESS_STORE(currentThread, membernameObject, vm->vmtargetOffset, (void*)target);
+		INFO(("initImpl set : flags=0x%08X, clazz=%p, vmindex=%ld, target=%ld\n",flags, clazzObject, vmindex, target));
 	}
 }
 
@@ -532,6 +546,7 @@ Java_java_lang_invoke_MethodHandleNatives_init(JNIEnv *env, jclass clazz, jobjec
 	J9InternalVMFunctions *vmFuncs = vm->internalVMFunctions;
 	vmFuncs->internalEnterVMFromJNI(currentThread);
 
+	INFO(("MethodHandleNatives_init enter: self = %p, ref = %p\n", self, ref));
 	if (NULL == self || NULL == ref) {
 		vmFuncs->setCurrentExceptionUTF(currentThread, J9VMCONSTANTPOOL_JAVALANGNULLPOINTEREXCEPTION, NULL);
 	} else {
@@ -554,6 +569,7 @@ Java_java_lang_invoke_MethodHandleNatives_expand(JNIEnv *env, jclass clazz, jobj
 	J9InternalVMFunctions *vmFuncs = vm->internalVMFunctions;
 	vmFuncs->internalEnterVMFromJNI(currentThread);
 
+	INFO(("MethodHandleNatives_expand enter: self = %p\n", self));
 	if (NULL == self) {
 		vmFuncs->setCurrentExceptionUTF(currentThread, J9VMCONSTANTPOOL_JAVALANGNULLPOINTEREXCEPTION, NULL);
 	} else {
@@ -564,6 +580,7 @@ Java_java_lang_invoke_MethodHandleNatives_expand(JNIEnv *env, jclass clazz, jobj
 		jint flags = J9VMJAVALANGINVOKEMEMBERNAME_FLAGS(currentThread, membernameObject);
 		jlong vmindex = (jlong)J9OBJECT_ADDRESS_LOAD(currentThread, membernameObject, vm->vmindexOffset);
 
+		INFO(("MethodHandleNatives_expand data: membername=%p, clazz=%p, name=%p, type=%p, flags=0x%08X, vmindex=%ld\n", membernameObject, clazzObject, nameObject, typeObject,flags,vmindex));
 		if (J9_ARE_ANY_BITS_SET(flags, MN_IS_FIELD)) {
 			if ((NULL != clazzObject) && (NULL != (void*)vmindex)) {
 				// J9Class *declaringClass = J9VM_J9CLASS_FROM_HEAPCLASS(currentThread, clazzObject);
@@ -575,10 +592,12 @@ Java_java_lang_invoke_MethodHandleNatives_expand(JNIEnv *env, jclass clazz, jobj
 				if (nameObject == NULL) {
 					j9object_t nameString = vm->memoryManagerFunctions->j9gc_createJavaLangString(currentThread, J9UTF8_DATA(name), (U_32)J9UTF8_LENGTH(name), J9_STR_INTERN);
 					J9VMJAVALANGINVOKEMEMBERNAME_SET_NAME(currentThread, membernameObject, nameString);
+					INFO(("MethodHandleNatives_expand set name:%.*s\n", (U_32)J9UTF8_LENGTH(name), J9UTF8_DATA(name)));
 				}
 				if (typeObject == NULL) {
 					j9object_t signatureString = vm->memoryManagerFunctions->j9gc_createJavaLangString(currentThread, J9UTF8_DATA(signature), (U_32)J9UTF8_LENGTH(signature), J9_STR_INTERN);
 					J9VMJAVALANGINVOKEMEMBERNAME_SET_TYPE(currentThread, membernameObject, signatureString);
+					INFO(("MethodHandleNatives_expand set signature:%.*s\n", (U_32)J9UTF8_LENGTH(signature), J9UTF8_DATA(signature)));
 				}
 			} else {
 				vmFuncs->setCurrentExceptionUTF(currentThread, J9VMCONSTANTPOOL_JAVALANGILLEGALARGUMENTEXCEPTION, NULL);
@@ -591,16 +610,19 @@ Java_java_lang_invoke_MethodHandleNatives_expand(JNIEnv *env, jclass clazz, jobj
 				if (clazzObject == NULL) {
 					j9object_t newClassObject = J9VM_J9CLASS_TO_HEAPCLASS(J9_CLASS_FROM_METHOD(methodID->method));
 					J9VMJAVALANGINVOKEMEMBERNAME_SET_CLAZZ(currentThread, membernameObject, newClassObject);
+					INFO(("MethodHandleNatives_expand set clazz:%p\n", newClassObject));
 				}
 				if (nameObject == NULL) {
 					J9UTF8 *name = J9ROMMETHOD_NAME(romMethod);
 					j9object_t nameString = vm->memoryManagerFunctions->j9gc_createJavaLangString(currentThread, J9UTF8_DATA(name), (U_32)J9UTF8_LENGTH(name), J9_STR_INTERN);
 					J9VMJAVALANGINVOKEMEMBERNAME_SET_NAME(currentThread, membernameObject, nameString);
+					INFO(("MethodHandleNatives_expand set name:%.*s\n", (U_32)J9UTF8_LENGTH(name), J9UTF8_DATA(name)));
 				}
 				if (typeObject == NULL) {
 					J9UTF8 *signature = J9ROMMETHOD_SIGNATURE(romMethod);
 					j9object_t signatureString = vm->memoryManagerFunctions->j9gc_createJavaLangString(currentThread, J9UTF8_DATA(signature), (U_32)J9UTF8_LENGTH(signature), J9_STR_INTERN);
 					J9VMJAVALANGINVOKEMEMBERNAME_SET_TYPE(currentThread, membernameObject, signatureString);
+					INFO(("MethodHandleNatives_expand set signature:%.*s\n", (U_32)J9UTF8_LENGTH(signature), J9UTF8_DATA(signature)));
 				}
 			} else {
 				vmFuncs->setCurrentExceptionUTF(currentThread, J9VMCONSTANTPOOL_JAVALANGILLEGALARGUMENTEXCEPTION, NULL);
@@ -625,6 +647,7 @@ Java_java_lang_invoke_MethodHandleNatives_resolve(JNIEnv *env, jclass clazz, job
 	jobject result = NULL;
 	vmFuncs->internalEnterVMFromJNI(currentThread);
 
+	INFO(("MethodHandleNatives_resolve enter: self=%p, caller=%p, speculativeResolve=%s\n", self, caller, (speculativeResolve ? "true" : "false")));
 	if (NULL == self) {
 		vmFuncs->setCurrentExceptionUTF(currentThread, J9VMCONSTANTPOOL_JAVALANGINTERNALERROR, NULL);
 	} else {
@@ -638,6 +661,7 @@ Java_java_lang_invoke_MethodHandleNatives_resolve(JNIEnv *env, jclass clazz, job
 
 		jint flags = J9VMJAVALANGINVOKEMEMBERNAME_FLAGS(currentThread, membernameObject);
 
+		INFO(("MethodHandleNatives_resolve data: membername=%p, clazz=%p, name=%p, type=%p, flags=0x%08X, vmindex=%ld, target=%ld\n", membernameObject, clazzObject, nameObject, typeObject,flags,vmindex, target));
 		if (0 != target) {
 			result = self;
 		} else {
@@ -668,6 +692,8 @@ Java_java_lang_invoke_MethodHandleNatives_resolve(JNIEnv *env, jclass clazz, job
 				vmFuncs->copyStringToUTF8Helper(currentThread, typeObject, J9_STR_NULL_TERMINATE_RESULT | J9_STR_XLAT , 0, J9VMJAVALANGSTRING_LENGTH(currentThread, typeObject), (U_8 *)signature, signatureLength);
 			}
 			vmFuncs->copyStringToUTF8Helper(currentThread, nameObject, J9_STR_NULL_TERMINATE_RESULT | J9_STR_XLAT , 0, J9VMJAVALANGSTRING_LENGTH(currentThread, nameObject), (U_8 *)name, nameLength);
+
+			INFO(("MethodHandleNatives_resolve data: name=%s, signature=%s, resolvedClass=%p, callerClass=%p\n", name, signature));
 
 			if (J9_ARE_ANY_BITS_SET(flags, MN_IS_METHOD | MN_IS_CONSTRUCTOR)) {
 				J9JNINameAndSignature nas;
@@ -752,6 +778,8 @@ Java_java_lang_invoke_MethodHandleNatives_resolve(JNIEnv *env, jclass clazz, job
 				J9OBJECT_ADDRESS_STORE(currentThread, membernameObject, vm->vmindexOffset, (void*)vmindex);
 				J9OBJECT_ADDRESS_STORE(currentThread, membernameObject, vm->vmtargetOffset, (void*)target);
 
+				INFO(("MethodHandleNatives_resolve resolved to: vmindex=%ld, target=%ld\n", vmindex, target));
+
 				result = vmFuncs->j9jni_createLocalRef(env, membernameObject);
 			}
 			j9mem_free_memory(name);
@@ -784,6 +812,8 @@ Java_java_lang_invoke_MethodHandleNatives_getMembers(JNIEnv *env, jclass clazz, 
 	J9InternalVMFunctions *vmFuncs = vm->internalVMFunctions;
 	vmFuncs->internalEnterVMFromJNI(currentThread);
 	jint result = 0;
+
+	INFO(("MethodHandleNatives_getMembers enter: defc=%p, matchName=%p, matchSig=%p, matchFlags=0x%08X, caller=%p, skip=%d, results=%p\n", defc, matchName, matchSig, jint matchFlags, caller, skip, results));
 
 	if ((NULL == defc) || (NULL == results)) {
 		result = -1;
@@ -1017,6 +1047,8 @@ Java_java_lang_invoke_MethodHandleNatives_objectFieldOffset(JNIEnv *env, jclass 
 	vmFuncs->internalEnterVMFromJNI(currentThread);
 	jlong result = 0;
 
+	INFO(("MethodHandleNatives_objectFieldOffset enter: self=%p\n", self));
+
 	if (NULL == self) {
 		vmFuncs->setCurrentExceptionUTF(currentThread, J9VMCONSTANTPOOL_JAVALANGNULLPOINTEREXCEPTION, NULL);
 	} else {
@@ -1035,6 +1067,8 @@ Java_java_lang_invoke_MethodHandleNatives_objectFieldOffset(JNIEnv *env, jclass 
 			}
 		}
 	}
+
+	INFO(("MethodHandleNatives_objectFieldOffset exit: result=%ld\n", result));
 	vmFuncs->internalExitVMToJNI(currentThread);
 	return result;
 }
@@ -1050,6 +1084,8 @@ Java_java_lang_invoke_MethodHandleNatives_staticFieldOffset(JNIEnv *env, jclass 
 	J9InternalVMFunctions *vmFuncs = vm->internalVMFunctions;
 	vmFuncs->internalEnterVMFromJNI(currentThread);
 	jlong result = 0;
+
+	INFO(("MethodHandleNatives_staticFieldOffset enter: self=%p\n", self));
 
 	if (NULL == self) {
 		vmFuncs->setCurrentExceptionUTF(currentThread, J9VMCONSTANTPOOL_JAVALANGNULLPOINTEREXCEPTION, NULL);
@@ -1074,6 +1110,7 @@ Java_java_lang_invoke_MethodHandleNatives_staticFieldOffset(JNIEnv *env, jclass 
 			}
 		}
 	}
+	INFO(("MethodHandleNatives_staticFieldOffset exit: result=%ld\n", result));
 	vmFuncs->internalExitVMToJNI(currentThread);
 	return result;
 }
@@ -1090,6 +1127,7 @@ Java_java_lang_invoke_MethodHandleNatives_staticFieldBase(JNIEnv *env, jclass cl
 	vmFuncs->internalEnterVMFromJNI(currentThread);
 	jobject result = NULL;
 
+	INFO(("MethodHandleNatives_staticFieldBase enter: self=%p\n", self));
 	if (NULL == self) {
 		vmFuncs->setCurrentExceptionUTF(currentThread, J9VMCONSTANTPOOL_JAVALANGNULLPOINTEREXCEPTION, NULL);
 	} else {
@@ -1107,6 +1145,7 @@ Java_java_lang_invoke_MethodHandleNatives_staticFieldBase(JNIEnv *env, jclass cl
 			}
 		}
 	}
+	INFO(("MethodHandleNatives_staticFieldBase exit: result=%p\n", result));
 	vmFuncs->internalExitVMToJNI(currentThread);
 	return result;
 }
@@ -1123,6 +1162,7 @@ Java_java_lang_invoke_MethodHandleNatives_getMemberVMInfo(JNIEnv *env, jclass cl
 	jobject result = NULL;
 	vmFuncs->internalEnterVMFromJNI(currentThread);
 
+	INFO(("MethodHandleNatives_getMemberVMInfo enter: self=%p\n", self));
 	if (NULL != self) {
 		j9object_t membernameObject = J9_JNI_UNWRAP_REFERENCE(self);
 		j9object_t clazzObject = J9VMJAVALANGINVOKEMEMBERNAME_CLAZZ(currentThread, membernameObject);
@@ -1154,6 +1194,7 @@ Java_java_lang_invoke_MethodHandleNatives_getMemberVMInfo(JNIEnv *env, jclass cl
 
 		result = vmFuncs->j9jni_createLocalRef(env, clazzObject);
 	}
+	INFO(("MethodHandleNatives_getMemberVMInfo exit: result={%ld, %p}\n", vmindex, target));
 	vmFuncs->internalExitVMToJNI(currentThread);
 	return result;
 
@@ -1170,6 +1211,7 @@ Java_java_lang_invoke_MethodHandleNatives_setCallSiteTargetNormal(JNIEnv *env, j
 	J9InternalVMFunctions *vmFuncs = vm->internalVMFunctions;
 	vmFuncs->internalEnterVMFromJNI(currentThread);
 
+	INFO(("MethodHandleNatives_setCallSiteTargetNormal enter: callsite=%p, target=%p\n", callsite, target));
 	if ((NULL == callsite) || (NULL == target)) {
 		vmFuncs->setCurrentExceptionUTF(currentThread, J9VMCONSTANTPOOL_JAVALANGNULLPOINTEREXCEPTION, NULL);
 	} else {
@@ -1204,6 +1246,7 @@ Java_java_lang_invoke_MethodHandleNatives_setCallSiteTargetVolatile(JNIEnv *env,
 	J9InternalVMFunctions *vmFuncs = vm->internalVMFunctions;
 	vmFuncs->internalEnterVMFromJNI(currentThread);
 
+	INFO(("MethodHandleNatives_setCallSiteTargetVolatile enter: callsite=%p, target=%p\n", callsite, target));
 	if ((NULL == callsite) || (NULL == target)) {
 		vmFuncs->setCurrentExceptionUTF(currentThread, J9VMCONSTANTPOOL_JAVALANGNULLPOINTEREXCEPTION, NULL);
 	} else {
