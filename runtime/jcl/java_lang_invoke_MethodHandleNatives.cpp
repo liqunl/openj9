@@ -43,11 +43,11 @@ extern "C" {
 
 #define DEBUG_INFO true
 
-void dbg_printf(char *fmt, ...)
+void dbg_printf(const char *fmt, ...)
 {
   va_list args;
-  va_start (args, format);
-  vprintf (format, args);
+  va_start (args, fmt);
+  vprintf (fmt, args);
   va_end (args);
 }
 
@@ -693,7 +693,7 @@ Java_java_lang_invoke_MethodHandleNatives_resolve(JNIEnv *env, jclass clazz, job
 			}
 			vmFuncs->copyStringToUTF8Helper(currentThread, nameObject, J9_STR_NULL_TERMINATE_RESULT | J9_STR_XLAT , 0, J9VMJAVALANGSTRING_LENGTH(currentThread, nameObject), (U_8 *)name, nameLength);
 
-			INFO(("MethodHandleNatives_resolve data: name=%s, signature=%s, resolvedClass=%p, callerClass=%p\n", name, signature));
+			INFO(("MethodHandleNatives_resolve data: name=%s, signature=%s, resolvedClass=%p, callerClass=%p\n", name, signature, resolvedClass, callerClass));
 
 			if (J9_ARE_ANY_BITS_SET(flags, MN_IS_METHOD | MN_IS_CONSTRUCTOR)) {
 				J9JNINameAndSignature nas;
@@ -813,7 +813,7 @@ Java_java_lang_invoke_MethodHandleNatives_getMembers(JNIEnv *env, jclass clazz, 
 	vmFuncs->internalEnterVMFromJNI(currentThread);
 	jint result = 0;
 
-	INFO(("MethodHandleNatives_getMembers enter: defc=%p, matchName=%p, matchSig=%p, matchFlags=0x%08X, caller=%p, skip=%d, results=%p\n", defc, matchName, matchSig, jint matchFlags, caller, skip, results));
+	INFO(("MethodHandleNatives_getMembers enter: defc=%p, matchName=%p, matchSig=%p, matchFlags=0x%08X, caller=%p, skip=%d, results=%p\n", defc, matchName, matchSig, matchFlags, caller, skip, results));
 
 	if ((NULL == defc) || (NULL == results)) {
 		result = -1;
@@ -1192,9 +1192,10 @@ Java_java_lang_invoke_MethodHandleNatives_getMemberVMInfo(JNIEnv *env, jclass cl
 		J9JAVAARRAYOFOBJECT_STORE(currentThread, arrayObject, 0, box);
 		J9JAVAARRAYOFOBJECT_STORE(currentThread, arrayObject, 0, target);
 
+		INFO(("MethodHandleNatives_getMemberVMInfo exit: result={%ld, %p}\n", vmindex, target));
+
 		result = vmFuncs->j9jni_createLocalRef(env, clazzObject);
 	}
-	INFO(("MethodHandleNatives_getMemberVMInfo exit: result={%ld, %p}\n", vmindex, target));
 	vmFuncs->internalExitVMToJNI(currentThread);
 	return result;
 
