@@ -43,7 +43,7 @@ extern "C" {
 
 #define DEBUG_INFO true
 
-void debug_printf(char *fmt, ...)
+void dbg_printf(char *fmt, ...)
 {
   va_list args;
   va_start (args, format);
