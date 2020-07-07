@@ -660,6 +660,7 @@ Java_java_lang_invoke_MethodHandleNatives_resolve(JNIEnv *env, jclass clazz, job
 		jlong target = (jlong)J9OBJECT_ADDRESS_LOAD(currentThread, membernameObject, vm->vmtargetOffset);
 
 		jint flags = J9VMJAVALANGINVOKEMEMBERNAME_FLAGS(currentThread, membernameObject);
+		jint new_flags = 0;
 
 		INFO(("MethodHandleNatives_resolve data: membername=%p, clazz=%p, name=%p, type=%p, flags=0x%08X, vmindex=%ld, target=%ld\n", membernameObject, clazzObject, nameObject, typeObject,flags,vmindex, target));
 		if (0 != target) {
@@ -731,6 +732,10 @@ Java_java_lang_invoke_MethodHandleNatives_resolve(JNIEnv *env, jclass clazz, job
 				J9JNIMethodID *methodID = vmFuncs->getJNIMethodID(currentThread, method);
 				vmindex = (jlong)(UDATA)methodID;
 				target = (jlong)(UDATA)method;
+
+				J9ROMMethod *romMethod = J9_ROM_METHOD_FROM_RAM_METHOD(methodID->method);
+				new_flags = flags | (romMethod->modifiers & CFR_METHOD_ACCESS_MASK);
+
 			} if (J9_ARE_ANY_BITS_SET(flags, MN_IS_FIELD)) {
 				J9Class *declaringClass = NULL;
 				J9ROMFieldShape *romField = NULL;
@@ -772,13 +777,16 @@ Java_java_lang_invoke_MethodHandleNatives_resolve(JNIEnv *env, jclass clazz, job
 				J9JNIFieldID *fieldID = vmFuncs->getJNIFieldID(currentThread, declaringClass, romField, offset, &inconsistentData);
 				vmindex = (jlong)(UDATA)fieldID;
 				target = (jlong)offset;
+
+				new_flags = flags | (fieldID->field->modifiers & CFR_FIELD_ACCESS_MASK);
 			}
 
 			if ((0 != vmindex) && (0 != target)) {
+				J9VMJAVALANGINVOKEMEMBERNAME_SET_FLAGS(currentThread, membernameObject, new_flags);
 				J9OBJECT_ADDRESS_STORE(currentThread, membernameObject, vm->vmindexOffset, (void*)vmindex);
 				J9OBJECT_ADDRESS_STORE(currentThread, membernameObject, vm->vmtargetOffset, (void*)target);
 
-				INFO(("MethodHandleNatives_resolve resolved to: vmindex=%ld, target=%ld\n", vmindex, target));
+				INFO(("MethodHandleNatives_resolve resolved to: vmindex=%ld, target=%ld, flags=0x%08X\n", vmindex, target, flags));
 
 				result = vmFuncs->j9jni_createLocalRef(env, membernameObject);
 			}
