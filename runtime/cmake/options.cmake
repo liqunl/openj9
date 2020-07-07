@@ -135,6 +135,7 @@ option(J9VM_OPT_JXE_LOAD_SUPPORT "Controls if main will allow -jxe: and relocate
 option(J9VM_OPT_METHOD_HANDLE "Turns on methodhandle support")
 option(J9VM_OPT_MODULE "Turns on module support")
 option(J9VM_OPT_MULTI_VM "Decides if multiple VMs can be created in the same address space")
+option(J9VM_OPT_OPENJDK_METHODHANDLE "Turns on OpenJDK methodhandle")
 
 option(J9VM_OPT_PANAMA "Enables support for Project Panama features such as native method handles")
 option(J9VM_OPT_VALHALLA_VALUE_TYPES "Enables support for Project Valhalla Value Types")
