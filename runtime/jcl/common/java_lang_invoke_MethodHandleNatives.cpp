@@ -39,7 +39,6 @@
 #include "VMHelpers.hpp"
 
 extern "C" {
-#ifdef J9VM_OPT_OPENJDK_METHODHANDLE
 
 #define DEBUG_INFO true
 
@@ -534,6 +533,33 @@ resolveRefToObject(J9VMThread *currentThread, J9ConstantPool *ramConstantPool, U
 	return result;
 }
 
+J9Method *
+lookupLinkerMethod(J9VMThread *currentThread, J9Class *resolvedClass, J9JNINameAndSignature *nas, J9Class *callerClass, UDATA lookupOptions)
+{
+	J9Method *result = NULL;
+	if ((0 == strcmp(nas->name, "linkToVirtual"))
+	 || (0 == strcmp(nas->name, "linkToStatic"))
+	 || (0 == strcmp(nas->name, "linkToSpecial"))
+	 || (0 == strcmp(nas->name, "linkToInterface"))
+	 || (0 == strcmp(nas->name, "invokeBasic"))
+	) {
+		const char * new_sig = "([Ljava/lang/Object;)Ljava/lang/Object;";
+		nas->signature = new_sig;
+		nas->signatureLength = (U_32)strlen(new_sig);
+
+		j9object_t exception = NULL;
+		if (VM_VMHelpers::exceptionPending(currentThread)) {
+			exception = currentThread->currentException;
+			VM_VMHelpers::clearException(currentThread);
+		}
+		result = (J9Method*)currentThread->javaVM->internalVMFunctions->javaLookupMethod(currentThread, resolvedClass, (J9ROMNameAndSignature*)nas, callerClass, lookupOptions | J9_LOOK_NO_THROW);
+		if ((NULL == result) && (NULL != exception)) {
+			VM_VMHelpers::setExceptionPending(currentThread, exception);
+		}
+	}
+	return result;
+}
+
 
 /**
  * static native void init(MemberName self, Object ref);
@@ -728,6 +754,10 @@ Java_java_lang_invoke_MethodHandleNatives_resolve(JNIEnv *env, jclass clazz, job
 				nas.signatureLength = (U_32)strlen(signature);
 
 				J9Method *method = (J9Method*)vmFuncs->javaLookupMethod(currentThread, resolvedClass, (J9ROMNameAndSignature*)&nas, callerClass, lookupOptions);
+				if (NULL == method) {
+					/* Check if signature polymorphic native calls */
+					method = lookupLinkerMethod(currentThread, resolvedClass, &nas, callerClass, lookupOptions);
+				}
 
 				if (NULL != method) {
 					J9JNIMethodID *methodID = vmFuncs->getJNIMethodID(currentThread, method);
@@ -796,7 +826,7 @@ Java_java_lang_invoke_MethodHandleNatives_resolve(JNIEnv *env, jclass clazz, job
 			j9mem_free_memory(name);
 			j9mem_free_memory(signature);
 
-			if ((NULL == result) && (JNI_TRUE != speculativeResolve)) {
+			if ((NULL == result) && (JNI_TRUE != speculativeResolve) && !VM_VMHelpers::exceptionPending(currentThread)) {
 				if (J9_ARE_ANY_BITS_SET(flags, MN_IS_FIELD)) {
 					vmFuncs->setCurrentExceptionUTF(currentThread, J9VMCONSTANTPOOL_JAVALANGNOSUCHFIELDERROR, NULL);
 				} else if (J9_ARE_ANY_BITS_SET(flags, MN_IS_CONSTRUCTOR | MN_IS_METHOD)) {
@@ -1394,6 +1424,5 @@ Java_java_lang_invoke_MethodHandleNatives_registerNatives(JNIEnv *env, jclass cl
 	return;
 }
 
-#endif /* defined(J9VM_OPT_OPENJDK_METHODHANDLE) */
 
 } /* extern "C" */
