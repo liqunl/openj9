@@ -595,5 +595,10 @@ if(J9VM_OPT_OPENJDK_METHODHANDLE)
 		Java_java_lang_invoke_MethodHandleNatives_clearCallSiteContext
 		Java_java_lang_invoke_MethodHandleNatives_getNamedCon
 		Java_java_lang_invoke_MethodHandleNatives_registerNatives
+		Java_java_lang_invoke_MethodHandle_invokeBasic
+		Java_java_lang_invoke_MethodHandle_linkToVirtual
+		Java_java_lang_invoke_MethodHandle_linkToStatic
+		Java_java_lang_invoke_MethodHandle_linkToSpecial
+		Java_java_lang_invoke_MethodHandle_linkToInterface
 	)
 endif()

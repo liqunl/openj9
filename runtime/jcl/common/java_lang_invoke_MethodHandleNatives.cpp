@@ -1424,5 +1424,54 @@ Java_java_lang_invoke_MethodHandleNatives_registerNatives(JNIEnv *env, jclass cl
 	return;
 }
 
+jobject JNICALL
+Java_java_lang_invoke_MethodHandle_invokeExact(JNIEnv *env, jclass ignored, jobject handle, jobject args)
+{
+	throwNewUnsupportedOperationException(env);
+	return NULL;
+}
+
+jobject JNICALL
+Java_java_lang_invoke_MethodHandle_invoke(JNIEnv *env, jclass ignored, jobject handle, jobject args)
+{
+	throwNewUnsupportedOperationException(env);
+	return NULL;
+}
+
+jobject JNICALL
+Java_java_lang_invoke_MethodHandle_invokeBasic(JNIEnv *env, jclass ignored, jobject handle, jobject args)
+{
+	throwNewUnsupportedOperationException(env);
+	return NULL;
+}
+
+jobject JNICALL
+Java_java_lang_invoke_MethodHandle_linkToVirtual(JNIEnv *env, jclass clazz, jobject args)
+{
+	throwNewUnsupportedOperationException(env);
+	return NULL;
+}
+
+jobject JNICALL
+Java_java_lang_invoke_MethodHandle_linkToStatic(JNIEnv *env, jclass clazz, jobject args)
+{
+	throwNewUnsupportedOperationException(env);
+	return NULL;
+}
+
+jobject JNICALL
+Java_java_lang_invoke_MethodHandle_linkToSpecial(JNIEnv *env, jclass clazz, jobject args)
+{
+	throwNewUnsupportedOperationException(env);
+	return NULL;
+}
+
+jobject JNICALL
+Java_java_lang_invoke_MethodHandle_linkToInterface(JNIEnv *env, jclass clazz, jobject args)
+{
+	throwNewUnsupportedOperationException(env);
+	return NULL;
+}
+
 
 } /* extern "C" */
