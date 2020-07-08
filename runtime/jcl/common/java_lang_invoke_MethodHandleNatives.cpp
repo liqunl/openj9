@@ -796,7 +796,7 @@ Java_java_lang_invoke_MethodHandleNatives_resolve(JNIEnv *env, jclass clazz, job
 			j9mem_free_memory(name);
 			j9mem_free_memory(signature);
 
-			if (NULL == result) {
+			if ((NULL == result) && (JNI_TRUE != speculativeResolve)) {
 				if (J9_ARE_ANY_BITS_SET(flags, MN_IS_FIELD)) {
 					vmFuncs->setCurrentExceptionUTF(currentThread, J9VMCONSTANTPOOL_JAVALANGNOSUCHFIELDERROR, NULL);
 				} else if (J9_ARE_ANY_BITS_SET(flags, MN_IS_CONSTRUCTOR | MN_IS_METHOD)) {
