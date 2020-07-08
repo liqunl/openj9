@@ -729,13 +729,14 @@ Java_java_lang_invoke_MethodHandleNatives_resolve(JNIEnv *env, jclass clazz, job
 
 				J9Method *method = (J9Method*)vmFuncs->javaLookupMethod(currentThread, resolvedClass, (J9ROMNameAndSignature*)&nas, callerClass, lookupOptions);
 
-				J9JNIMethodID *methodID = vmFuncs->getJNIMethodID(currentThread, method);
-				vmindex = (jlong)(UDATA)methodID;
-				target = (jlong)(UDATA)method;
+				if (NULL != method) {
+					J9JNIMethodID *methodID = vmFuncs->getJNIMethodID(currentThread, method);
+					vmindex = (jlong)(UDATA)methodID;
+					target = (jlong)(UDATA)method;
 
-				J9ROMMethod *romMethod = J9_ROM_METHOD_FROM_RAM_METHOD(methodID->method);
-				new_flags = flags | (romMethod->modifiers & CFR_METHOD_ACCESS_MASK);
-
+					J9ROMMethod *romMethod = J9_ROM_METHOD_FROM_RAM_METHOD(methodID->method);
+					new_flags = flags | (romMethod->modifiers & CFR_METHOD_ACCESS_MASK);
+				}
 			} if (J9_ARE_ANY_BITS_SET(flags, MN_IS_FIELD)) {
 				J9Class *declaringClass = NULL;
 				J9ROMFieldShape *romField = NULL;
@@ -773,12 +774,14 @@ Java_java_lang_invoke_MethodHandleNatives_resolve(JNIEnv *env, jclass clazz, job
 					}
 				}
 
-				UDATA inconsistentData = 0;
-				J9JNIFieldID *fieldID = vmFuncs->getJNIFieldID(currentThread, declaringClass, romField, offset, &inconsistentData);
-				vmindex = (jlong)(UDATA)fieldID;
-				target = (jlong)offset;
+				if (NULL != romField) {
+					UDATA inconsistentData = 0;
+					J9JNIFieldID *fieldID = vmFuncs->getJNIFieldID(currentThread, declaringClass, romField, offset, &inconsistentData);
+					vmindex = (jlong)(UDATA)fieldID;
+					target = (jlong)offset;
 
-				new_flags = flags | (fieldID->field->modifiers & CFR_FIELD_ACCESS_MASK);
+					new_flags = flags | (fieldID->field->modifiers & CFR_FIELD_ACCESS_MASK);
+				}
 			}
 
 			if ((0 != vmindex) && (0 != target)) {
