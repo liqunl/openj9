@@ -123,6 +123,7 @@ ConstantPoolMap::computeConstantPoolMapAndSizes()
 		Trc_BCU_Assert_Equals(map->size, cfrCPCount);
 		for (U_16 cfrCPIndex = 0; cfrCPIndex < cfrCPCount; cfrCPIndex++) {
 			if (map->indexMap[cfrCPIndex] == 1) {
+				printf("marking cp #%d / type = %d as referenced\n", cfrCPIndex, getCPTag(cfrCPIndex));
 				_constantPoolEntries[cfrCPIndex].isReferenced = true;
 				map->indexMap[cfrCPIndex] = 0;
 			}

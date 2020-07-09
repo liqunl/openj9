@@ -114,13 +114,13 @@ Java_sun_misc_Unsafe_defineAnonymousClass(JNIEnv *env, jobject receiver, jclass 
 				vmFuncs->internalExitVMToJNI(currentThread);
 				return NULL;
 			}
+		}
 
-			for (U_16 i = 0; i < cpPatchMap.size; i++) {
-				j9object_t item = J9JAVAARRAYOFOBJECT_LOAD(currentThread, patchArray, i);
-				if (item != NULL) {
-					/* mark the index with patch entry, this forces the CP entry to be stored in constantpool */
-					cpPatchMap.indexMap[i] = 1;
-				}
+		for (U_16 i = 0; i < cpPatchMap.size; i++) {
+			j9object_t item = J9JAVAARRAYOFOBJECT_LOAD(currentThread, patchArray, i);
+			if (item != NULL) {
+				/* mark the index with patch entry, this forces the CP entry to be stored in constantpool */
+				cpPatchMap.indexMap[i] = 1;
 			}
 		}
 	}
@@ -165,6 +165,7 @@ Java_sun_misc_Unsafe_defineAnonymousClass(JNIEnv *env, jobject receiver, jclass 
 					}
 				} else {
 					/* Only J9CPTYPE_STRING is patched, other CP types are not supported */
+					printf("cfrCPIndex = %d, ramIndex = %d, tag = %d, ramConstantPoolCount = %d\n", i, cpPatchMap.indexMap[i], J9_CP_TYPE(cpShapeDescription, cpPatchMap.indexMap[i]), clazz->romClass->ramConstantPoolCount);
 					Assert_JCL_unreachable();
 				}
 			}
