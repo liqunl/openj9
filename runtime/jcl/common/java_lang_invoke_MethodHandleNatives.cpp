@@ -703,20 +703,34 @@ Java_java_lang_invoke_MethodHandleNatives_resolve(JNIEnv *env, jclass clazz, job
 			char *name = (char*)j9mem_allocate_memory(nameLength, OMRMEM_CATEGORY_VM);
 			UDATA signatureLength = 0;
 			char *signature = NULL;
-			if (J9VMJAVALANGINVOKEMETHODTYPE(vm) == J9OBJECT_CLAZZ(currentThread, typeObject)) {
+			bool freeSig = true;
+			J9Class *typeClass = J9OBJECT_CLAZZ(currentThread, typeObject);
+			if (J9VMJAVALANGINVOKEMETHODTYPE(vm) == typeClass) {
 				j9object_t sigString = J9VMJAVALANGINVOKEMETHODTYPE_METHODDESCRIPTOR(currentThread, typeObject);
 				if (NULL != sigString) {
 					signatureLength = vmFuncs->getStringUTF8Length(currentThread, sigString) + 1;
 					signature = (char*)j9mem_allocate_memory(signatureLength, OMRMEM_CATEGORY_VM);
-					vmFuncs->copyStringToUTF8Helper(currentThread, typeObject, J9_STR_NULL_TERMINATE_RESULT | J9_STR_XLAT , 0, J9VMJAVALANGSTRING_LENGTH(currentThread, sigString), (U_8 *)signature, signatureLength);
+					vmFuncs->copyStringToUTF8Helper(currentThread, sigString, J9_STR_NULL_TERMINATE_RESULT | J9_STR_XLAT , 0, J9VMJAVALANGSTRING_LENGTH(currentThread, sigString), (U_8 *)signature, signatureLength);
 				} else {
 					signature = getSignatureFromMethodType(currentThread, typeObject, &signatureLength);
 				}
-			} else {
+			} else if (J9VMJAVALANGSTRING_OR_NULL(vm) == typeClass) {
 				signatureLength = vmFuncs->getStringUTF8Length(currentThread, typeObject) + 1;
 				signature = (char*)j9mem_allocate_memory(signatureLength, OMRMEM_CATEGORY_VM);
+				UDATA stringLength = J9VMJAVALANGSTRING_LENGTH(currentThread, typeObject);
+				vmFuncs->copyStringToUTF8Helper(currentThread, typeObject, J9_STR_NULL_TERMINATE_RESULT | J9_STR_XLAT , 0, stringLength, (U_8 *)signature, signatureLength);
+			} else if (J9VMJAVALANGCLASS(vm) == typeClass) {
+				J9Class *rclass = J9VM_J9CLASS_FROM_HEAPCLASS(currentThread, typeObject);
+				char* signature = sigForPrimitiveOrVoid(vm, rclass);
+				if (!signature) {
+					signature = getClassSignature(currentThread, rclass);
+				} else {
+					freeSig = false;
+				}
 
-				vmFuncs->copyStringToUTF8Helper(currentThread, typeObject, J9_STR_NULL_TERMINATE_RESULT | J9_STR_XLAT , 0, J9VMJAVALANGSTRING_LENGTH(currentThread, typeObject), (U_8 *)signature, signatureLength);
+				signatureLength = strlen(signature);
+			} else {
+
 			}
 			vmFuncs->copyStringToUTF8Helper(currentThread, nameObject, J9_STR_NULL_TERMINATE_RESULT | J9_STR_XLAT , 0, J9VMJAVALANGSTRING_LENGTH(currentThread, nameObject), (U_8 *)name, nameLength);
 
@@ -824,7 +838,9 @@ Java_java_lang_invoke_MethodHandleNatives_resolve(JNIEnv *env, jclass clazz, job
 				result = vmFuncs->j9jni_createLocalRef(env, membernameObject);
 			}
 			j9mem_free_memory(name);
-			j9mem_free_memory(signature);
+			if (freeSig) {
+				j9mem_free_memory(signature);
+			}
 
 			if ((NULL == result) && (JNI_TRUE != speculativeResolve) && !VM_VMHelpers::exceptionPending(currentThread)) {
 				if (J9_ARE_ANY_BITS_SET(flags, MN_IS_FIELD)) {
