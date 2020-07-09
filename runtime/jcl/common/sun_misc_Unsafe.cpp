@@ -114,6 +114,14 @@ Java_sun_misc_Unsafe_defineAnonymousClass(JNIEnv *env, jobject receiver, jclass 
 				vmFuncs->internalExitVMToJNI(currentThread);
 				return NULL;
 			}
+
+			for (U_16 i = 0; i < cpPatchMap.size; i++) {
+				j9object_t item = J9JAVAARRAYOFOBJECT_LOAD(currentThread, patchArray, i);
+				if (item != NULL) {
+					/* mark the index with patch entry, this forces the CP entry to be stored in constantpool */
+					cpPatchMap.indexMap[i] = 1;
+				}
+			}
 		}
 	}
 
