@@ -730,7 +730,9 @@ Java_java_lang_invoke_MethodHandleNatives_resolve(JNIEnv *env, jclass clazz, job
 
 				signatureLength = strlen(signature);
 			} else {
-
+				vmFuncs->setCurrentExceptionUTF(currentThread, J9VMCONSTANTPOOL_JAVALANGINTERNALERROR, NULL);
+				vmFuncs->internalExitVMToJNI(currentThread);
+				return NULL;
 			}
 			vmFuncs->copyStringToUTF8Helper(currentThread, nameObject, J9_STR_NULL_TERMINATE_RESULT | J9_STR_XLAT , 0, J9VMJAVALANGSTRING_LENGTH(currentThread, nameObject), (U_8 *)name, nameLength);
 
@@ -853,7 +855,7 @@ Java_java_lang_invoke_MethodHandleNatives_resolve(JNIEnv *env, jclass clazz, job
 			}
 		}
 	}
-
+	vmFuncs->internalExitVMToJNI(currentThread);
 	return result;
 }
 
