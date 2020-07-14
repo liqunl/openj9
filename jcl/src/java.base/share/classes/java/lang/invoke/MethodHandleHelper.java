@@ -165,8 +165,8 @@ public final class MethodHandleHelper {
 /*[ENDIF] Java11*/
 	
 	@SuppressWarnings("unused")
-	private static final MethodHandle resolveInvokeDynamic(long j9class, String name, String methodDescriptor, long bsmData) throws Throwable {
-		MethodHandle result = null;
+	private static final Object resolveInvokeDynamic(long j9class, String name, String methodDescriptor, long bsmData) {
+		Object[] result = new Object[2];
 		MethodType type = null;
 
 /*[IF !Java11]*/
@@ -205,55 +205,25 @@ public final class MethodHandleHelper {
 				staticArgs[BSM_OPTIONAL_ARGUMENTS_START_INDEX + i] = getAdditionalBsmArg(access, internalRamClass, classObject, bsm, bsmArgs, bsmTypeArgCount, i);
 			}
 
-/*[IF Java11]*/
-		/* JVMS JDK11 5.4.3.6 Dynamically-Computed Constant and Call Site Resolution
-		 * requires that exceptions from BSM invocation be wrapped in a BootstrapMethodError
-		 * unless the exception thrown is a sub-class of Error.
-		 * Exceptions thrown before invocation should be passed through unwrapped.
-		 */
-		try {
-/*[ENDIF]*/
-			CallSite cs = (CallSite)MethodHandleHelper.invokeBsm(bsm, staticArgs);
-			if (cs != null) {
-				MethodType callsiteType = cs.type();
-				if (callsiteType != type) {
-					throw WrongMethodTypeException.newWrongMethodTypeException(type, callsiteType);
-				}
-				result = cs.dynamicInvoker();
-			} 
-			/*[IF Java11]*/
-			else {
-				/* The result of the resolution of a dynamically-computed call site must not be null. */
-				/*[MSG "K0A02", "Bootstrap method returned null."]*/
-				throw new ClassCastException(Msg.getString("K0A02")); //$NON-NLS-1$
-			}
-			/*[ENDIF]*/
-		} catch(Throwable e) {
-
-			/*[IF Sidecar19-SE]*/
-			if (e instanceof Error) {
-				throw e;
-			}
-			/*[ENDIF]*/
-
-			if (type == null) {
-				throw new BootstrapMethodError(e);
-			}
-			
-			/* create an exceptionHandle with appropriate drop adapter and install that */
+			Object[] appendixResult = new Object[1];
+			appendixResult[0] = null;
 			try {
-				MethodHandle thrower = MethodHandles.throwException(type.returnType(), BootstrapMethodError.class);
-				MethodHandle constructor = MethodHandles.Lookup.IMPL_LOOKUP.findConstructor(BootstrapMethodError.class, MethodType.methodType(void.class, Throwable.class));
-				result = MethodHandles.foldArguments(thrower, constructor.bindTo(e));
-				result = MethodHandles.dropArguments(result, 0, type.parameterList()); 
-			} catch (IllegalAccessException iae) {
-				throw new Error(iae);
-			} catch (NoSuchMethodException nsme) {
-				throw new Error(nsme);
+				MemberName mname = MethodHandleNatives.linkCallSiteTracing(classObject, bsm, name, type, (Object)staticArgs, appendixResult);
+
+				result[0] = mname;
+				result[1] = appendixResult[0];
+			} catch (Throwable e) {
+				if (e instanceof Error) {
+					result[0] = e;
+				} else {
+					result[0] = new BootstrapMethodError(e);
+				}
 			}
+		} catch (Throwable e) {
+			result[0] = e;
 		}
-		
-		return result;
+
+		return (Object)result;
 	}
 	
 	@SuppressWarnings("unused")

@@ -8025,7 +8025,7 @@ done:
 	VMINLINE VM_BytecodeAction
 	invokedynamic(REGISTER_ARGS_LIST)
 	{
-#if defined(J9VM_OPT_METHOD_HANDLE) || defined(J9VM_OPT_OPENJDK_METHODHANDLE)
+#if defined(J9VM_OPT_METHOD_HANDLE)
 retry:
 		VM_BytecodeAction rc = GOTO_RUN_METHODHANDLE;
 		U_16 index = *(U_16*)(_pc + 1);
@@ -8055,7 +8055,40 @@ retry:
 			}
 		}
 		return rc;
-#else /* defined(J9VM_OPT_METHOD_HANDLE) || defined(J9VM_OPT_OPENJDK_METHODHANDLE) */
+#elif defined(J9VM_OPT_OPENJDK_METHODHANDLE)
+retry:
+		VM_BytecodeAction rc = GOTO_RUN_METHOD;
+		U_16 index = *(U_16*)(_pc + 1);
+		J9ConstantPool *ramConstantPool = J9_CP_FROM_METHOD(_literals);
+		J9RAMVirtualMethodRef *ramMethodRef = ((J9RAMVirtualMethodRef*)ramConstantPool) + index;
+		j9object_t volatile targetArray = *callSite;
+		if (J9_EXPECTED(NULL != targetArray)) {
+			//U_32 size = J9INDEXABLEOBJECT_SIZE(_currentThread, targetArray);
+			j9object_t memberName = (j9object_t)J9JAVAARRAYOFOBJECT_LOAD(_currentThread, targetArray, 0);
+			if (J9OBJECT_CLAZZ(_currentThread, memberName) == J9VMJAVALANGINVOKEMEMBERNAME_OR_NULL(_vm)) {
+				UDATA target = (UDATA)J9JAVAARRAYOFOBJECT_LOAD(_currentThread, targetArray, 1);
+				_sendMethod = (J9Method *)J9OBJECT_ADDRESS_LOAD(_currentThread, memberName, vm->vmtargetOffset);
+				*--_sp = target;
+			} else {
+				VM_VMHelpers::setExceptionPending(_currentThread, memberName);
+				rc = GOTO_THROW_CURRENT_EXCEPTION;
+			}
+		} else {
+			buildGenericSpecialStackFrame(REGISTER_ARGS, 0);
+			updateVMStruct(REGISTER_ARGS);
+			resolveInvokeDynamic(_currentThread, ramConstantPool, index, J9_RESOLVE_FLAG_RUNTIME_RESOLVE);
+			VMStructHasBeenUpdated(REGISTER_ARGS);
+			restoreGenericSpecialStackFrame(REGISTER_ARGS);
+			if (immediateAsyncPending()) {
+				rc = GOTO_ASYNC_CHECK;
+			} else if (VM_VMHelpers::exceptionPending(_currentThread)) {
+				rc = GOTO_THROW_CURRENT_EXCEPTION;
+			} else {
+				goto retry;
+			}
+		}
+		return rc;
+#else /* !defined(J9VM_OPT_METHOD_HANDLE) && !defined(J9VM_OPT_OPENJDK_METHODHANDLE) */
 	Assert_VM_unreachable();
 	return EXECUTE_BYTECODE;
 #endif /* defined(J9VM_OPT_METHOD_HANDLE) || defined(J9VM_OPT_OPENJDK_METHODHANDLE) */

@@ -2108,7 +2108,7 @@ resolveInvokeDynamic(J9VMThread *vmThread, J9ConstantPool *ramCP, UDATA callSite
 {
 	Assert_VM_true(J9_RESOLVE_FLAG_RUNTIME_RESOLVE == resolveFlags);
 	j9object_t *callSite = ramCP->ramClass->callSites + callSiteIndex;
-	j9object_t methodHandle = *callSite;
+	j9object_t resultArray = *callSite;
 
 	J9ROMClass *romClass = ramCP->ramClass->romClass;
 	J9SRP *callSiteData = (J9SRP *) J9ROMCLASS_CALLSITEDATA(romClass);
@@ -2119,8 +2119,8 @@ resolveInvokeDynamic(J9VMThread *vmThread, J9ConstantPool *ramCP, UDATA callSite
 	U_16 i;
 
 	/* Check if already resolved */
-	if (methodHandle != NULL) {
-		return methodHandle;
+	if (resultArray != NULL) {
+		return resultArray;
 	}
 
 	/* Walk bsmData - skip all bootstrap methods before bsmIndex */
@@ -2130,34 +2130,34 @@ resolveInvokeDynamic(J9VMThread *vmThread, J9ConstantPool *ramCP, UDATA callSite
 	}
 
 	sendResolveInvokeDynamic(vmThread, ramCP, callSiteIndex, nameAndSig, bsmData);
-	methodHandle = (j9object_t) vmThread->returnValue;
+	resultArray = (j9object_t) vmThread->returnValue;
 
 	/* check if an exception is already pending */
 	if (vmThread->currentException != NULL) {
 		/* Already a pending exception */
-		methodHandle = NULL;
-	} else if (methodHandle == NULL) {
+		resultArray = NULL;
+	} else if (resultArray == NULL) {
 		setCurrentExceptionUTF(vmThread, J9VMCONSTANTPOOL_JAVALANGNULLPOINTEREXCEPTION, NULL);
 	}
 
 	/* Only write the value in if its not null */
-	if (NULL != methodHandle) {
+	if (NULL != resultArray) {
 		J9MemoryManagerFunctions *gcFuncs = vmThread->javaVM->memoryManagerFunctions;
 		methodHandle = gcFuncs->j9gc_objaccess_asConstantPoolObject(
 									vmThread,
-									methodHandle,
+									resultArray,
 									J9_GC_ALLOCATE_OBJECT_TENURED | J9_GC_ALLOCATE_OBJECT_NON_INSTRUMENTABLE | J9_GC_ALLOCATE_OBJECT_HASHED);
 
-		if (NULL == methodHandle) {
+		if (NULL == resultArray) {
 			setHeapOutOfMemoryError(vmThread);
 		} else {
 			J9Class *j9class = J9_CLASS_FROM_CP(ramCP);
-			if (0 == gcFuncs->j9gc_objaccess_staticCompareAndSwapObject(vmThread, j9class, callSite, NULL, methodHandle)) {
+			if (0 == gcFuncs->j9gc_objaccess_staticCompareAndSwapObject(vmThread, j9class, callSite, NULL, resultArray)) {
 				/* Another thread beat this thread to updating the call site, ensure both threads return the same method handle. */
-				methodHandle = *callSite;
+				resultArray = *callSite;
 			}
 		}
 	}
 
-	return methodHandle;
+	return resultArray;
 }
