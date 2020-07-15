@@ -169,22 +169,14 @@ public final class MethodHandleHelper {
 		Object[] result = new Object[2];
 		MethodType type = null;
 
-/*[IF !Java11]*/
 		try {
-/*[ENDIF]*/
 			VMLangAccess access = VM.getVMLangAccess();
 			Object internalRamClass = access.createInternalRamClass(j9class);
 			Class<?> classObject = getClassFromJ9Class(j9class);
 			
 			type = MethodTypeHelper.vmResolveFromMethodDescriptorString(methodDescriptor, access.getClassloader(classObject), null);
 			final MethodHandles.Lookup lookup = new MethodHandles.Lookup(classObject);
-//			try {
-//				lookup.accessCheckArgRetTypes(type);
-//			} catch (IllegalAccessException e) {
-//				IllegalAccessError err = new IllegalAccessError();
-//				err.initCause(e);
-//				throw err;
-//			}
+
 			int bsmIndex = UNSAFE.getShort(bsmData);
 			int bsmArgCount = UNSAFE.getShort(bsmData + BSM_ARGUMENT_COUNT_OFFSET);
 			long bsmArgs = bsmData + BSM_ARGUMENTS_OFFSET;
