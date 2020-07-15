@@ -2143,7 +2143,7 @@ resolveInvokeDynamic(J9VMThread *vmThread, J9ConstantPool *ramCP, UDATA callSite
 	/* Only write the value in if its not null */
 	if (NULL != resultArray) {
 		J9MemoryManagerFunctions *gcFuncs = vmThread->javaVM->memoryManagerFunctions;
-		methodHandle = gcFuncs->j9gc_objaccess_asConstantPoolObject(
+		resultArray = gcFuncs->j9gc_objaccess_asConstantPoolObject(
 									vmThread,
 									resultArray,
 									J9_GC_ALLOCATE_OBJECT_TENURED | J9_GC_ALLOCATE_OBJECT_NON_INSTRUMENTABLE | J9_GC_ALLOCATE_OBJECT_HASHED);

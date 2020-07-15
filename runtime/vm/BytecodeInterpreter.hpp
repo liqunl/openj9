@@ -8060,14 +8060,14 @@ retry:
 		VM_BytecodeAction rc = GOTO_RUN_METHOD;
 		U_16 index = *(U_16*)(_pc + 1);
 		J9ConstantPool *ramConstantPool = J9_CP_FROM_METHOD(_literals);
-		J9RAMVirtualMethodRef *ramMethodRef = ((J9RAMVirtualMethodRef*)ramConstantPool) + index;
+		j9object_t *callSite = ramConstantPool->ramClass->callSites + index;
 		j9object_t volatile targetArray = *callSite;
 		if (J9_EXPECTED(NULL != targetArray)) {
 			//U_32 size = J9INDEXABLEOBJECT_SIZE(_currentThread, targetArray);
 			j9object_t memberName = (j9object_t)J9JAVAARRAYOFOBJECT_LOAD(_currentThread, targetArray, 0);
 			if (J9OBJECT_CLAZZ(_currentThread, memberName) == J9VMJAVALANGINVOKEMEMBERNAME_OR_NULL(_vm)) {
 				UDATA target = (UDATA)J9JAVAARRAYOFOBJECT_LOAD(_currentThread, targetArray, 1);
-				_sendMethod = (J9Method *)J9OBJECT_ADDRESS_LOAD(_currentThread, memberName, vm->vmtargetOffset);
+				_sendMethod = (J9Method *)J9OBJECT_ADDRESS_LOAD(_currentThread, memberName, _vm->vmtargetOffset);
 				*--_sp = target;
 			} else {
 				VM_VMHelpers::setExceptionPending(_currentThread, memberName);
