@@ -1,4 +1,4 @@
-/*[INCLUDE-IF Java11]*/
+/*[INCLUDE-IF Java11 & !OPENJDK_METHODHANDLES]*/
 
 /*******************************************************************************
  * Copyright (c) 2018, 2018 IBM Corp. and others
