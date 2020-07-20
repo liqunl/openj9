@@ -1769,7 +1769,11 @@ ClassFileOracle::walkMethodCodeAttributeCode(U_16 methodIndex)
 			UDATA methodHandleInvocation;
 			cpIndex = PARAM_U16();
 
+#if defined(J9VM_OPT_OPENJDK_METHODHANDLE)
+			methodHandleInvocation = 0;
+#else /* defined(J9VM_OPT_OPENJDK_METHODHANDLE) */
 			methodHandleInvocation = shouldConvertInvokeVirtualToMethodHandleBytecodeForMethodRef(cpIndex);
+#endif /* defined(J9VM_OPT_OPENJDK_METHODHANDLE) */
 			if (methodHandleInvocation == CFR_BC_invokehandlegeneric) {
 				code[codeIndex + 0] = CFR_BC_invokehandlegeneric;
 				addBytecodeFixupEntry(entry++, codeIndex + 1, cpIndex, ConstantPoolMap::INVOKE_HANDLEGENERIC);
