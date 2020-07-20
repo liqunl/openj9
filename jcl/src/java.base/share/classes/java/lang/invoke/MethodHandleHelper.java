@@ -99,8 +99,6 @@ public final class MethodHandleHelper {
 		VMLangAccess access = VM.getVMLangAccess();
 		MethodType mt = MethodType.fromMethodDescriptorString(type, access.getClassloader(callerClass));
 
-		MH_REF_INVOKEVIRTUAL
-
 		return MethodHandleNatives.linkMethodTracing(callerClass, refKind, defc, name, mt, appendixResult);
 	}
 

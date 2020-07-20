@@ -8242,7 +8242,6 @@ retry:
 		U_16 index = *(U_16*)(_pc + 1);
 		J9ConstantPool *ramConstantPool = J9_CP_FROM_METHOD(_literals);
 		J9RAMMethodRef *ramMethodRef = ((J9RAMMethodRef*)ramConstantPool) + index;
-		UDATA volatile methodIndexAndArgCount = ramMethodRef->methodIndexAndArgCount;
 		UDATA methodTypeIndex = ramMethodRef->methodIndexAndArgCount >> 8;
 		j9object_t volatile type = J9_CLASS_FROM_CP(ramConstantPool)->methodTypes[methodTypeIndex];
 		j9object_t memberNameObject = (j9object_t)ramMethodRef->method;
@@ -8265,7 +8264,6 @@ retry:
 				goto retry;
 			}
 		}
-done:
 		return rc;
 	}
 
@@ -8293,7 +8291,7 @@ done:
 	linkToStaticSpecial(REGISTER_ARGS_LIST)
 	{
 		/* pop memberNameObject from stack*/
-		j9object_t memberNameObject = *(j9object_t)_sp++;
+		j9object_t memberNameObject = *(j9object_t *)_sp++;
 		if (J9_UNEXPECTED(NULL == memberNameObject)) {
 			return THROW_NPE;
 		}
@@ -8307,7 +8305,7 @@ done:
 	linkToVirtual(REGISTER_ARGS_LIST)
 	{
 		/* pop memberNameObject from stack*/
-		j9object_t memberNameObject = *(j9object_t)_sp++;
+		j9object_t memberNameObject = *(j9object_t *)_sp++;
 		if (J9_UNEXPECTED(NULL == memberNameObject)) {
 			return THROW_NPE;
 		}
@@ -8334,7 +8332,7 @@ done:
 	linkToInterface(REGISTER_ARGS_LIST)
 	{
 		/* pop memberNameObject from stack*/
-		j9object_t memberNameObject = *(j9object_t)_sp++;
+		j9object_t memberNameObject = *(j9object_t *)_sp++;
 		if (J9_UNEXPECTED(NULL == memberNameObject)) {
 			return THROW_NPE;
 		}
