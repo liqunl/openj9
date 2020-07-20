@@ -8233,6 +8233,190 @@ done:
 #endif /* J9VM_OPT_METHOD_HANDLE */
 	}
 
+#if defined(J9VM_OPT_OPENJDK_METHODHANDLE)
+	VMINLINE VM_BytecodeAction
+	invokeHandle(REGISTER_ARGS_LIST)
+	{
+retry:
+		VM_BytecodeAction rc = GOTO_RUN_METHOD;
+		U_16 index = *(U_16*)(_pc + 1);
+		J9ConstantPool *ramConstantPool = J9_CP_FROM_METHOD(_literals);
+		J9RAMMethodRef *ramMethodRef = ((J9RAMMethodRef*)ramConstantPool) + index;
+		UDATA volatile methodIndexAndArgCount = ramMethodRef->methodIndexAndArgCount;
+		UDATA methodTypeIndex = ramMethodRef->methodIndexAndArgCount >> 8;
+		j9object_t volatile type = J9_CLASS_FROM_CP(ramConstantPool)->methodTypes[methodTypeIndex];
+		j9object_t memberNameObject = (j9object_t)ramMethodRef->method;
+		if (J9_EXPECTED(NULL != memberNameObject)) {
+			*--_sp = (UDATA)type;
+			_sendMethod = (J9Method *)J9OBJECT_ADDRESS_LOAD(_currentThread, memberNameObject, _vm->vmtargetOffset);
+		} else {
+			buildGenericSpecialStackFrame(REGISTER_ARGS, 0);
+			updateVMStruct(REGISTER_ARGS);
+			// TODO add new resolve code which calls sendResolveInvokeHandle -> MHN.linkMethod()
+			// store the appendix value in methodTypes[MTindex] and memberName in slot2
+			// resolveVirtualMethodRef(_currentThread, ramConstantPool, index, J9_RESOLVE_FLAG_RUNTIME_RESOLVE, NULL);
+			VMStructHasBeenUpdated(REGISTER_ARGS);
+			restoreGenericSpecialStackFrame(REGISTER_ARGS);
+			if (immediateAsyncPending()) {
+				rc = GOTO_ASYNC_CHECK;
+			} else if (VM_VMHelpers::exceptionPending(_currentThread)) {
+				rc = GOTO_THROW_CURRENT_EXCEPTION;
+			} else {
+				goto retry;
+			}
+		}
+done:
+		return rc;
+	}
+
+	VMINLINE VM_BytecodeAction
+	invokeExact(REGISTER_ARGS_LIST)
+	{
+retry:
+		VM_BytecodeAction rc = GOTO_RUN_METHOD;
+		U_16 index = *(U_16*)(_pc + 1);
+		J9ConstantPool *ramConstantPool = J9_CP_FROM_METHOD(_literals);
+		J9RAMMethodRef *ramMethodRef = ((J9RAMMethodRef*)ramConstantPool) + index;
+		UDATA volatile methodIndexAndArgCount = ramMethodRef->methodIndexAndArgCount;
+		UDATA methodTypeIndex = ramMethodRef->methodIndexAndArgCount >> 8;
+		j9object_t volatile type = J9_CLASS_FROM_CP(ramConstantPool)->methodTypes[methodTypeIndex];
+		j9object_t memberNameObject = (j9object_t)ramMethodRef->method;
+		if (J9_EXPECTED(NULL != memberNameObject)) {
+			*--_sp = (UDATA)type;
+			_sendMethod = (J9Method *)J9OBJECT_ADDRESS_LOAD(_currentThread, memberNameObject, _vm->vmtargetOffset);
+		} else {
+			buildGenericSpecialStackFrame(REGISTER_ARGS, 0);
+			updateVMStruct(REGISTER_ARGS);
+			// TODO add new resolve code which calls sendResolveInvokeHandle -> MHN.linkMethod()
+			// store the appendix value in methodTypes[MTindex] and memberName in slot2
+			// resolveVirtualMethodRef(_currentThread, ramConstantPool, index, J9_RESOLVE_FLAG_RUNTIME_RESOLVE, NULL);
+			VMStructHasBeenUpdated(REGISTER_ARGS);
+			restoreGenericSpecialStackFrame(REGISTER_ARGS);
+			if (immediateAsyncPending()) {
+				rc = GOTO_ASYNC_CHECK;
+			} else if (VM_VMHelpers::exceptionPending(_currentThread)) {
+				rc = GOTO_THROW_CURRENT_EXCEPTION;
+			} else {
+				goto retry;
+			}
+		}
+done:
+		return rc;
+	}
+
+	VMINLINE VM_BytecodeAction
+	invokeBasic(REGISTER_ARGS_LIST)
+	{
+		U_16 index = *(U_16*)(_pc + 1);
+		J9ConstantPool *ramConstantPool = J9_CP_FROM_METHOD(_literals);
+		J9RAMMethodRef *ramMethodRef = ((J9RAMMethodRef*)ramConstantPool) + index;
+		UDATA volatile methodIndexAndArgCount = ramMethodRef->methodIndexAndArgCount;
+
+		j9object_t mhReceiver = ((j9object_t*)_sp)[methodIndexAndArgCount & 0xFF];
+		if (J9_UNEXPECTED(NULL == mhReceiver)) {
+			return THROW_NPE;
+		}
+
+		j9object_t lambdaForm = J9VMJAVALANGINVOKEMETHODHANDLE_FORM(_currentThread, mhReceiver);
+		j9object_t memberName = J9VMJAVALANGINVOKELAMBDAFORM_VMENTRY(_currentThread, lambdaForm);
+		_sendMethod = (J9Method *)J9OBJECT_ADDRESS_LOAD(_currentThread, memberName, _vm->vmtargetOffset);
+
+		return GOTO_RUN_METHOD;
+	}
+
+	VMINLINE VM_BytecodeAction
+	linkToStaticSpecial(REGISTER_ARGS_LIST)
+	{
+		/* pop memberNameObject from stack*/
+		j9object_t memberNameObject = *(j9object_t)_sp++;
+		if (J9_UNEXPECTED(NULL == memberNameObject)) {
+			return THROW_NPE;
+		}
+
+		_sendMethod = (J9Method *)J9OBJECT_ADDRESS_LOAD(_currentThread, memberNameObject, _vm->vmtargetOffset);
+
+		return GOTO_RUN_METHOD;
+	}
+
+	VMINLINE VM_BytecodeAction
+	linkToVirtual(REGISTER_ARGS_LIST)
+	{
+		/* pop memberNameObject from stack*/
+		j9object_t memberNameObject = *(j9object_t)_sp++;
+		if (J9_UNEXPECTED(NULL == memberNameObject)) {
+			return THROW_NPE;
+		}
+
+		J9JNIMethodID *methodID = (J9JNIMethodID *)J9OBJECT_ADDRESS_LOAD(_currentThread, memberNameObject, _vm->vmindexOffset);
+
+		/* Determine stack shape */
+		J9ConstantPool *ramConstantPool = J9_CP_FROM_METHOD(_literals);
+		U_16 cpIndex = *(U_16*)(_pc + 1);
+		J9RAMMethodRef *ramMethodRef = ((J9RAMMethodRef*)ramConstantPool) + cpIndex;
+		UDATA volatile methodArgCount = ramMethodRef->methodIndexAndArgCount & 0xFF;
+
+		j9object_t receiverObject = ((j9object_t*)_sp)[methodArgCount];
+		if (J9_UNEXPECTED(NULL == receiverObject)) {
+			return THROW_NPE;
+		}
+		J9Class *receiverClass = J9OBJECT_CLAZZ(currentThread, receiverObject);
+		_sendMethod = *(J9Method**)(((UDATA)receiverClass) + methodID->vTableIndex);
+
+		return GOTO_RUN_METHOD;
+	}
+
+	VMINLINE VM_BytecodeAction
+	linkToInterface(REGISTER_ARGS_LIST)
+	{
+		/* pop memberNameObject from stack*/
+		j9object_t memberNameObject = *(j9object_t)_sp++;
+		if (J9_UNEXPECTED(NULL == memberNameObject)) {
+			return THROW_NPE;
+		}
+
+		J9JNIMethodID *methodID = (J9JNIMethodID *)J9OBJECT_ADDRESS_LOAD(_currentThread, memberNameObject, _vm->vmindexOffset);
+
+		/* Determine stack shape */
+		J9ConstantPool *ramConstantPool = J9_CP_FROM_METHOD(_literals);
+		U_16 cpIndex = *(U_16*)(_pc + 1);
+		J9RAMMethodRef *ramMethodRef = ((J9RAMMethodRef*)ramConstantPool) + cpIndex;
+		UDATA volatile methodArgCount = ramMethodRef->methodIndexAndArgCount & 0xFF;
+
+		j9object_t receiverObject = ((j9object_t*)_sp)[methodArgCount];
+		if (J9_UNEXPECTED(NULL == receiverObject)) {
+			return THROW_NPE;
+		}
+		J9Class *receiverClass = J9OBJECT_CLAZZ(currentThread, receiverObject);
+		J9Method *method = (J9Method *)J9OBJECT_ADDRESS_LOAD(_currentThread, memberNameObject, _vm->vmtargetOffset);
+		UDATA vTableOffset = methodID->vTableIndex;
+
+
+		if (J9_ARE_ANY_BITS_SET(vTableOffset, J9_JNI_MID_INTERFACE)) {
+			UDATA iTableIndex = vTableOffset & ~(UDATA)J9_JNI_MID_INTERFACE;
+			J9Class *interfaceClass = J9_CLASS_FROM_METHOD(method);
+			vTableOffset = 0;
+			J9ITable * iTable = receiverClass->lastITable;
+			if (interfaceClass == iTable->interfaceClass) {
+				goto foundITable;
+			}
+			iTable = (J9ITable*)receiverClass->iTable;
+			while (NULL != iTable) {
+				if (interfaceClass == iTable->interfaceClass) {
+					receiverClass->lastITable = iTable;
+foundITable:
+					vTableOffset = ((UDATA*)(iTable + 1))[iTableIndex];
+					break;
+				}
+				iTable = iTable->next;
+			}
+		}
+
+		_sendMethod = *(J9Method**)(((UDATA)receiverClass) + vTableOffset);
+
+		return GOTO_RUN_METHOD;
+	}
+#endif /* defined(J9VM_OPT_OPENJDK_METHODHANDLE) */
+
 	VMINLINE j9object_t
 	countAndCompileMethodHandle(REGISTER_ARGS_LIST, j9object_t methodHandle, void **compiledEntryPoint)
 	{
@@ -9038,6 +9222,14 @@ public:
 		JUMP_TABLE_ENTRY(J9_BCLOOP_SEND_TARGET_OUT_OF_LINE_INL),
 		JUMP_TABLE_ENTRY(J9_BCLOOP_SEND_TARGET_CLASS_ARRAY_TYPE_IMPL),
 		JUMP_TABLE_ENTRY(J9_BCLOOP_SEND_TARGET_CLASS_IS_RECORD),
+#if defined(J9VM_OPT_OPENJDK_METHODHANDLE)
+		JUMP_TABLE_ENTRY(J9_BCLOOP_SEND_TARGET_METHODHANDLE_INVOKE),
+		JUMP_TABLE_ENTRY(J9_BCLOOP_SEND_TARGET_METHODHANDLE_INVOKEBASIC),
+		JUMP_TABLE_ENTRY(J9_BCLOOP_SEND_TARGET_METHODHANDLE_INVOKEEXACT),
+		JUMP_TABLE_ENTRY(J9_BCLOOP_SEND_TARGET_METHODHANDLE_LINKTOSTATICSPECIAL),
+		JUMP_TABLE_ENTRY(J9_BCLOOP_SEND_TARGET_METHODHANDLE_LINKTOVIRTUAL),
+		JUMP_TABLE_ENTRY(J9_BCLOOP_SEND_TARGET_METHODHANDLE_LINKTOINTERFACE),
+#endif /* defined(J9VM_OPT_OPENJDK_METHODHANDLE) */
 	};
 #endif /* !defined(USE_COMPUTED_GOTO) */
 
@@ -9608,6 +9800,20 @@ runMethod: {
 		PERFORM_ACTION(inlClassArrayTypeImpl(REGISTER_ARGS));
 	JUMP_TARGET(J9_BCLOOP_SEND_TARGET_CLASS_IS_RECORD):
 		PERFORM_ACTION(inlClassIsRecord(REGISTER_ARGS));
+#if defined(J9VM_OPT_OPENJDK_METHODHANDLE)
+	JUMP_TARGET(J9_BCLOOP_SEND_TARGET_METHODHANDLE_INVOKE):
+		PERFORM_ACTION(invokeHandle(REGISTER_ARGS));
+	JUMP_TARGET(J9_BCLOOP_SEND_TARGET_METHODHANDLE_INVOKEBASIC):
+		PERFORM_ACTION(invokeBasic(REGISTER_ARGS));
+	JUMP_TARGET(J9_BCLOOP_SEND_TARGET_METHODHANDLE_INVOKEEXACT):
+		PERFORM_ACTION(invokeHandleExact(REGISTER_ARGS));
+	JUMP_TARGET(J9_BCLOOP_SEND_TARGET_METHODHANDLE_LINKTOSTATICSPECIAL):
+		PERFORM_ACTION(linkToStaticSpecial(REGISTER_ARGS));
+	JUMP_TARGET(J9_BCLOOP_SEND_TARGET_METHODHANDLE_LINKTOVIRTUAL):
+		PERFORM_ACTION(linkToVirtual(REGISTER_ARGS));
+	JUMP_TARGET(J9_BCLOOP_SEND_TARGET_METHODHANDLE_LINKTOINTERFACE):
+		PERFORM_ACTION(linkToInterface(REGISTER_ARGS));
+#endif /* defined(J9VM_OPT_OPENJDK_METHODHANDLE) */
 #if !defined(USE_COMPUTED_GOTO)
 	default:
 		Assert_VM_unreachable();
