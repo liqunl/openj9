@@ -1771,19 +1771,15 @@ ClassFileOracle::walkMethodCodeAttributeCode(U_16 methodIndex)
 
 			methodHandleInvocation = shouldConvertInvokeVirtualToMethodHandleBytecodeForMethodRef(cpIndex);
 			if (methodHandleInvocation == CFR_BC_invokehandlegeneric) {
-#if !defined(J9VM_OPT_OPENJDK_METHODHANDLE)
 				code[codeIndex + 0] = CFR_BC_invokehandlegeneric;
 				addBytecodeFixupEntry(entry++, codeIndex + 1, cpIndex, ConstantPoolMap::INVOKE_HANDLEGENERIC);
 				markMethodRefAsUsedByInvokeHandleGeneric(cpIndex);
 				_methodsInfo[methodIndex].modifiers |= J9AccMethodHasMethodHandleInvokes;
-#endif /* !defined(J9VM_OPT_OPENJDK_METHODHANDLE) */
 			} else if (methodHandleInvocation == CFR_BC_invokehandle) {
-#if !defined(J9VM_OPT_OPENJDK_METHODHANDLE)
 				code[codeIndex + 0] = CFR_BC_invokehandle;
 				addBytecodeFixupEntry(entry++, codeIndex + 1, cpIndex, ConstantPoolMap::INVOKE_HANDLEEXACT);
 				markMethodRefAsUsedByInvokeHandle(cpIndex);
 				_methodsInfo[methodIndex].modifiers |= J9AccMethodHasMethodHandleInvokes;
-#endif /* !defined(J9VM_OPT_OPENJDK_METHODHANDLE) */
 			} else if (methodHandleInvocation == CFR_BC_invokehandlebasic) {
 				code[codeIndex + 0] = CFR_BC_invokehandlebasic;
 				addBytecodeFixupEntry(entry++, codeIndex + 1, cpIndex, ConstantPoolMap::INVOKE_HANDLEBASIC);
