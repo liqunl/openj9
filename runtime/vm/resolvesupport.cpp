@@ -1991,7 +1991,7 @@ resolveMethodHandle(J9VMThread *vmThread, J9ConstantPool *ramCP, UDATA cpIndex, 
 	bool canRunJavaCode = J9_ARE_NO_BITS_SET(resolveFlags, J9_RESOLVE_FLAG_JIT_COMPILE_TIME | J9_RESOLVE_FLAG_REDEFINE_CLASS);
 
 	if (!canRunJavaCode) {
-		goto done;
+		return NULL;
 	}
 
 	J9RAMMethodRef *ramCPEntry = (J9RAMConstantDynamicRef*)ramCP + cpIndex;
