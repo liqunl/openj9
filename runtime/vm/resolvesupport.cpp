@@ -1983,6 +1983,51 @@ resolveMethodHandleRef(J9VMThread *vmThread, J9ConstantPool *ramCP, UDATA cpInde
 }
 
 j9object_t
+resolveMethodHandle(J9VMThread *vmThread, J9ConstantPool *ramCP, UDATA cpIndex, UDATA resolveFlags)
+{
+	J9JavaVM *vm = vmThread->javaVM;
+	j9object_t memberName = NULL;
+
+	bool canRunJavaCode = J9_ARE_NO_BITS_SET(resolveFlags, J9_RESOLVE_FLAG_JIT_COMPILE_TIME | J9_RESOLVE_FLAG_REDEFINE_CLASS);
+
+	if (!canRunJavaCode) {
+		goto done;
+	}
+
+	J9RAMMethodRef *ramCPEntry = (J9RAMConstantDynamicRef*)ramCP + cpIndex;
+	UDATA methodTypeIndex = ramMethodRef->methodIndexAndArgCount >> 8;
+	J9Class *ramClass = J9_CLASS_FROM_CP(ramConstantPool);
+	J9ROMMethodRef *romMethodRef = (J9ROMMethodRef *)&ramCP->romConstantPool[cpIndex];
+	J9ROMNameAndSignature *nameAndSig = J9ROMMETHODREF_NAMEANDSIGNATURE(romMethodRef);
+
+	/* Resolve the class. */
+	J9Class *resolvedClass = resolveClassRef(vmThread, ramCP, romMethodRef->classRefCPIndex, resolveFlags);
+	if (resolvedClass != NULL) {
+		/* Create appendix array*/
+		J9Class *arrayClass = fetchArrayClass(vmThread, J9VMJAVALANGOBJECT(vm));
+		j9object_t appendix = vm->memoryManagerFunctions->J9AllocateIndexableObject(vmThread, arrayClass, 1, J9_GC_ALLOCATE_OBJECT_INSTRUMENTABLE);
+
+		sendResolveMethodHandle(vmThread, ramCP, MH_REF_INVOKEVIRTUAL, resolvedClass, nameAndSig, appendix);
+		memberName = (j9object_t)vmThread->returnValue;
+
+		if (vmThread->currentException != NULL) {
+			/* Already a pending exception */
+			memberName = NULL;
+		} else if (memberName == NULL) {
+			setCurrentExceptionUTF(vmThread, J9VMCONSTANTPOOL_JAVALANGNULLPOINTEREXCEPTION, NULL);
+		}
+
+		if (memberName != NULL) {
+			/* store result */
+			ramClass->methodTypes[methodTypeIndex] = (j9object_t)J9JAVAARRAYOFOBJECT_LOAD(vmThread, appendix, 0);
+			((J9RAMConstantPoolItem *)ramCPEntry)->slot2 = (UDATA)memberName;
+		}
+	}
+
+	return memberName;
+}
+
+j9object_t
 resolveConstantDynamic(J9VMThread *vmThread, J9ConstantPool *ramCP, UDATA cpIndex, UDATA resolveFlags)
 {
 	Assert_VM_true(J9_RESOLVE_FLAG_RUNTIME_RESOLVE == resolveFlags);

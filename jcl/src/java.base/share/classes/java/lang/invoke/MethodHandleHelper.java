@@ -93,6 +93,17 @@ public final class MethodHandleHelper {
 		}
 		return result;
 	}
+
+	@SuppressWarnings("unused")
+	private static final Object resolveMethodHandle(Class<?> callerClass, int refKind, Class<?> defc, String name, String type, Object[] appendixResult) throws Throwable {
+		VMLangAccess access = VM.getVMLangAccess();
+		MethodType mt = MethodType.fromMethodDescriptorString(type, access.getClassloader(callerClass));
+
+		MH_REF_INVOKEVIRTUAL
+
+		return MethodHandleNatives.linkMethodTracing(callerClass, refKind, defc, name, mt, appendixResult);
+	}
+
 	
 	/*[IF Java11]*/
 	/*

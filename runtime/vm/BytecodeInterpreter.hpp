@@ -8252,9 +8252,9 @@ retry:
 		} else {
 			buildGenericSpecialStackFrame(REGISTER_ARGS, 0);
 			updateVMStruct(REGISTER_ARGS);
-			// TODO add new resolve code which calls sendResolveInvokeHandle -> MHN.linkMethod()
+			// add new resolve code which calls sendResolveInvokeHandle -> MHN.linkMethod()
 			// store the appendix value in methodTypes[MTindex] and memberName in slot2
-			// resolveVirtualMethodRef(_currentThread, ramConstantPool, index, J9_RESOLVE_FLAG_RUNTIME_RESOLVE, NULL);
+			resolveMethodHandle(_currentThread, ramConstantPool, index, J9_RESOLVE_FLAG_RUNTIME_RESOLVE);
 			VMStructHasBeenUpdated(REGISTER_ARGS);
 			restoreGenericSpecialStackFrame(REGISTER_ARGS);
 			if (immediateAsyncPending()) {
@@ -8287,9 +8287,9 @@ retry:
 		} else {
 			buildGenericSpecialStackFrame(REGISTER_ARGS, 0);
 			updateVMStruct(REGISTER_ARGS);
-			// TODO add new resolve code which calls sendResolveInvokeHandle -> MHN.linkMethod()
+			// add new resolve code which calls sendResolveInvokeHandle -> MHN.linkMethod()
 			// store the appendix value in methodTypes[MTindex] and memberName in slot2
-			// resolveVirtualMethodRef(_currentThread, ramConstantPool, index, J9_RESOLVE_FLAG_RUNTIME_RESOLVE, NULL);
+			resolveMethodHandle(_currentThread, ramConstantPool, index, J9_RESOLVE_FLAG_RUNTIME_RESOLVE);
 			VMStructHasBeenUpdated(REGISTER_ARGS);
 			restoreGenericSpecialStackFrame(REGISTER_ARGS);
 			if (immediateAsyncPending()) {
