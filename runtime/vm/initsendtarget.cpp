@@ -56,7 +56,7 @@ initializeMethodRunAddressMethodHandle(J9Method *method)
 				if (J9UTF8_LITERAL_EQUALS(methodName, methodNameLength, "invokeBasic")) {
 					methodRunAddress = J9_BCLOOP_ENCODE_SEND_TARGET(J9_BCLOOP_SEND_TARGET_METHODHANDLE_INVOKEBASIC);
 				} else if (J9UTF8_LITERAL_EQUALS(methodName, methodNameLength, "invokeExact")) {
-					methodRunAddress = J9_BCLOOP_ENCODE_SEND_TARGET(J9_BCLOOP_SEND_TARGET_METHODHANDLE_INVOKEEXACT);
+					methodRunAddress = J9_BCLOOP_ENCODE_SEND_TARGET(J9_BCLOOP_SEND_TARGET_METHODHANDLE_INVOKE);
 				}
 				break;
 			case 12:
