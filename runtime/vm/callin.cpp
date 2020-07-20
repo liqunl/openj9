@@ -687,40 +687,6 @@ runStaticMethod(J9VMThread *currentThread, U_8 *className, J9NameAndSignature *s
 }
 
 void JNICALL
-runMethod1(J9VMThread *currentThread, J9Method *method, BOOLEAN returnsObject, UDATA argCount, j9array_t arguments, j9object_t receiverObject)
-{
-	Trc_VM_internalRunStaticMethod_Entry(currentThread);
-	J9VMEntryLocalStorage newELS;
-
-	if (buildCallInStackFrame(currentThread, &newELS, returnsObject != 0, false)) {
-		UDATA argument = 0;
-
-		if (NULL != receiverObject) {
-			*--currentThread->sp = (UDATA)receiverObject;
-		}
-
-		/**
-		 * args[argCount - 1]       -> MemberName
-		 * args[1:argCount - 2]     -> MH arguments
-		 * args[0]                  -> MH
-		 *
-		 * Skip MH and MemberName while appending arguments to the stack.
-		 * In other words, only append MH arguments to the stack.
-		 */
-		for (UDATA i = 1; i < argCount - 1; i--) {
-			argument = (UDATA)J9JAVAARRAYOFOBJECT_LOAD(currentThread, arguments, i);
-			*--currentThread->sp = argument;
-		}
-		currentThread->returnValue = J9_BCLOOP_RUN_METHOD;
-		currentThread->returnValue2 = (UDATA)method;
-		c_cInterpreter(currentThread);
-
-		restoreCallInFrame(currentThread);
-	}
-	Trc_VM_internalRunStaticMethod_Exit(currentThread);
-}
-
-void JNICALL
 internalRunStaticMethod(J9VMThread *currentThread, J9Method *method, BOOLEAN returnsObject, UDATA argCount, UDATA* arguments)
 {
 	Trc_VM_internalRunStaticMethod_Entry(currentThread);

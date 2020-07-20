@@ -1463,173 +1463,33 @@ Java_java_lang_invoke_MethodHandle_invokeBasic(JNIEnv *env, jclass ignored, jobj
 	return NULL;
 }
 
-static VMINLINE J9Method*
-mapVirtualMethod(J9VMThread *currentThread, J9Method *method, UDATA vTableOffset, J9Class *receiverClass)
-{
-	/* J9_JNI_MID_INTERFACE will be set only for iTable methods. Private interface methods
-	 * and Object methods will not have the tag.
-	 */
-	if (J9_ARE_ANY_BITS_SET(vTableOffset, J9_JNI_MID_INTERFACE)) {
-		UDATA iTableIndex = vTableOffset & ~(UDATA)J9_JNI_MID_INTERFACE;
-		J9Class *interfaceClass = J9_CLASS_FROM_METHOD(method);
-		vTableOffset = 0;
-		J9ITable * iTable = receiverClass->lastITable;
-		if (interfaceClass == iTable->interfaceClass) {
-			goto foundITable;
-		}
-		iTable = (J9ITable*)receiverClass->iTable;
-		while (NULL != iTable) {
-			if (interfaceClass == iTable->interfaceClass) {
-				receiverClass->lastITable = iTable;
-foundITable:
-				vTableOffset = ((UDATA*)(iTable + 1))[iTableIndex];
-				break;
-			}
-			iTable = iTable->next;
-		}
-	}
-	if (0 != vTableOffset) {
-		method = *(J9Method**)(((UDATA)receiverClass) + vTableOffset);
-	}
-	return method;
-}
-
 jobject JNICALL
 Java_java_lang_invoke_MethodHandle_linkToVirtual(JNIEnv *env, jclass clazz, jobject args)
 {
-	J9VMThread *currentThread = (J9VMThread*)env;
-	J9JavaVM *vm = currentThread->javaVM;
-	J9InternalVMFunctions *vmFuncs = vm->internalVMFunctions;
-	jobject result = NULL;
-
-	vmFuncs->internalEnterVMFromJNI(currentThread);
-
-	j9array_t argsArray = (j9array_t)J9_JNI_UNWRAP_REFERENCE(args);
-	UDATA argCount = (UDATA)J9INDEXABLEOBJECT_SIZE(currentThread, argsArray);
-
-	j9object_t receiverObject = (j9object_t)J9JAVAARRAYOFOBJECT_LOAD(currentThread, argsArray, 0);
-	J9Class *receiverClass = J9OBJECT_CLAZZ(currentThread, receiverObject);
-
-	j9object_t memberName = (j9object_t)J9JAVAARRAYOFOBJECT_LOAD(currentThread, argsArray, argCount - 1);
-	J9Method *sendMethod = (J9Method *)J9OBJECT_ADDRESS_LOAD(currentThread, memberName, vm->vmtargetOffset);
-	J9JNIMethodID *methodID = (J9JNIMethodID *)J9OBJECT_ADDRESS_LOAD(currentThread, memberName, vm->vmindexOffset);
-
-	sendMethod = mapVirtualMethod(currentThread, sendMethod, methodID->vTableIndex, receiverClass);
-
-	/**
-	 * args[argCount - 1]       -> MemberName
-	 * args[1:argCount - 2]     -> MH arguments
-	 * args[0]                  -> MH
-	 */
-	vmFuncs->runMethod1(currentThread, sendMethod, TRUE, argCount, argsArray, receiverObject);
-	j9object_t returnValue = (j9object_t)currentThread->returnValue;
-	if (NULL != returnValue) {
-		result = vmFuncs->j9jni_createLocalRef(env, returnValue);
-	}
-
-	vmFuncs->internalExitVMToJNI(currentThread);
-
-	return result;
-}
-
-jobject JNICALL
-Java_java_lang_invoke_MethodHandle_linkToInterface(JNIEnv *env, jclass clazz, jobject args)
-{
-	J9VMThread *currentThread = (J9VMThread*)env;
-	J9JavaVM *vm = currentThread->javaVM;
-	J9InternalVMFunctions *vmFuncs = vm->internalVMFunctions;
-	jobject result = NULL;
-
-	vmFuncs->internalEnterVMFromJNI(currentThread);
-
-	j9array_t argsArray = (j9array_t)J9_JNI_UNWRAP_REFERENCE(args);
-	UDATA argCount = (UDATA)J9INDEXABLEOBJECT_SIZE(currentThread, argsArray);
-
-	j9object_t receiverObject = (j9object_t)J9JAVAARRAYOFOBJECT_LOAD(currentThread, argsArray, 0);
-	J9Class *receiverClass = J9OBJECT_CLAZZ(currentThread, receiverObject);
-
-	j9object_t memberName = (j9object_t)J9JAVAARRAYOFOBJECT_LOAD(currentThread, argsArray, argCount - 1);
-	J9Method *sendMethod = (J9Method *)J9OBJECT_ADDRESS_LOAD(currentThread, memberName, vm->vmtargetOffset);
-	J9JNIMethodID *methodID = (J9JNIMethodID *)J9OBJECT_ADDRESS_LOAD(currentThread, memberName, vm->vmindexOffset);
-
-	sendMethod = mapVirtualMethod(currentThread, sendMethod, methodID->vTableIndex, receiverClass);
-
-	/**
-	 * args[argCount - 1]       -> MemberName
-	 * args[1:argCount - 2]     -> MH arguments
-	 * args[0]                  -> MH
-	 */
-	vmFuncs->runMethod1(currentThread, sendMethod, TRUE, argCount, argsArray, receiverObject);
-	j9object_t returnValue = (j9object_t)currentThread->returnValue;
-	if (NULL != returnValue) {
-		result = vmFuncs->j9jni_createLocalRef(env, returnValue);
-	}
-
-	vmFuncs->internalExitVMToJNI(currentThread);
-
-	return result;
+	throwNewUnsupportedOperationException(env);
+	return NULL;
 }
 
 jobject JNICALL
 Java_java_lang_invoke_MethodHandle_linkToStatic(JNIEnv *env, jclass clazz, jobject args)
 {
-	J9VMThread *currentThread = (J9VMThread*)env;
-	J9JavaVM *vm = currentThread->javaVM;
-	J9InternalVMFunctions *vmFuncs = vm->internalVMFunctions;
-	jobject result = NULL;
-
-	vmFuncs->internalEnterVMFromJNI(currentThread);
-
-	j9array_t argsArray = (j9array_t)J9_JNI_UNWRAP_REFERENCE(args);
-	UDATA argCount = (UDATA)J9INDEXABLEOBJECT_SIZE(currentThread, argsArray);
-	j9object_t memberName = (j9object_t)J9JAVAARRAYOFOBJECT_LOAD(currentThread, argsArray, argCount - 1);
-	J9Method *sendMethod = (J9Method *)J9OBJECT_ADDRESS_LOAD(currentThread, memberName, vm->vmtargetOffset);
-
-	/**
-	 * args[argCount - 1]       -> MemberName
-	 * args[1:argCount - 2]     -> MH arguments
-	 * args[0]                  -> MH
-	 */
-	vmFuncs->runMethod1(currentThread, sendMethod, TRUE, argCount, argsArray, NULL);
-	j9object_t returnValue = (j9object_t)currentThread->returnValue;
-	if (NULL != returnValue) {
-		result = vmFuncs->j9jni_createLocalRef(env, returnValue);
-	}
-
-	vmFuncs->internalExitVMToJNI(currentThread);
-
-	return result;
+	throwNewUnsupportedOperationException(env);
+	return NULL;
 }
 
 jobject JNICALL
 Java_java_lang_invoke_MethodHandle_linkToSpecial(JNIEnv *env, jclass clazz, jobject args)
 {
-	J9VMThread *currentThread = (J9VMThread*)env;
-	J9JavaVM *vm = currentThread->javaVM;
-	J9InternalVMFunctions *vmFuncs = vm->internalVMFunctions;
-	jobject result = NULL;
-
-	vmFuncs->internalEnterVMFromJNI(currentThread);
-
-	j9array_t argsArray = (j9array_t)J9_JNI_UNWRAP_REFERENCE(args);
-	UDATA argCount = (UDATA)J9INDEXABLEOBJECT_SIZE(currentThread, argsArray);
-	j9object_t memberName = (j9object_t)J9JAVAARRAYOFOBJECT_LOAD(currentThread, argsArray, argCount - 1);
-	J9Method *sendMethod = (J9Method *)J9OBJECT_ADDRESS_LOAD(currentThread, memberName, vm->vmtargetOffset);
-
-	/**
-	 * args[argCount - 1]       -> MemberName
-	 * args[1:argCount - 2]     -> MH arguments
-	 * args[0]                  -> MH
-	 */
-	vmFuncs->runMethod1(currentThread, sendMethod, TRUE, argCount, argsArray, NULL);
-	j9object_t returnValue = (j9object_t)currentThread->returnValue;
-	if (NULL != returnValue) {
-		result = vmFuncs->j9jni_createLocalRef(env, returnValue);
-	}
-
-	vmFuncs->internalExitVMToJNI(currentThread);
-
-	return result;
+	throwNewUnsupportedOperationException(env);
+	return NULL;
 }
+
+jobject JNICALL
+Java_java_lang_invoke_MethodHandle_linkToInterface(JNIEnv *env, jclass clazz, jobject args)
+{
+	throwNewUnsupportedOperationException(env);
+	return NULL;
+}
+
 
 } /* extern "C" */
