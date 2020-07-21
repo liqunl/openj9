@@ -118,7 +118,6 @@ convertToOracleOpcodeString(U_8 j9Opcode, U_8 returnType)
 
 	case JBinvokehandle:	/* FALLTHROUGH */
 	case JBinvokehandlegeneric:
-	case JBinvokehandlebasic:
 		oracleOpcode = CFR_BC_invokevirtual;
 		break;
 

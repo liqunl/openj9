@@ -445,7 +445,6 @@ IDATA j9bcutil_dumpBytecodes(J9PortLibrary * portLib, J9ROMClass * romClass,
 		case JBinvokeinterface:
 		case JBinvokehandle:
 		case JBinvokehandlegeneric:
-		case JBinvokehandlebasic:
 		case JBinvokestaticsplit:
 		case JBinvokespecialsplit:
 			_GETNEXT_U16(index, bcIndex);

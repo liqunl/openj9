@@ -289,7 +289,6 @@ public:
 	void markMethodRefAsUsedByInvokeInterface(U_16 methodRefCfrCPIndex)     { mark(methodRefCfrCPIndex, INVOKE_INTERFACE); }
 	void markMethodRefAsUsedByInvokeHandle(U_16 methodRefCfrCPIndex)        { mark(methodRefCfrCPIndex, INVOKE_HANDLEEXACT); _methodTypeCount++; }
 	void markMethodRefAsUsedByInvokeHandleGeneric(U_16 methodRefCfrCPIndex) { mark(methodRefCfrCPIndex, INVOKE_HANDLEGENERIC); _methodTypeCount++; }
-	void markMethodRefAsUsedByInvokeHandleBasic(U_16 methodRefCfrCPIndex)   { mark(methodRefCfrCPIndex, INVOKE_HANDLEBASIC); _methodTypeCount++; }
 
 	void markInvokeDynamicInfoAsUsedByInvokeDynamic(U_16 cfrCPIndex)
 	{

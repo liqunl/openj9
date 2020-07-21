@@ -254,7 +254,7 @@ const char * const JavaBCNames[] = {
 "JBunimplemented" /* 227 */,
 "JBreturnFromConstructor" /* 228 */,
 "JBgenericReturn" /* 229 */,
-"JBinvokehandlebasic" /* 230 */,
+"JBunimplemented" /* 230 */,
 "JBinvokeinterface2" /* 231 */,
 "JBinvokehandle" /* 232 */,
 "JBinvokehandlegeneric" /* 233 */,

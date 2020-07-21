@@ -2354,7 +2354,7 @@ jvmtiGetConstantPool_writeConstants(jvmtiGcp_translation *translation, unsigned 
 					GCP_WRITE_U8 (constantPoolBufIndex, CFR_CONSTANT_MethodType);
 					GCP_WRITE_U16(constantPoolBufIndex, htEntry->type.methodType.methodTypeIndex);
 				} else {
-					/* invokehandle, invokehandlebasic or invokehandlegeneric: MethodType mapped to MethodRef */
+					/* invokehandle or invokehandlegeneric: MethodType mapped to MethodRef */
 					jvmtiGetConstantPoolWrite_printf(("        HT CPT %2d <MethodRef from MethodType> UTF8 %d->[%s]\n",
 														  htEntry->cpType, htEntry->type.methodType.methodTypeIndex, ""));
 					GCP_WRITE_U8 (constantPoolBufIndex, CFR_CONSTANT_Methodref);

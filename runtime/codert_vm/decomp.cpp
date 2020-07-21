@@ -549,7 +549,6 @@ getPendingStackHeight(J9VMThread *currentThread, U_8 *interpreterPC, J9Method *r
 		case JBinvokeinterface2:
 		case JBinvokehandle:
 		case JBinvokehandlegeneric:
-		case JBinvokehandlebasic:
 			/* Remove implicit receiver from pending stack */
 			pendingStackHeight -= 1;
 			/* Intentional fall-through */
