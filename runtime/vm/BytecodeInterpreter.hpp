@@ -8143,7 +8143,7 @@ retry:
 		J9ConstantPool *ramConstantPool = J9_CP_FROM_METHOD(_literals);
 		J9RAMMethodRef *ramMethodRef = ((J9RAMMethodRef*)ramConstantPool) + index;
 		UDATA invokeCacheIndex = ramMethodRef->methodIndexAndArgCount >> 8;
-		J9InvokeCacheEntry *resultEntry = ((J9InvokeCacheEntry *)J9_CLASS_FROM_CP(ramConstantPool)->invokeCache)[invokeCacheIndex];
+		J9InvokeCacheEntry *resultEntry = ((J9InvokeCacheEntry *)J9_CLASS_FROM_CP(ramConstantPool)->invokeCache) + invokeCacheIndex;
 		j9object_t volatile memberNameObject = resultEntry->target;
 		if (J9_EXPECTED(NULL != memberNameObject)) {
 			*--_sp = (UDATA)resultEntry->appendix;

@@ -2149,7 +2149,7 @@ resolveMethodHandle(J9VMThread *vmThread, J9ConstantPool *ramCP, UDATA cpIndex, 
 
 		if (memberName != NULL) {
 			/* store result */
-			J9InvokeCacheEntry *resultEntry = ((J9InvokeCacheEntry *)ramClass->invokeCache)[invokeCacheIndex];
+			J9InvokeCacheEntry *resultEntry = ((J9InvokeCacheEntry *)ramClass->invokeCache) + invokeCacheIndex;
 			resultEntry->target = memberName;
 			resultEntry->appendix = (j9object_t)J9JAVAARRAYOFOBJECT_LOAD(vmThread, appendix, 0);
 			
