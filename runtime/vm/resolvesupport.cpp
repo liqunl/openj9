@@ -435,6 +435,7 @@ resolveStaticMethodRefInto(J9VMThread *vmStruct, J9ConstantPool *ramCP, UDATA cp
 	J9Class *cpClass;
 	J9Class *methodClass = NULL;
 	BOOLEAN isResolvedClassAnInterface = FALSE;
+	J9ROMNameAndSignature *nameAndSig;
 	bool jitCompileTimeResolve = J9_ARE_ANY_BITS_SET(resolveFlags, J9_RESOLVE_FLAG_JIT_COMPILE_TIME);
 	bool canRunJavaCode = !jitCompileTimeResolve && J9_ARE_NO_BITS_SET(resolveFlags, J9_RESOLVE_FLAG_REDEFINE_CLASS);
 	bool throwException = canRunJavaCode && J9_ARE_NO_BITS_SET(resolveFlags, J9_RESOLVE_FLAG_NO_THROW_ON_FAIL);
@@ -451,6 +452,7 @@ resolveStaticMethodRefInto(J9VMThread *vmStruct, J9ConstantPool *ramCP, UDATA cp
 
 tryAgain:
 	romMethodRef = (J9ROMMethodRef *)&ramCP->romConstantPool[cpIndex];
+	nameAndSig = J9ROMMETHODREF_NAMEANDSIGNATURE(romMethodRef);
 
 	checkForDecompile(vmStruct, romMethodRef, jitCompileTimeResolve);
 
@@ -497,24 +499,9 @@ tryAgain:
 		lookupOptions |= J9_LOOK_INTERFACE;
 	}
 
-	J9ROMNameAndSignature *nameAndSig = J9ROMMETHODREF_NAMEANDSIGNATURE(romMethodRef);
 #if defined(J9VM_OPT_OPENJDK_METHODHANDLE)
-	J9JavaVM *vm = vmStruct->javaVM;
-
-	/* Stack allocate a byte array for VarHandle method name and signature. The array size is:
-	*  - J9ROMNameAndSignature
-	*  - Modified method name
-	*      - U_16 for J9UTF8 length
-	*      - 16 bytes for the original method name ("linkToInterface" is the longest)
-	*  - J9UTF8 for empty signature
-	*/
-	U_8 nameAndNAS[sizeof(J9ROMNameAndSignature) + (sizeof(U_16) + 16) + sizeof(J9UTF8)];
-
-	if ((NULL != cpShapeDescription)
-	&& (resolvedClass == J9VMJAVALANGINVOKEMETHODHANDLE(vm))
-	) {
+	if (resolvedClass == J9VMJAVALANGINVOKEMETHODHANDLE(vmStruct->javaVM)) {
 		J9UTF8 *nameUTF = J9ROMNAMEANDSIGNATURE_NAME(nameAndSig);
-		J9UTF8 *sigUTF = J9ROMNAMEANDSIGNATURE_SIGNATURE(nameAndSig);
 		/**
 		 * Check for MH intrinsic methods
 		 *
@@ -527,29 +514,37 @@ tryAgain:
 
 		switch (initialMethodNameLength) {
 		case 11:
-			if (J9UTF8_LITERAL_EQUALS(methodName, methodNameLength, "invokeBasic")) {
+			if (J9UTF8_LITERAL_EQUALS(initialMethodName, initialMethodNameLength, "invokeBasic")) {
 				isMethodHandle = TRUE;
 			}
 			break;
 		case 12:
-			if (J9UTF8_LITERAL_EQUALS(methodName, methodNameLength, "linkToStatic")) {
+			if (J9UTF8_LITERAL_EQUALS(initialMethodName, initialMethodNameLength, "linkToStatic")) {
 				isMethodHandle = TRUE;
 			}
 			break;
 		case 13:
-			if (J9UTF8_LITERAL_EQUALS(methodName, methodNameLength, "linkToSpecial")
-			||  J9UTF8_LITERAL_EQUALS(methodName, methodNameLength, "linkToVirtual")) {
+			if (J9UTF8_LITERAL_EQUALS(initialMethodName, initialMethodNameLength, "linkToSpecial")
+			||  J9UTF8_LITERAL_EQUALS(initialMethodName, initialMethodNameLength, "linkToVirtual")) {
 				isMethodHandle = TRUE;
 			}
 			break;
 		case 15:
-			if (J9UTF8_LITERAL_EQUALS(methodName, methodNameLength, "linkToInterface")) {
+			if (J9UTF8_LITERAL_EQUALS(initialMethodName, initialMethodNameLength, "linkToInterface")) {
 				isMethodHandle = TRUE;
 			}
 			break;
 		}
 
 		if (isMethodHandle) {
+			/* Stack allocate a byte array for MethodHandle method name and signature. The array size is:
+			*  - J9ROMNameAndSignature
+			*  - Modified method name
+			*      - U_16 for J9UTF8 length
+			*      - 16 bytes for the original method name ("linkToInterface" is the longest)
+			*  - J9UTF8 for empty signature
+			*/
+			U_8 nameAndNAS[sizeof(J9ROMNameAndSignature) + (sizeof(U_16) + 16) + sizeof(J9UTF8)];
 			J9UTF8 *modifiedMethodName = (J9UTF8 *)(nameAndNAS + sizeof(J9ROMNameAndSignature));
 			J9UTF8 *modifiedMethodSig = (J9UTF8 *)(nameAndNAS + sizeof(nameAndNAS) - sizeof(J9UTF8));
 			memset(nameAndNAS, 0, sizeof(nameAndNAS));
@@ -1450,7 +1445,6 @@ resolveVirtualMethodRefInto(J9VMThread *vmStruct, J9ConstantPool *ramCP, UDATA c
 		&& (resolvedClass == J9VMJAVALANGINVOKEMETHODHANDLE(vm))
 		) {
 			J9UTF8 *nameUTF = J9ROMNAMEANDSIGNATURE_NAME(nameAndSig);
-			J9UTF8 *sigUTF = J9ROMNAMEANDSIGNATURE_SIGNATURE(nameAndSig);
 #if defined(J9VM_OPT_OPENJDK_METHODHANDLE)
 			/**
 			 * Check for MH intrinsic methods
@@ -1464,23 +1458,23 @@ resolveVirtualMethodRefInto(J9VMThread *vmStruct, J9ConstantPool *ramCP, UDATA c
 
 			switch (initialMethodNameLength) {
 			case 11:
-				if (J9UTF8_LITERAL_EQUALS(methodName, methodNameLength, "invokeBasic")) {
+				if (J9UTF8_LITERAL_EQUALS(initialMethodName, initialMethodNameLength, "invokeBasic")) {
 					isMethodHandle = TRUE;
 				}
 				break;
 			case 12:
-				if (J9UTF8_LITERAL_EQUALS(methodName, methodNameLength, "linkToStatic")) {
+				if (J9UTF8_LITERAL_EQUALS(initialMethodName, initialMethodNameLength, "linkToStatic")) {
 					isMethodHandle = TRUE;
 				}
 				break;
 			case 13:
-				if (J9UTF8_LITERAL_EQUALS(methodName, methodNameLength, "linkToSpecial")
-				||  J9UTF8_LITERAL_EQUALS(methodName, methodNameLength, "linkToVirtual")) {
+				if (J9UTF8_LITERAL_EQUALS(initialMethodName, initialMethodNameLength, "linkToSpecial")
+				||  J9UTF8_LITERAL_EQUALS(initialMethodName, initialMethodNameLength, "linkToVirtual")) {
 					isMethodHandle = TRUE;
 				}
 				break;
 			case 15:
-				if (J9UTF8_LITERAL_EQUALS(methodName, methodNameLength, "linkToInterface")) {
+				if (J9UTF8_LITERAL_EQUALS(initialMethodName, initialMethodNameLength, "linkToInterface")) {
 					isMethodHandle = TRUE;
 				}
 				break;
@@ -1503,13 +1497,14 @@ resolveVirtualMethodRefInto(J9VMThread *vmStruct, J9ConstantPool *ramCP, UDATA c
 				lookupOptions |= J9_LOOK_PARTIAL_SIGNATURE;
 			}
 #else /* defined(J9VM_OPT_OPENJDK_METHODHANDLE) */
+			J9UTF8 *sigUTF = J9ROMNAMEANDSIGNATURE_SIGNATURE(nameAndSig);
 			/*
-			* Check for MH.invoke and MH.invokeExact.
-			*
-			* Methodrefs corresponding to those methods already have their methodIndex set to index into
-			* cpClass->methodTypes. We resolve them by calling into MethodType.fromMethodDescriptorString()
-			* and storing the result into the cpClass->methodTypes table.
-			*/
+			 * Check for MH.invoke and MH.invokeExact.
+			 *
+			 * Methodrefs corresponding to those methods already have their methodIndex set to index into
+			 * cpClass->methodTypes. We resolve them by calling into MethodType.fromMethodDescriptorString()
+			 * and storing the result into the cpClass->methodTypes table.
+			 */
 			if ((J9CPTYPE_HANDLE_METHOD == J9_CP_TYPE(cpShapeDescription, cpIndex))
 			|| J9UTF8_LITERAL_EQUALS(J9UTF8_DATA(nameUTF), J9UTF8_LENGTH(nameUTF), "invokeExact")
 			|| J9UTF8_LITERAL_EQUALS(J9UTF8_DATA(nameUTF), J9UTF8_LENGTH(nameUTF), "invoke")
@@ -2118,9 +2113,9 @@ resolveMethodHandle(J9VMThread *vmThread, J9ConstantPool *ramCP, UDATA cpIndex, 
 		return NULL;
 	}
 
-	J9RAMMethodRef *ramCPEntry = (J9RAMConstantDynamicRef*)ramCP + cpIndex;
-	UDATA invokeCacheIndex = ramMethodRef->methodIndexAndArgCount >> 8;
-	J9Class *ramClass = J9_CLASS_FROM_CP(ramConstantPool);
+	J9RAMMethodRef *ramCPEntry = (J9RAMMethodRef*)ramCP + cpIndex;
+	UDATA invokeCacheIndex = ramCPEntry->methodIndexAndArgCount >> 8;
+	J9Class *ramClass = J9_CLASS_FROM_CP(ramCP);
 	J9ROMMethodRef *romMethodRef = (J9ROMMethodRef *)&ramCP->romConstantPool[cpIndex];
 	J9ROMNameAndSignature *nameAndSig = J9ROMMETHODREF_NAMEANDSIGNATURE(romMethodRef);
 
@@ -2133,11 +2128,11 @@ resolveMethodHandle(J9VMThread *vmThread, J9ConstantPool *ramCP, UDATA cpIndex, 
 		if (NULL == arrayClass) {
 			/* Allocate an array class */
 			J9ROMArrayClass* arrayOfObjectsROMClass = (J9ROMArrayClass*)J9ROMIMAGEHEADER_FIRSTCLASS(vmThread->javaVM->arrayROMClasses);
-			resultClass = vmThread->javaVM->internalVMFunctions->internalCreateArrayClass(vmThread, arrayOfObjectsROMClass, objectClass);
+			arrayClass = vmThread->javaVM->internalVMFunctions->internalCreateArrayClass(vmThread, arrayOfObjectsROMClass, objectClass);
 		}
 		j9object_t appendix = vm->memoryManagerFunctions->J9AllocateIndexableObject(vmThread, arrayClass, 1, J9_GC_ALLOCATE_OBJECT_INSTRUMENTABLE);
 
-		sendResolveMethodHandle(vmThread, ramCP, MH_REF_INVOKEVIRTUAL, resolvedClass, nameAndSig, appendix);
+		sendResolveMethodHandle2(vmThread, ramCP, cpIndex, MH_REF_INVOKEVIRTUAL, resolvedClass, nameAndSig, appendix);
 		memberName = (j9object_t)vmThread->returnValue;
 
 		if (vmThread->currentException != NULL) {
