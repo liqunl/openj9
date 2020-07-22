@@ -496,7 +496,78 @@ tryAgain:
 	if (isResolvedClassAnInterface) {
 		lookupOptions |= J9_LOOK_INTERFACE;
 	}
-	method = (J9Method *)javaLookupMethod(vmStruct, resolvedClass, J9ROMMETHODREF_NAMEANDSIGNATURE(romMethodRef), cpClass, lookupOptions);
+
+	J9ROMNameAndSignature *nameAndSig = J9ROMMETHODREF_NAMEANDSIGNATURE(romMethodRef);
+#if defined(J9VM_OPT_OPENJDK_METHODHANDLE)
+	J9JavaVM *vm = vmStruct->javaVM;
+
+	/* Stack allocate a byte array for VarHandle method name and signature. The array size is:
+	*  - J9ROMNameAndSignature
+	*  - Modified method name
+	*      - U_16 for J9UTF8 length
+	*      - 16 bytes for the original method name ("linkToInterface" is the longest)
+	*  - J9UTF8 for empty signature
+	*/
+	U_8 nameAndNAS[sizeof(J9ROMNameAndSignature) + (sizeof(U_16) + 16) + sizeof(J9UTF8)];
+
+	if ((NULL != cpShapeDescription)
+	&& (resolvedClass == J9VMJAVALANGINVOKEMETHODHANDLE(vm))
+	) {
+		J9UTF8 *nameUTF = J9ROMNAMEANDSIGNATURE_NAME(nameAndSig);
+		J9UTF8 *sigUTF = J9ROMNAMEANDSIGNATURE_SIGNATURE(nameAndSig);
+		/**
+		 * Check for MH intrinsic methods
+		 *
+		 * Modify the signature to avoid signature mismatch due to varargs
+		 * These methods have special INL send targets
+		 */
+		U_8* initialMethodName = J9UTF8_DATA(nameUTF);
+		U_16 initialMethodNameLength = J9UTF8_LENGTH(nameUTF);
+		BOOLEAN isMethodHandle = FALSE;
+
+		switch (initialMethodNameLength) {
+		case 11:
+			if (J9UTF8_LITERAL_EQUALS(methodName, methodNameLength, "invokeBasic")) {
+				isMethodHandle = TRUE;
+			}
+			break;
+		case 12:
+			if (J9UTF8_LITERAL_EQUALS(methodName, methodNameLength, "linkToStatic")) {
+				isMethodHandle = TRUE;
+			}
+			break;
+		case 13:
+			if (J9UTF8_LITERAL_EQUALS(methodName, methodNameLength, "linkToSpecial")
+			||  J9UTF8_LITERAL_EQUALS(methodName, methodNameLength, "linkToVirtual")) {
+				isMethodHandle = TRUE;
+			}
+			break;
+		case 15:
+			if (J9UTF8_LITERAL_EQUALS(methodName, methodNameLength, "linkToInterface")) {
+				isMethodHandle = TRUE;
+			}
+			break;
+		}
+
+		if (isMethodHandle) {
+			J9UTF8 *modifiedMethodName = (J9UTF8 *)(nameAndNAS + sizeof(J9ROMNameAndSignature));
+			J9UTF8 *modifiedMethodSig = (J9UTF8 *)(nameAndNAS + sizeof(nameAndNAS) - sizeof(J9UTF8));
+			memset(nameAndNAS, 0, sizeof(nameAndNAS));
+
+			/* Create new J9ROMNameAndSignature */
+			nameAndSig = (J9ROMNameAndSignature *)nameAndNAS;
+			NNSRP_SET(nameAndSig->name, modifiedMethodName);
+			NNSRP_SET(nameAndSig->signature, modifiedMethodSig);
+
+			modifiedMethodName->length = initialMethodNameLength;
+			memcpy(modifiedMethodName->data, initialMethodName, initialMethodNameLength);
+
+			/* Set flag for partial signature lookup. Signature length is already initialized to 0. */
+			lookupOptions |= J9_LOOK_PARTIAL_SIGNATURE;
+		}
+	}
+#endif /* defined(J9VM_OPT_OPENJDK_METHODHANDLE) */
+	method = (J9Method *)javaLookupMethod(vmStruct, resolvedClass, nameAndSig, cpClass, lookupOptions);
 
 	Trc_VM_resolveStaticMethodRef_lookupMethod(vmStruct, method);
 
@@ -1365,28 +1436,80 @@ resolveVirtualMethodRefInto(J9VMThread *vmStruct, J9ConstantPool *ramCP, UDATA c
 #if defined(J9VM_OPT_METHOD_HANDLE) || defined(J9VM_OPT_OPENJDK_METHODHANDLE)
 		J9JavaVM *vm = vmStruct->javaVM;
 
-                /* Stack allocate a byte array for VarHandle method name and signature. The array size is:
-                 *  - J9ROMNameAndSignature
-                 *  - Modified method name
-                 *      - U_16 for J9UTF8 length
-                 *      - 26 bytes for the original method name ("compareAndExchange" is the longest)
-                 *      - 5 bytes for "_impl".
-                 *  - J9UTF8 for empty signature
-                 */
+		/* Stack allocate a byte array for VarHandle method name and signature. The array size is:
+		*  - J9ROMNameAndSignature
+		*  - Modified method name
+		*      - U_16 for J9UTF8 length
+		*      - 26 bytes for the original method name ("compareAndExchangeRelease" is the longest)
+		*      - 5 bytes for "_impl".
+		*  - J9UTF8 for empty signature
+		*/
 		U_8 nameAndNAS[sizeof(J9ROMNameAndSignature) + (sizeof(U_16) + 26 + 5) + sizeof(J9UTF8)];
 
-		/*
-		 * Check for MH.invoke and MH.invokeExact.
-		 *
-		 * Methodrefs corresponding to those methods already have their methodIndex set to index into
-		 * cpClass->methodTypes. We resolve them by calling into MethodType.fromMethodDescriptorString()
-		 * and storing the result into the cpClass->methodTypes table.
-		 */
 		if ((NULL != cpShapeDescription)
 		&& (resolvedClass == J9VMJAVALANGINVOKEMETHODHANDLE(vm))
 		) {
 			J9UTF8 *nameUTF = J9ROMNAMEANDSIGNATURE_NAME(nameAndSig);
 			J9UTF8 *sigUTF = J9ROMNAMEANDSIGNATURE_SIGNATURE(nameAndSig);
+#if defined(J9VM_OPT_OPENJDK_METHODHANDLE)
+			/**
+			 * Check for MH intrinsic methods
+			 *
+			 * Modify the signature to avoid signature mismatch due to varargs
+			 * These methods have special INL send targets
+			 */
+			U_8* initialMethodName = J9UTF8_DATA(nameUTF);
+			U_16 initialMethodNameLength = J9UTF8_LENGTH(nameUTF);
+			BOOLEAN isMethodHandle = FALSE;
+
+			switch (initialMethodNameLength) {
+			case 11:
+				if (J9UTF8_LITERAL_EQUALS(methodName, methodNameLength, "invokeBasic")) {
+					isMethodHandle = TRUE;
+				}
+				break;
+			case 12:
+				if (J9UTF8_LITERAL_EQUALS(methodName, methodNameLength, "linkToStatic")) {
+					isMethodHandle = TRUE;
+				}
+				break;
+			case 13:
+				if (J9UTF8_LITERAL_EQUALS(methodName, methodNameLength, "linkToSpecial")
+				||  J9UTF8_LITERAL_EQUALS(methodName, methodNameLength, "linkToVirtual")) {
+					isMethodHandle = TRUE;
+				}
+				break;
+			case 15:
+				if (J9UTF8_LITERAL_EQUALS(methodName, methodNameLength, "linkToInterface")) {
+					isMethodHandle = TRUE;
+				}
+				break;
+			}
+
+			if (isMethodHandle) {
+				J9UTF8 *modifiedMethodName = (J9UTF8 *)(nameAndNAS + sizeof(J9ROMNameAndSignature));
+				J9UTF8 *modifiedMethodSig = (J9UTF8 *)(nameAndNAS + sizeof(nameAndNAS) - sizeof(J9UTF8));
+				memset(nameAndNAS, 0, sizeof(nameAndNAS));
+
+				/* Create new J9ROMNameAndSignature */
+				nameAndSig = (J9ROMNameAndSignature *)nameAndNAS;
+				NNSRP_SET(nameAndSig->name, modifiedMethodName);
+				NNSRP_SET(nameAndSig->signature, modifiedMethodSig);
+
+				modifiedMethodName->length = initialMethodNameLength;
+				memcpy(modifiedMethodName->data, initialMethodName, initialMethodNameLength);
+
+				/* Set flag for partial signature lookup. Signature length is already initialized to 0. */
+				lookupOptions |= J9_LOOK_PARTIAL_SIGNATURE;
+			}
+#else /* defined(J9VM_OPT_OPENJDK_METHODHANDLE) */
+			/*
+			* Check for MH.invoke and MH.invokeExact.
+			*
+			* Methodrefs corresponding to those methods already have their methodIndex set to index into
+			* cpClass->methodTypes. We resolve them by calling into MethodType.fromMethodDescriptorString()
+			* and storing the result into the cpClass->methodTypes table.
+			*/
 			if ((J9CPTYPE_HANDLE_METHOD == J9_CP_TYPE(cpShapeDescription, cpIndex))
 			|| J9UTF8_LITERAL_EQUALS(J9UTF8_DATA(nameUTF), J9UTF8_LENGTH(nameUTF), "invokeExact")
 			|| J9UTF8_LITERAL_EQUALS(J9UTF8_DATA(nameUTF), J9UTF8_LENGTH(nameUTF), "invoke")
@@ -1448,6 +1571,7 @@ resolveVirtualMethodRefInto(J9VMThread *vmStruct, J9ConstantPool *ramCP, UDATA c
 
 				goto done;
 			}
+#endif /* defined(J9VM_OPT_OPENJDK_METHODHANDLE) */
 		} else if (resolvedClass == J9VMJAVALANGINVOKEVARHANDLE_OR_NULL(vm)) {
 			J9UTF8 *nameUTF = J9ROMNAMEANDSIGNATURE_NAME(nameAndSig);
 			J9UTF8 *sigUTF = J9ROMNAMEANDSIGNATURE_SIGNATURE(nameAndSig);
