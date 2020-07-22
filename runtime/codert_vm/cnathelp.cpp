@@ -2080,7 +2080,7 @@ old_slow_jitResolveHandleMethod(J9VMThread *currentThread)
 	U_32 classRefCPIndex = romMethodRef->classRefCPIndex;
 	J9RAMClassRef *ramClassRef = ((J9RAMClassRef *)ramConstantPool) + classRefCPIndex;
 	J9Class *targetClass = ramClassRef->value;
-
+#if !defined(J9VM_OPT_OPENJDK_METHODHANDLE)
 	/* Ensure that the call site class ref is resolved */
 	if (NULL == targetClass) {
 		buildJITResolveFrameWithPC(currentThread, J9_SSF_JIT_RESOLVE_DATA, parmCount, true, 0, jitEIP);
@@ -2116,7 +2116,7 @@ retry:
 		}
 		goto retry;
 	}
-
+#endif /* !defined(J9VM_OPT_OPENJDK_METHODHANDLE) */
 	JIT_RETURN_UDATA(methodTypePtr);
 done:
 	SLOW_JIT_HELPER_EPILOGUE();
