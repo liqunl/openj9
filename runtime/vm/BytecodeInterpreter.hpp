@@ -8238,39 +8238,6 @@ done:
 
 #if defined(J9VM_OPT_OPENJDK_METHODHANDLE)
 	VMINLINE VM_BytecodeAction
-	invokeHandle(REGISTER_ARGS_LIST)
-	{
-retry:
-		VM_BytecodeAction rc = GOTO_RUN_METHOD;
-		U_16 index = *(U_16*)(_pc + 1);
-		J9ConstantPool *ramConstantPool = J9_CP_FROM_METHOD(_literals);
-		J9RAMMethodRef *ramMethodRef = ((J9RAMMethodRef*)ramConstantPool) + index;
-		UDATA methodTypeIndex = ramMethodRef->methodIndexAndArgCount >> 8;
-		j9object_t volatile type = J9_CLASS_FROM_CP(ramConstantPool)->methodTypes[methodTypeIndex];
-		j9object_t memberNameObject = (j9object_t)ramMethodRef->method;
-		if (J9_EXPECTED(NULL != memberNameObject)) {
-			*--_sp = (UDATA)type;
-			_sendMethod = (J9Method *)J9OBJECT_ADDRESS_LOAD(_currentThread, memberNameObject, _vm->vmtargetOffset);
-		} else {
-			buildGenericSpecialStackFrame(REGISTER_ARGS, 0);
-			updateVMStruct(REGISTER_ARGS);
-			// add new resolve code which calls sendResolveInvokeHandle -> MHN.linkMethod()
-			// store the appendix value in methodTypes[MTindex] and memberName in slot2
-			resolveMethodHandle(_currentThread, ramConstantPool, index, J9_RESOLVE_FLAG_RUNTIME_RESOLVE);
-			VMStructHasBeenUpdated(REGISTER_ARGS);
-			restoreGenericSpecialStackFrame(REGISTER_ARGS);
-			if (immediateAsyncPending()) {
-				rc = GOTO_ASYNC_CHECK;
-			} else if (VM_VMHelpers::exceptionPending(_currentThread)) {
-				rc = GOTO_THROW_CURRENT_EXCEPTION;
-			} else {
-				goto retry;
-			}
-		}
-		return rc;
-	}
-
-	VMINLINE VM_BytecodeAction
 	invokeBasic(REGISTER_ARGS_LIST)
 	{
 		U_16 index = *(U_16*)(_pc + 1);
@@ -9189,7 +9156,6 @@ public:
 		JUMP_TABLE_ENTRY(J9_BCLOOP_SEND_TARGET_CLASS_ARRAY_TYPE_IMPL),
 		JUMP_TABLE_ENTRY(J9_BCLOOP_SEND_TARGET_CLASS_IS_RECORD),
 #if defined(J9VM_OPT_OPENJDK_METHODHANDLE)
-		JUMP_TABLE_ENTRY(J9_BCLOOP_SEND_TARGET_METHODHANDLE_INVOKE),
 		JUMP_TABLE_ENTRY(J9_BCLOOP_SEND_TARGET_METHODHANDLE_INVOKEBASIC),
 		JUMP_TABLE_ENTRY(J9_BCLOOP_SEND_TARGET_METHODHANDLE_LINKTOSTATICSPECIAL),
 		JUMP_TABLE_ENTRY(J9_BCLOOP_SEND_TARGET_METHODHANDLE_LINKTOVIRTUAL),
@@ -9766,8 +9732,6 @@ runMethod: {
 	JUMP_TARGET(J9_BCLOOP_SEND_TARGET_CLASS_IS_RECORD):
 		PERFORM_ACTION(inlClassIsRecord(REGISTER_ARGS));
 #if defined(J9VM_OPT_OPENJDK_METHODHANDLE)
-	JUMP_TARGET(J9_BCLOOP_SEND_TARGET_METHODHANDLE_INVOKE):
-		PERFORM_ACTION(invokeHandle(REGISTER_ARGS));
 	JUMP_TARGET(J9_BCLOOP_SEND_TARGET_METHODHANDLE_INVOKEBASIC):
 		PERFORM_ACTION(invokeBasic(REGISTER_ARGS));
 	JUMP_TARGET(J9_BCLOOP_SEND_TARGET_METHODHANDLE_LINKTOSTATICSPECIAL):

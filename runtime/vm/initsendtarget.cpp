@@ -47,16 +47,9 @@ initializeMethodRunAddressMethodHandle(J9Method *method)
 			U_8 * methodName = J9UTF8_DATA(methodNameUTF);
 
 			switch (methodNameLength) {
-			case 6:
-				if (J9UTF8_LITERAL_EQUALS(methodName, methodNameLength, "invoke")) {
-					methodRunAddress = J9_BCLOOP_ENCODE_SEND_TARGET(J9_BCLOOP_SEND_TARGET_METHODHANDLE_INVOKE);
-				}
-				break;
 			case 11:
 				if (J9UTF8_LITERAL_EQUALS(methodName, methodNameLength, "invokeBasic")) {
 					methodRunAddress = J9_BCLOOP_ENCODE_SEND_TARGET(J9_BCLOOP_SEND_TARGET_METHODHANDLE_INVOKEBASIC);
-				} else if (J9UTF8_LITERAL_EQUALS(methodName, methodNameLength, "invokeExact")) {
-					methodRunAddress = J9_BCLOOP_ENCODE_SEND_TARGET(J9_BCLOOP_SEND_TARGET_METHODHANDLE_INVOKE);
 				}
 				break;
 			case 12:
