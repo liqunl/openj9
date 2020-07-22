@@ -1987,7 +1987,7 @@ resolveMethodHandle(J9VMThread *vmThread, J9ConstantPool *ramCP, UDATA cpIndex, 
 {
 	J9JavaVM *vm = vmThread->javaVM;
 	j9object_t memberName = NULL;
-
+#if defined(J9VM_OPT_OPENJDK_METHODHANDLE)
 	bool canRunJavaCode = J9_ARE_NO_BITS_SET(resolveFlags, J9_RESOLVE_FLAG_JIT_COMPILE_TIME | J9_RESOLVE_FLAG_REDEFINE_CLASS);
 
 	if (!canRunJavaCode) {
@@ -1995,7 +1995,7 @@ resolveMethodHandle(J9VMThread *vmThread, J9ConstantPool *ramCP, UDATA cpIndex, 
 	}
 
 	J9RAMMethodRef *ramCPEntry = (J9RAMConstantDynamicRef*)ramCP + cpIndex;
-	UDATA methodTypeIndex = ramMethodRef->methodIndexAndArgCount >> 8;
+	UDATA invokeCacheIndex = ramMethodRef->methodIndexAndArgCount >> 8;
 	J9Class *ramClass = J9_CLASS_FROM_CP(ramConstantPool);
 	J9ROMMethodRef *romMethodRef = (J9ROMMethodRef *)&ramCP->romConstantPool[cpIndex];
 	J9ROMNameAndSignature *nameAndSig = J9ROMMETHODREF_NAMEANDSIGNATURE(romMethodRef);
@@ -2004,7 +2004,13 @@ resolveMethodHandle(J9VMThread *vmThread, J9ConstantPool *ramCP, UDATA cpIndex, 
 	J9Class *resolvedClass = resolveClassRef(vmThread, ramCP, romMethodRef->classRefCPIndex, resolveFlags);
 	if (resolvedClass != NULL) {
 		/* Create appendix array*/
-		J9Class *arrayClass = fetchArrayClass(vmThread, J9VMJAVALANGOBJECT(vm));
+		J9Class *objectClass = J9VMJAVALANGOBJECT(vm);
+		J9Class *arrayClass = objectClass->arrayClass;
+		if (NULL == arrayClass) {
+			/* Allocate an array class */
+			J9ROMArrayClass* arrayOfObjectsROMClass = (J9ROMArrayClass*)J9ROMIMAGEHEADER_FIRSTCLASS(vmThread->javaVM->arrayROMClasses);
+			resultClass = vmThread->javaVM->internalVMFunctions->internalCreateArrayClass(vmThread, arrayOfObjectsROMClass, objectClass);
+		}
 		j9object_t appendix = vm->memoryManagerFunctions->J9AllocateIndexableObject(vmThread, arrayClass, 1, J9_GC_ALLOCATE_OBJECT_INSTRUMENTABLE);
 
 		sendResolveMethodHandle(vmThread, ramCP, MH_REF_INVOKEVIRTUAL, resolvedClass, nameAndSig, appendix);
@@ -2019,11 +2025,13 @@ resolveMethodHandle(J9VMThread *vmThread, J9ConstantPool *ramCP, UDATA cpIndex, 
 
 		if (memberName != NULL) {
 			/* store result */
-			ramClass->methodTypes[methodTypeIndex] = (j9object_t)J9JAVAARRAYOFOBJECT_LOAD(vmThread, appendix, 0);
-			((J9RAMConstantPoolItem *)ramCPEntry)->slot2 = (UDATA)memberName;
+			J9InvokeCacheEntry *resultEntry = ((J9InvokeCacheEntry *)ramClass->invokeCache)[invokeCacheIndex];
+			resultEntry->target = memberName;
+			resultEntry->appendix = (j9object_t)J9JAVAARRAYOFOBJECT_LOAD(vmThread, appendix, 0);
+			
 		}
 	}
-
+#endif /* defined(J9VM_OPT_OPENJDK_METHODHANDLE) */
 	return memberName;
 }
 

@@ -63,7 +63,11 @@ enum J9ClassFragments {
 	RAM_STATICS_FRAGMENT,
 	RAM_CONSTANT_POOL_FRAGMENT,
 	RAM_CALL_SITES_FRAGMENT,
+#if defined(J9VM_OPT_OPENJDK_METHODHANDLE)
+	RAM_INVOKE_CACHE_FRAGMENT,
+#else /* defined(J9VM_OPT_OPENJDK_METHODHANDLE) */
 	RAM_METHOD_TYPES_FRAGMENT,
+#endif /* defined(J9VM_OPT_OPENJDK_METHODHANDLE) */
 	RAM_VARHANDLE_METHOD_TYPES_FRAGMENT,
 	RAM_STATIC_SPLIT_TABLE_FRAGMENT,
 	RAM_SPECIAL_SPLIT_TABLE_FRAGMENT,
@@ -2207,7 +2211,11 @@ fail:
 		classSize += romClass->callSiteCount;
 
 		/* add in the method types */
+#if defined(J9VM_OPT_OPENJDK_METHODHANDLE)
+		classSize += romClass->invokeCacheCount * 2;
+#else /* defined(J9VM_OPT_OPENJDK_METHODHANDLE) */
 		classSize += romClass->methodTypeCount;
+#endif /* defined(J9VM_OPT_OPENJDK_METHODHANDLE) */
 
 		/* add in the varhandle method types */
 		classSize += romClass->varHandleMethodTypeCount;
@@ -2439,10 +2447,17 @@ fail:
 			allocationRequests[RAM_CALL_SITES_FRAGMENT].address = NULL;
 
 			/* method types fragment */
+#if defined(J9VM_OPT_OPENJDK_METHODHANDLE)
+			allocationRequests[RAM_INVOKE_CACHE_FRAGMENT].prefixSize = 0;
+			allocationRequests[RAM_INVOKE_CACHE_FRAGMENT].alignment = sizeof(UDATA);
+			allocationRequests[RAM_INVOKE_CACHE_FRAGMENT].alignedSize = romClass->invokeCacheCount * 2 * sizeof(UDATA);
+			allocationRequests[RAM_INVOKE_CACHE_FRAGMENT].address = NULL;
+#else /* defined(J9VM_OPT_OPENJDK_METHODHANDLE) */
 			allocationRequests[RAM_METHOD_TYPES_FRAGMENT].prefixSize = 0;
 			allocationRequests[RAM_METHOD_TYPES_FRAGMENT].alignment = sizeof(UDATA);
 			allocationRequests[RAM_METHOD_TYPES_FRAGMENT].alignedSize = romClass->methodTypeCount * sizeof(UDATA);
 			allocationRequests[RAM_METHOD_TYPES_FRAGMENT].address = NULL;
+#endif /* defined(J9VM_OPT_OPENJDK_METHODHANDLE) */
 
 			/* varhandle method types fragment */
 			allocationRequests[RAM_VARHANDLE_METHOD_TYPES_FRAGMENT].prefixSize = 0;
@@ -2516,7 +2531,11 @@ fail:
 				ramClass->ramStatics = allocationRequests[RAM_STATICS_FRAGMENT].address;
 				ramClass->ramConstantPool = allocationRequests[RAM_CONSTANT_POOL_FRAGMENT].address;
 				ramClass->callSites = (j9object_t *) allocationRequests[RAM_CALL_SITES_FRAGMENT].address;
+#if defined(J9VM_OPT_OPENJDK_METHODHANDLE)
+				ramClass->invokeCache = (j9object_t *) allocationRequests[RAM_INVOKE_CACHE_FRAGMENT].address;
+#else /* defined(J9VM_OPT_OPENJDK_METHODHANDLE) */
 				ramClass->methodTypes = (j9object_t *) allocationRequests[RAM_METHOD_TYPES_FRAGMENT].address;
+#endif /* defined(J9VM_OPT_OPENJDK_METHODHANDLE) */
 				ramClass->varHandleMethodTypes = (j9object_t *) allocationRequests[RAM_VARHANDLE_METHOD_TYPES_FRAGMENT].address;
 				ramClass->staticSplitMethodTable = (J9Method **) allocationRequests[RAM_STATIC_SPLIT_TABLE_FRAGMENT].address;
 				for (U_16 i = 0; i < romClass->staticSplitMethodRefCount; ++i) {
