@@ -145,27 +145,34 @@ initImpl(J9VMThread *currentThread, j9object_t membernameObject, j9object_t refO
 static char *
 sigForPrimitiveOrVoid(J9JavaVM *vm, J9Class *clazz)
 {
-	char* result = NULL;
+	char result = 0;
 	if (clazz == vm->booleanReflectClass)
-		*result = 'Z';
+		result = 'Z';
 	else if (clazz == vm->byteReflectClass)
-		*result = 'B';
+		result = 'B';
 	else if (clazz == vm->charReflectClass)
-		*result = 'C';
+		result = 'C';
 	else if (clazz == vm->shortReflectClass)
-		*result = 'S';
+		result = 'S';
 	else if (clazz == vm->intReflectClass)
-		*result = 'I';
+		result = 'I';
 	else if (clazz == vm->longReflectClass)
-		*result = 'J';
+		result = 'J';
 	else if (clazz == vm->floatReflectClass)
-		*result = 'F';
+		result = 'F';
 	else if (clazz == vm->doubleReflectClass)
-		*result = 'D';
+		result = 'D';
 	else if (clazz == vm->voidReflectClass)
-		*result = 'V';
+		result = 'V';
 
-	return result;
+	if (result) {
+		PORT_ACCESS_FROM_JAVAVM(vm);
+		char* signature = (char*)j9mem_allocate_memory(2 * sizeof(char*), OMRMEM_CATEGORY_VM);
+		signature[0] = result;
+		signature[1] = '\0';
+		return signature;
+	}
+	return NULL;
 }
 
 char *
@@ -247,9 +254,7 @@ getSignatureFromMethodType(J9VMThread *currentThread, j9object_t typeObject, UDA
 		U_32 len = strlen(signatures[i]);
 		strncpy(cursor, signatures[i], len);
 		cursor += len;
-		if (len > 1) {
-			j9mem_free_memory(signatures[i]);
-		}
+		j9mem_free_memory(signatures[i]);
 	}
 
 	*cursor++ = ')';
@@ -703,7 +708,6 @@ Java_java_lang_invoke_MethodHandleNatives_resolve(JNIEnv *env, jclass clazz, job
 			char *name = (char*)j9mem_allocate_memory(nameLength, OMRMEM_CATEGORY_VM);
 			UDATA signatureLength = 0;
 			char *signature = NULL;
-			bool freeSig = true;
 			J9Class *typeClass = J9OBJECT_CLAZZ(currentThread, typeObject);
 			if (J9VMJAVALANGINVOKEMETHODTYPE(vm) == typeClass) {
 				j9object_t sigString = J9VMJAVALANGINVOKEMETHODTYPE_METHODDESCRIPTOR(currentThread, typeObject);
@@ -724,8 +728,6 @@ Java_java_lang_invoke_MethodHandleNatives_resolve(JNIEnv *env, jclass clazz, job
 				char* signature = sigForPrimitiveOrVoid(vm, rclass);
 				if (!signature) {
 					signature = getClassSignature(currentThread, rclass);
-				} else {
-					freeSig = false;
 				}
 
 				signatureLength = strlen(signature);
@@ -840,9 +842,7 @@ Java_java_lang_invoke_MethodHandleNatives_resolve(JNIEnv *env, jclass clazz, job
 				result = vmFuncs->j9jni_createLocalRef(env, membernameObject);
 			}
 			j9mem_free_memory(name);
-			if (freeSig) {
-				j9mem_free_memory(signature);
-			}
+			j9mem_free_memory(signature);
 
 			if ((NULL == result) && (JNI_TRUE != speculativeResolve) && !VM_VMHelpers::exceptionPending(currentThread)) {
 				if (J9_ARE_ANY_BITS_SET(flags, MN_IS_FIELD)) {
