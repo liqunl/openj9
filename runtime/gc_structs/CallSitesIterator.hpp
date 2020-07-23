@@ -45,7 +45,7 @@ class GC_CallSitesIterator
 	
 public:
 	GC_CallSitesIterator(J9Class *clazz) :
-		_callSiteCount(clazz->romClass->callSiteCount),
+		_callSiteCount(clazz->romClass->callSiteCount * 2),
 		_callSitePtr(clazz->callSites)
 	{
 		/* check if the class's call sites have been abandoned due to hot
