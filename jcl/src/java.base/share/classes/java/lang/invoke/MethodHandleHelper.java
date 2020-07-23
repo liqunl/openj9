@@ -184,7 +184,6 @@ public final class MethodHandleHelper {
 			Class<?> classObject = getClassFromJ9Class(j9class);
 			
 			type = MethodTypeHelper.vmResolveFromMethodDescriptorString(methodDescriptor, access.getClassloader(classObject), null);
-			final MethodHandles.Lookup lookup = new MethodHandles.Lookup(classObject);
 
 			int bsmIndex = UNSAFE.getShort(bsmData);
 			int bsmArgCount = UNSAFE.getShort(bsmData + BSM_ARGUMENT_COUNT_OFFSET);
@@ -194,16 +193,13 @@ public final class MethodHandleHelper {
 				/*[MSG "K05cd", "unable to resolve 'bootstrap_method_ref' in '{0}' at index {1}"]*/
 				throw new NullPointerException(Msg.getString("K05cd", classObject.toString(), bsmIndex)); //$NON-NLS-1$
 			}
-			Object[] staticArgs = new Object[BSM_OPTIONAL_ARGUMENTS_START_INDEX + bsmArgCount];
-			/* Mandatory arguments */
-			staticArgs[BSM_LOOKUP_ARGUMENT_INDEX] = lookup;
-			staticArgs[BSM_NAME_ARGUMENT_INDEX] = name;
-			staticArgs[BSM_TYPE_ARGUMENT_INDEX] = type;
+			Object[] staticArgs = new Object[bsmArgCount];
+
 		
 			/* Static optional arguments */
 			int bsmTypeArgCount = bsm.type().parameterCount();
 			for (int i = 0; i < bsmArgCount; i++) {
-				staticArgs[BSM_OPTIONAL_ARGUMENTS_START_INDEX + i] = getAdditionalBsmArg(access, internalRamClass, classObject, bsm, bsmArgs, bsmTypeArgCount, i);
+				staticArgs[i] = getAdditionalBsmArg(access, internalRamClass, classObject, bsm, bsmArgs, bsmTypeArgCount, i);
 			}
 
 			Object[] appendixResult = new Object[1];
