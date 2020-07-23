@@ -826,6 +826,13 @@ Java_java_lang_invoke_MethodHandleNatives_resolve(JNIEnv *env, jclass clazz, job
 					UDATA inconsistentData = 0;
 					J9JNIFieldID *fieldID = vmFuncs->getJNIFieldID(currentThread, declaringClass, romField, offset, &inconsistentData);
 					vmindex = (jlong)(UDATA)fieldID;
+
+					romField = fieldID->field;
+					offset = fieldID->offset | J9_SUN_STATIC_FIELD_OFFSET_TAG;
+
+					if (J9_ARE_ANY_BITS_SET(romField->modifiers, J9AccFinal)) {
+						offset |= J9_SUN_FINAL_FIELD_OFFSET_TAG;
+					}
 					target = (jlong)offset;
 
 					new_flags = flags | (fieldID->field->modifiers & CFR_FIELD_ACCESS_MASK);
@@ -1157,13 +1164,7 @@ Java_java_lang_invoke_MethodHandleNatives_staticFieldOffset(JNIEnv *env, jclass 
 		} else {
 			jint flags = J9VMJAVALANGINVOKEMEMBERNAME_FLAGS(currentThread, membernameObject);
 			if (J9_ARE_ANY_BITS_SET(flags, MN_IS_FIELD & J9AccStatic)) {
-				J9JNIFieldID *fieldID = (J9JNIFieldID*)J9OBJECT_ADDRESS_LOAD(currentThread, membernameObject, vm->vmindexOffset);
-				J9ROMFieldShape *romField = fieldID->field;
-				result = (jlong)fieldID->offset | J9_SUN_STATIC_FIELD_OFFSET_TAG;
-
-				if (J9_ARE_ANY_BITS_SET(romField->modifiers, J9AccFinal)) {
-					result |= J9_SUN_FINAL_FIELD_OFFSET_TAG;
-				}
+				result = (jlong)J9OBJECT_ADDRESS_LOAD(currentThread, membernameObject, vm->vmtargetOffset);
 			} else {
 				vmFuncs->setCurrentExceptionUTF(currentThread, J9VMCONSTANTPOOL_JAVALANGINTERNALERROR, NULL);
 			}
