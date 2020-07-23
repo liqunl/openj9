@@ -822,7 +822,7 @@ Java_java_lang_invoke_MethodHandleNatives_resolve(JNIEnv *env, jclass clazz, job
 					}
 				}
 
-				if (NULL != romField) {
+				if (NULL != declaringClass) {
 					UDATA inconsistentData = 0;
 					J9JNIFieldID *fieldID = vmFuncs->getJNIFieldID(currentThread, declaringClass, romField, offset, &inconsistentData);
 					vmindex = (jlong)(UDATA)fieldID;
