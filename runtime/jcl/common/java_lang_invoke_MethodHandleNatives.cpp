@@ -1125,7 +1125,7 @@ Java_java_lang_invoke_MethodHandleNatives_objectFieldOffset(JNIEnv *env, jclass 
 			vmFuncs->setCurrentExceptionUTF(currentThread, J9VMCONSTANTPOOL_JAVALANGINTERNALERROR, NULL);
 		} else {
 			jint flags = J9VMJAVALANGINVOKEMEMBERNAME_FLAGS(currentThread, membernameObject);
-			if (J9_ARE_ANY_BITS_SET(flags, MN_IS_FIELD) && J9_ARE_NO_BITS_SET(flags, J9AccStatic)) {
+			if (J9_ARE_ALL_BITS_SET(flags, MN_IS_FIELD) && J9_ARE_NO_BITS_SET(flags, J9AccStatic)) {
 				J9JNIFieldID *fieldID = (J9JNIFieldID*)J9OBJECT_ADDRESS_LOAD(currentThread, membernameObject, vm->vmindexOffset);
 				result = (jlong)fieldID->offset + J9VMTHREAD_OBJECT_HEADER_SIZE(currentThread);
 			} else {
@@ -1163,7 +1163,7 @@ Java_java_lang_invoke_MethodHandleNatives_staticFieldOffset(JNIEnv *env, jclass 
 			vmFuncs->setCurrentExceptionUTF(currentThread, J9VMCONSTANTPOOL_JAVALANGINTERNALERROR, NULL);
 		} else {
 			jint flags = J9VMJAVALANGINVOKEMEMBERNAME_FLAGS(currentThread, membernameObject);
-			if (J9_ARE_ANY_BITS_SET(flags, MN_IS_FIELD & J9AccStatic)) {
+			if (J9_ARE_ALL_BITS_SET(flags, MN_IS_FIELD & J9AccStatic)) {
 				result = (jlong)J9OBJECT_ADDRESS_LOAD(currentThread, membernameObject, vm->vmtargetOffset);
 			} else {
 				vmFuncs->setCurrentExceptionUTF(currentThread, J9VMCONSTANTPOOL_JAVALANGINTERNALERROR, NULL);
@@ -1198,7 +1198,7 @@ Java_java_lang_invoke_MethodHandleNatives_staticFieldBase(JNIEnv *env, jclass cl
 			vmFuncs->setCurrentExceptionUTF(currentThread, J9VMCONSTANTPOOL_JAVALANGINTERNALERROR, NULL);
 		} else {
 			jint flags = J9VMJAVALANGINVOKEMEMBERNAME_FLAGS(currentThread, membernameObject);
-			if (J9_ARE_ANY_BITS_SET(flags, MN_IS_FIELD & J9AccStatic)) {
+			if (J9_ARE_ALL_BITS_SET(flags, MN_IS_FIELD & J9AccStatic)) {
 				result = vmFuncs->j9jni_createLocalRef(env, clazzObject);
 			} else {
 				vmFuncs->setCurrentExceptionUTF(currentThread, J9VMCONSTANTPOOL_JAVALANGINTERNALERROR, NULL);
