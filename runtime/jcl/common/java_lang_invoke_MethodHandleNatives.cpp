@@ -786,8 +786,8 @@ Java_java_lang_invoke_MethodHandleNatives_resolve(JNIEnv *env, jclass clazz, job
 					new_flags = flags | (romMethod->modifiers & CFR_METHOD_ACCESS_MASK);
 				}
 			} if (J9_ARE_ANY_BITS_SET(flags, MN_IS_FIELD)) {
-				J9Class *declaringClass = NULL;
-				J9ROMFieldShape *romField = NULL;
+				J9Class *declaringClass;
+				J9ROMFieldShape *romField;
 				UDATA lookupOptions = 0;
 				UDATA offset = 0;
 				if (JNI_TRUE == speculativeResolve) {
@@ -799,7 +799,7 @@ Java_java_lang_invoke_MethodHandleNatives_resolve(JNIEnv *env, jclass clazz, job
 						resolvedClass,
 						(U_8*)name, strlen(name),
 						(U_8*)signature, strlen(signature),
-						&declaringClass, (UDATA*)romField,
+						&declaringClass, (UDATA*)&romField,
 						lookupOptions,
 						NULL);
 
@@ -814,7 +814,7 @@ Java_java_lang_invoke_MethodHandleNatives_resolve(JNIEnv *env, jclass clazz, job
 						resolvedClass,
 						(U_8*)name, strlen(name),
 						(U_8*)signature, strlen(signature),
-						&declaringClass, (UDATA*)romField,
+						&declaringClass, (UDATA*)&romField,
 						lookupOptions);
 
 					if (offset == (UDATA)-1) {
