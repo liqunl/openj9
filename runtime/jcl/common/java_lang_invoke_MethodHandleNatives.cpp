@@ -725,7 +725,7 @@ Java_java_lang_invoke_MethodHandleNatives_resolve(JNIEnv *env, jclass clazz, job
 				vmFuncs->copyStringToUTF8Helper(currentThread, typeObject, J9_STR_NULL_TERMINATE_RESULT | J9_STR_XLAT , 0, stringLength, (U_8 *)signature, signatureLength);
 			} else if (J9VMJAVALANGCLASS(vm) == typeClass) {
 				J9Class *rclass = J9VM_J9CLASS_FROM_HEAPCLASS(currentThread, typeObject);
-				char* signature = sigForPrimitiveOrVoid(vm, rclass);
+				signature = sigForPrimitiveOrVoid(vm, rclass);
 				if (!signature) {
 					signature = getClassSignature(currentThread, rclass);
 				}
