@@ -2443,7 +2443,11 @@ fail:
 			/* call sites fragment */
 			allocationRequests[RAM_CALL_SITES_FRAGMENT].prefixSize = 0;
 			allocationRequests[RAM_CALL_SITES_FRAGMENT].alignment = sizeof(UDATA);
+#if defined(J9VM_OPT_OPENJDK_METHODHANDLE)
+			allocationRequests[RAM_CALL_SITES_FRAGMENT].alignedSize = romClass->callSiteCount * 2 * sizeof(UDATA);
+#else /* defined(J9VM_OPT_OPENJDK_METHODHANDLE) */
 			allocationRequests[RAM_CALL_SITES_FRAGMENT].alignedSize = romClass->callSiteCount * sizeof(UDATA);
+#endif /* defined(J9VM_OPT_OPENJDK_METHODHANDLE) */
 			allocationRequests[RAM_CALL_SITES_FRAGMENT].address = NULL;
 
 			/* method types fragment */

@@ -195,7 +195,6 @@ public final class MethodHandleHelper {
 			}
 			Object[] staticArgs = new Object[bsmArgCount];
 
-		
 			/* Static optional arguments */
 			int bsmTypeArgCount = bsm.type().parameterCount();
 			for (int i = 0; i < bsmArgCount; i++) {

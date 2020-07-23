@@ -2279,8 +2279,8 @@ j9object_t
 resolveInvokeDynamic(J9VMThread *vmThread, J9ConstantPool *ramCP, UDATA callSiteIndex, UDATA resolveFlags)
 {
 	Assert_VM_true(J9_RESOLVE_FLAG_RUNTIME_RESOLVE == resolveFlags);
-	j9object_t *callSite = ramCP->ramClass->callSites + callSiteIndex;
-	j9object_t resultArray = *callSite;
+	J9InvokeCacheEntry *invokeCache = (J9InvokeCacheEntry *)ramCP->ramClass->callSites + callSiteIndex;
+	j9object_t result = invokeCache->target;
 
 	J9ROMClass *romClass = ramCP->ramClass->romClass;
 	J9SRP *callSiteData = (J9SRP *) J9ROMCLASS_CALLSITEDATA(romClass);
@@ -2291,8 +2291,8 @@ resolveInvokeDynamic(J9VMThread *vmThread, J9ConstantPool *ramCP, UDATA callSite
 	U_16 i;
 
 	/* Check if already resolved */
-	if (resultArray != NULL) {
-		return resultArray;
+	if (result != NULL) {
+		return result;
 	}
 
 	/* Walk bsmData - skip all bootstrap methods before bsmIndex */
@@ -2302,34 +2302,42 @@ resolveInvokeDynamic(J9VMThread *vmThread, J9ConstantPool *ramCP, UDATA callSite
 	}
 
 	sendResolveInvokeDynamic(vmThread, ramCP, callSiteIndex, nameAndSig, bsmData);
-	resultArray = (j9object_t) vmThread->returnValue;
+	result = (j9object_t)vmThread->returnValue;
 
 	/* check if an exception is already pending */
 	if (vmThread->currentException != NULL) {
 		/* Already a pending exception */
-		resultArray = NULL;
-	} else if (resultArray == NULL) {
+		result = NULL;
+	} else if (result == NULL) {
 		setCurrentExceptionUTF(vmThread, J9VMCONSTANTPOOL_JAVALANGNULLPOINTEREXCEPTION, NULL);
 	}
 
 	/* Only write the value in if its not null */
-	if (NULL != resultArray) {
+	if (NULL != result) {
+		j9object_t memberName = (j9object_t)J9JAVAARRAYOFOBJECT_LOAD(vmThread, result, 0);
+		j9object_t appendix = (j9object_t)J9JAVAARRAYOFOBJECT_LOAD(vmThread, result, 1);
 		J9MemoryManagerFunctions *gcFuncs = vmThread->javaVM->memoryManagerFunctions;
-		resultArray = gcFuncs->j9gc_objaccess_asConstantPoolObject(
+		memberName = gcFuncs->j9gc_objaccess_asConstantPoolObject(
 									vmThread,
-									resultArray,
+									memberName,
+									J9_GC_ALLOCATE_OBJECT_TENURED | J9_GC_ALLOCATE_OBJECT_NON_INSTRUMENTABLE | J9_GC_ALLOCATE_OBJECT_HASHED);
+		appendix = gcFuncs->j9gc_objaccess_asConstantPoolObject(
+									vmThread,
+									appendix,
 									J9_GC_ALLOCATE_OBJECT_TENURED | J9_GC_ALLOCATE_OBJECT_NON_INSTRUMENTABLE | J9_GC_ALLOCATE_OBJECT_HASHED);
 
-		if (NULL == resultArray) {
+		if (NULL == memberName) {
 			setHeapOutOfMemoryError(vmThread);
 		} else {
 			J9Class *j9class = J9_CLASS_FROM_CP(ramCP);
-			if (0 == gcFuncs->j9gc_objaccess_staticCompareAndSwapObject(vmThread, j9class, callSite, NULL, resultArray)) {
+			if (0 == gcFuncs->j9gc_objaccess_staticCompareAndSwapObject(vmThread, j9class, &invokeCache->target, NULL, memberName)) {
 				/* Another thread beat this thread to updating the call site, ensure both threads return the same method handle. */
-				resultArray = *callSite;
+				result = invokeCache->target;
+			} else {
+				invokeCache->appendix = appendix;
 			}
 		}
 	}
 
-	return resultArray;
+	return result;
 }
