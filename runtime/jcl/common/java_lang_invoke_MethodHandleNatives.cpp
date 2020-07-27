@@ -692,6 +692,7 @@ Java_java_lang_invoke_MethodHandleNatives_resolve(JNIEnv *env, jclass clazz, job
 
 		jint flags = J9VMJAVALANGINVOKEMEMBERNAME_FLAGS(currentThread, membernameObject);
 		jint new_flags = 0;
+		j9object_t new_clazz = NULL;
 
 		INFO(("MethodHandleNatives_resolve data: membername=%p, clazz=%p, name=%p, type=%p, flags=0x%08X, vmindex=%ld, target=%ld\n", membernameObject, clazzObject, nameObject, typeObject,flags,vmindex, target));
 		if (0 != target) {
@@ -782,6 +783,8 @@ Java_java_lang_invoke_MethodHandleNatives_resolve(JNIEnv *env, jclass clazz, job
 					vmindex = (jlong)(UDATA)methodID;
 					target = (jlong)(UDATA)method;
 
+					new_clazz = J9VM_J9CLASS_TO_HEAPCLASS(J9_CLASS_FROM_METHOD(method));
+
 					J9ROMMethod *romMethod = J9_ROM_METHOD_FROM_RAM_METHOD(methodID->method);
 					new_flags = flags | (romMethod->modifiers & CFR_METHOD_ACCESS_MASK);
 				}
@@ -794,7 +797,20 @@ Java_java_lang_invoke_MethodHandleNatives_resolve(JNIEnv *env, jclass clazz, job
 					lookupOptions |= J9_RESOLVE_FLAG_NO_THROW_ON_FAIL;
 				}
 				
-				if ((MH_REF_GETSTATIC == ref_kind) || (MH_REF_PUTSTATIC == ref_kind)) {
+				offset = vmFuncs->instanceFieldOffset(currentThread,
+					resolvedClass,
+					(U_8*)name, strlen(name),
+					(U_8*)signature, strlen(signature),
+					&declaringClass, (UDATA*)&romField,
+					lookupOptions);
+
+				if (offset == (UDATA)-1) {
+					declaringClass = NULL;
+
+					if (VM_VMHelpers::exceptionPending(currentThread)) {
+						VM_VMHelpers::clearException(currentThread);
+					}
+
 					void* fieldAddress = vmFuncs->staticFieldAddress(currentThread,
 						resolvedClass,
 						(U_8*)name, strlen(name),
@@ -808,18 +824,6 @@ Java_java_lang_invoke_MethodHandleNatives_resolve(JNIEnv *env, jclass clazz, job
 					} else {
 						offset = (UDATA)fieldAddress - (UDATA)declaringClass->ramStatics;
 					}
-
-				} else {
-					offset = vmFuncs->instanceFieldOffset(currentThread,
-						resolvedClass,
-						(U_8*)name, strlen(name),
-						(U_8*)signature, strlen(signature),
-						&declaringClass, (UDATA*)&romField,
-						lookupOptions);
-
-					if (offset == (UDATA)-1) {
-						declaringClass = NULL;
-					}
 				}
 
 				if (NULL != declaringClass) {
@@ -827,20 +831,36 @@ Java_java_lang_invoke_MethodHandleNatives_resolve(JNIEnv *env, jclass clazz, job
 					J9JNIFieldID *fieldID = vmFuncs->getJNIFieldID(currentThread, declaringClass, romField, offset, &inconsistentData);
 					vmindex = (jlong)(UDATA)fieldID;
 
+					new_clazz = J9VM_J9CLASS_TO_HEAPCLASS(declaringClass);
+					new_flags = MN_IS_FIELD | (fieldID->field->modifiers & CFR_FIELD_ACCESS_MASK);
 					romField = fieldID->field;
-					offset = fieldID->offset | J9_SUN_STATIC_FIELD_OFFSET_TAG;
 
-					if (J9_ARE_ANY_BITS_SET(romField->modifiers, J9AccFinal)) {
-						offset |= J9_SUN_FINAL_FIELD_OFFSET_TAG;
+					if (J9_ARE_ANY_BITS_SET(romField->modifiers, J9AccStatic)) {
+						offset = fieldID->offset | J9_SUN_STATIC_FIELD_OFFSET_TAG;
+						if (J9_ARE_ANY_BITS_SET(romField->modifiers, J9AccFinal)) {
+							offset |= J9_SUN_FINAL_FIELD_OFFSET_TAG;
+						}
+
+						if ((MH_REF_PUTFIELD == ref_kind) || (MH_REF_PUTSTATIC == ref_kind)) {
+							new_flags |= (MH_REF_PUTSTATIC << MN_REFERENCE_KIND_SHIFT);
+						} else {
+							new_flags |= (MH_REF_GETSTATIC << MN_REFERENCE_KIND_SHIFT);
+						}
+					} else {
+						if ((MH_REF_PUTFIELD == ref_kind) || (MH_REF_PUTSTATIC == ref_kind)) {
+							new_flags |= (MH_REF_PUTFIELD << MN_REFERENCE_KIND_SHIFT);
+						} else {
+							new_flags |= (MH_REF_GETFIELD << MN_REFERENCE_KIND_SHIFT);
+						}
 					}
-					target = (jlong)offset;
 
-					new_flags = flags | (fieldID->field->modifiers & CFR_FIELD_ACCESS_MASK);
+					target = (jlong)offset;
 				}
 			}
 
 			if ((0 != vmindex) && (0 != target)) {
 				J9VMJAVALANGINVOKEMEMBERNAME_SET_FLAGS(currentThread, membernameObject, new_flags);
+				J9VMJAVALANGINVOKEMEMBERNAME_SET_CLAZZ(currentThread, membernameObject, new_clazz);
 				J9OBJECT_ADDRESS_STORE(currentThread, membernameObject, vm->vmindexOffset, (void*)vmindex);
 				J9OBJECT_ADDRESS_STORE(currentThread, membernameObject, vm->vmtargetOffset, (void*)target);
 
