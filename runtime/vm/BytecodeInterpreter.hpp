@@ -8279,14 +8279,10 @@ done:
 		}
 
 		J9JNIMethodID *methodID = (J9JNIMethodID *)J9OBJECT_ADDRESS_LOAD(_currentThread, memberNameObject, _vm->vmindexOffset);
+		J9ROMMethod *romMethod = J9_ROM_METHOD_FROM_RAM_METHOD(methodID->method);
+		UDATA methodArgCount = romMethod->argCount;
 
-		/* Determine stack shape */
-		J9ConstantPool *ramConstantPool = J9_CP_FROM_METHOD(_literals);
-		U_16 cpIndex = *(U_16*)(_pc + 1);
-		J9RAMMethodRef *ramMethodRef = ((J9RAMMethodRef*)ramConstantPool) + cpIndex;
-		UDATA volatile methodArgCount = ramMethodRef->methodIndexAndArgCount & 0xFF;
-
-		j9object_t receiverObject = ((j9object_t*)_sp)[methodArgCount - 1];
+		j9object_t receiverObject = ((j9object_t*)_sp)[methodArgCount];
 		if (J9_UNEXPECTED(NULL == receiverObject)) {
 			return THROW_NPE;
 		}
@@ -8306,14 +8302,10 @@ done:
 		}
 
 		J9JNIMethodID *methodID = (J9JNIMethodID *)J9OBJECT_ADDRESS_LOAD(_currentThread, memberNameObject, _vm->vmindexOffset);
+		J9ROMMethod *romMethod = J9_ROM_METHOD_FROM_RAM_METHOD(methodID->method);
+		UDATA methodArgCount = romMethod->argCount;
 
-		/* Determine stack shape */
-		J9ConstantPool *ramConstantPool = J9_CP_FROM_METHOD(_literals);
-		U_16 cpIndex = *(U_16*)(_pc + 1);
-		J9RAMMethodRef *ramMethodRef = ((J9RAMMethodRef*)ramConstantPool) + cpIndex;
-		UDATA volatile methodArgCount = ramMethodRef->methodIndexAndArgCount & 0xFF;
-
-		j9object_t receiverObject = ((j9object_t*)_sp)[methodArgCount - 1];
+		j9object_t receiverObject = ((j9object_t*)_sp)[methodArgCount];
 		if (J9_UNEXPECTED(NULL == receiverObject)) {
 			return THROW_NPE;
 		}
