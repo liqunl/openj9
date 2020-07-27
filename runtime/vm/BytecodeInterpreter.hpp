@@ -8280,7 +8280,7 @@ done:
 
 		J9JNIMethodID *methodID = (J9JNIMethodID *)J9OBJECT_ADDRESS_LOAD(_currentThread, memberNameObject, _vm->vmindexOffset);
 		J9ROMMethod *romMethod = J9_ROM_METHOD_FROM_RAM_METHOD(methodID->method);
-		UDATA methodArgCount = romMethod->argCount;
+		UDATA methodArgCount = romMethod->argCount - 1;
 
 		j9object_t receiverObject = ((j9object_t*)_sp)[methodArgCount];
 		if (J9_UNEXPECTED(NULL == receiverObject)) {
@@ -8303,7 +8303,7 @@ done:
 
 		J9JNIMethodID *methodID = (J9JNIMethodID *)J9OBJECT_ADDRESS_LOAD(_currentThread, memberNameObject, _vm->vmindexOffset);
 		J9ROMMethod *romMethod = J9_ROM_METHOD_FROM_RAM_METHOD(methodID->method);
-		UDATA methodArgCount = romMethod->argCount;
+		UDATA methodArgCount = romMethod->argCount - 1;
 
 		j9object_t receiverObject = ((j9object_t*)_sp)[methodArgCount];
 		if (J9_UNEXPECTED(NULL == receiverObject)) {
