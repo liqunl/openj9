@@ -8286,7 +8286,7 @@ done:
 		J9RAMMethodRef *ramMethodRef = ((J9RAMMethodRef*)ramConstantPool) + cpIndex;
 		UDATA volatile methodArgCount = ramMethodRef->methodIndexAndArgCount & 0xFF;
 
-		j9object_t receiverObject = ((j9object_t*)_sp)[methodArgCount];
+		j9object_t receiverObject = ((j9object_t*)_sp)[methodArgCount - 1];
 		if (J9_UNEXPECTED(NULL == receiverObject)) {
 			return THROW_NPE;
 		}
@@ -8313,7 +8313,7 @@ done:
 		J9RAMMethodRef *ramMethodRef = ((J9RAMMethodRef*)ramConstantPool) + cpIndex;
 		UDATA volatile methodArgCount = ramMethodRef->methodIndexAndArgCount & 0xFF;
 
-		j9object_t receiverObject = ((j9object_t*)_sp)[methodArgCount];
+		j9object_t receiverObject = ((j9object_t*)_sp)[methodArgCount - 1];
 		if (J9_UNEXPECTED(NULL == receiverObject)) {
 			return THROW_NPE;
 		}
