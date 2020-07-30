@@ -128,7 +128,8 @@ public:
    static TR::DataType             unsafeDataTypeForArray(TR::RecognizedMethod rm);
    static TR::DataType             unsafeDataTypeForObject(TR::RecognizedMethod rm);
    static bool                     isVarHandleOperationMethod(TR::RecognizedMethod rm);
-   virtual bool                    isVarHandleAccessMethod(TR::Compilation * = NULL);
+   static bool                     isVarHandleAccessMethod(TR::RecognizedMethod rm);
+   static bool                     isSignaturePolymorphicMethod(TR::RecognizedMethod rm);
 
    virtual bool                    isUnsafeWithObjectArg( TR::Compilation * comp = NULL);
    virtual bool                    isUnsafeCAS(TR::Compilation * = NULL);
