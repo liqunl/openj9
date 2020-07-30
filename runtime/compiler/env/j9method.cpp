@@ -3905,6 +3905,11 @@ void TR_ResolvedJ9Method::construct()
       {x(TR::java_lang_invoke_MethodHandle_invokeWithArgumentsHelper,   "invokeWithArgumentsHelper",  "(Ljava/lang/invoke/MethodHandle;[Ljava/lang/Object;)Ljava/lang/Object;")},
       {x(TR::java_lang_invoke_MethodHandle_asType, "asType", "(Ljava/lang/invoke/MethodHandle;Ljava/lang/invoke/MethodType;)Ljava/lang/invoke/MethodHandle;")},
       {x(TR::java_lang_invoke_MethodHandle_asType_instance, "asType", "(Ljava/lang/invoke/MethodType;)Ljava/lang/invoke/MethodHandle;")},
+      {  TR::java_lang_invoke_MethodHandle_invokeBasic              ,   11, "invokeBasic",                (int16_t)-1, "*"},
+      {  TR::java_lang_invoke_MethodHandle_linkToStatic             ,   12, "linkToStatic",                (int16_t)-1, "*"},
+      {  TR::java_lang_invoke_MethodHandle_linkToSpecial            ,   13, "linkToSpecial",                (int16_t)-1, "*"},
+      {  TR::java_lang_invoke_MethodHandle_linkToVirtual            ,   13, "linkToVirtual",                (int16_t)-1, "*"},
+      {  TR::java_lang_invoke_MethodHandle_linkToInterface          ,   15, "linkToInterface",                (int16_t)-1, "*"},
       {  TR::unknownMethod}
       };
 
@@ -5783,9 +5788,8 @@ TR_J9MethodBase::isVarHandleOperationMethod(TR::RecognizedMethod rm)
    }
 
 bool
-TR_J9MethodBase::isVarHandleAccessMethod(TR::Compilation * comp)
+TR_J9MethodBase::isVarHandleAccessMethod(TR::RecognizedMethod rm)
    {
-   TR::RecognizedMethod rm = getMandatoryRecognizedMethod();
    switch (rm)
       {
       case TR::java_lang_invoke_VarHandle_get:
@@ -5827,6 +5831,25 @@ TR_J9MethodBase::isVarHandleAccessMethod(TR::Compilation * comp)
    return false;
    }
 
+bool
+TR_J9MethodBase::isSignaturePolymorphicMethod(TR::RecognizedMethod rm)
+   {
+   if (isVarHandleOperationMethod(rm)) return true;
+
+   switch (rm)
+      {
+      case TR::java_lang_invoke_MethodHandle_invokeBasic:
+      case TR::java_lang_invoke_MethodHandle_linkToStatic:
+      case TR::java_lang_invoke_MethodHandle_linkToSpecial:
+      case TR::java_lang_invoke_MethodHandle_linkToVirtual:
+      case TR::java_lang_invoke_MethodHandle_linkToInterface:
+         return true;
+      default:
+        return false;
+      }
+
+   return false;
+   }
 
 bool
 TR_ResolvedJ9Method::methodIsNotzAAPEligible()
@@ -6696,16 +6719,6 @@ TR_ResolvedJ9Method::getResolvedPossiblyPrivateVirtualMethod(TR::Compilation * c
       }
    else
       {
-      if (((TR_ResolvedJ9Method*)resolvedMethod)->isVarHandleAccessMethod())
-         {
-         // VarHandle access methods are resolved to *_impl()V, restore their signatures to obtain function correctness in the Walker
-         J9ROMMethodRef *romMethodRef = (J9ROMMethodRef *)(cp()->romConstantPool + cpIndex);
-         J9ROMNameAndSignature *nameAndSig = J9ROMFIELDREF_NAMEANDSIGNATURE(romMethodRef);
-         int32_t signatureLength;
-         char   *signature = utf8Data(J9ROMNAMEANDSIGNATURE_SIGNATURE(nameAndSig), signatureLength);
-         ((TR_ResolvedJ9Method *)resolvedMethod)->setSignature(signature, signatureLength, comp->trMemory());
-         }
-
       TR::DebugCounter::incStaticDebugCounter(comp, "resources.resolvedMethods/virtual");
       TR::DebugCounter::incStaticDebugCounter(comp, "resources.resolvedMethods/virtual:#bytes", sizeof(TR_ResolvedJ9Method));
       }
@@ -6734,6 +6747,17 @@ TR_ResolvedMethod *
 TR_ResolvedJ9Method::createResolvedMethodFromJ9Method(TR::Compilation *comp, I_32 cpIndex, uint32_t vTableSlot, J9Method *j9Method, bool * unresolvedInCP, TR_AOTInliningStats *aotStats)
    {
    TR_ResolvedMethod *m = new (comp->trHeapMemory()) TR_ResolvedJ9Method((TR_OpaqueMethodBlock *) j9Method, _fe, comp->trMemory(), this, vTableSlot);
+
+      if (TR_J9MethodBase::isSignaturePolymorphicMethod(m->getRecognizedMethod()))
+         {
+         // Signature polymorphic method's signature varies at different call sites and will be different than its declared signature
+         J9ROMMethodRef *romMethodRef = (J9ROMMethodRef *)(cp()->romConstantPool + cpIndex);
+         J9ROMNameAndSignature *nameAndSig = J9ROMFIELDREF_NAMEANDSIGNATURE(romMethodRef);
+         int32_t signatureLength;
+         char   *signature = utf8Data(J9ROMNAMEANDSIGNATURE_SIGNATURE(nameAndSig), signatureLength);
+         ((TR_ResolvedJ9Method *)m)->setSignature(signature, signatureLength, comp->trMemory());
+         }
+
    return m;
    }
 
