@@ -121,6 +121,8 @@ Java_sun_misc_Unsafe_defineAnonymousClass(JNIEnv *env, jobject receiver, jclass 
 			if (item != NULL) {
 				/* mark the index with patch entry, this forces the CP entry to be stored in constantpool */
 				cpPatchMap.indexMap[i] = 1;
+			} else {
+				cpPatchMap.indexMap[i] = 0;
 			}
 		}
 	}
