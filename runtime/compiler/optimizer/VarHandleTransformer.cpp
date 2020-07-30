@@ -159,7 +159,7 @@ TR::RecognizedMethod TR_VarHandleTransformer::getVarHandleAccessMethod(TR::Node 
       }
    else
       {
-      if (method->isVarHandleAccessMethod(comp()))
+      if (TR_J9MethodBase::isVarHandleAccessMethod(symRef->getSymbol()->getResolvedMethodSymbol()->getResolvedMethod()->getRecognizedMethod()))
          varHandleAccessMethod = method->getMandatoryRecognizedMethod();
       }
    return varHandleAccessMethod;
