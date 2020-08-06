@@ -128,11 +128,7 @@ public final class MethodHandleHelper {
 			/*[MSG "K05cd", "unable to resolve 'bootstrap_method_ref' in '{0}' at index {1}"]*/
 			throw new NullPointerException(Msg.getString("K05cd", classObject.toString(), bsmIndex)); //$NON-NLS-1$
 		}
-		Object[] staticArgs = new Object[BSM_OPTIONAL_ARGUMENTS_START_INDEX + bsmArgCount];
-		/* Mandatory arguments */
-		staticArgs[BSM_LOOKUP_ARGUMENT_INDEX] = new MethodHandles.Lookup(classObject);
-		staticArgs[BSM_NAME_ARGUMENT_INDEX] = name;
-		staticArgs[BSM_TYPE_ARGUMENT_INDEX] = typeClass;
+		Object[] staticArgs = new Object[bsmArgCount];
 
 		/* Static optional arguments */
 		int bsmTypeArgCount = bsm.type().parameterCount();
@@ -147,7 +143,7 @@ public final class MethodHandleHelper {
 		}
 
 		for (int i = 0; i < bsmArgCount; i++) {
-			staticArgs[BSM_OPTIONAL_ARGUMENTS_START_INDEX + i] = getAdditionalBsmArg(access, internalRamClass, classObject, bsm, bsmArgs, bsmTypeArgCount, i);
+			staticArgs[i] = getAdditionalBsmArg(access, internalRamClass, classObject, bsm, bsmArgs, bsmTypeArgCount, i);
 		}
 
 		/* JVMS JDK11 5.4.3.6 Dynamically-Computed Constant and Call Site Resolution
@@ -156,7 +152,7 @@ public final class MethodHandleHelper {
 		 * Exceptions thrown before invocation should be passed through unwrapped.
 		 */
 		try {
-			result = (Object)invokeBsm(bsm, staticArgs);
+			result = MethodHandleNatives.linkDynamicConstantTracing(classObject, bsm, name, typeClass, (Object)staticArgs);
 			/* result validation */
 			result = MethodHandles.identity(typeClass).invoke(result);
 		} catch(Throwable e) {
