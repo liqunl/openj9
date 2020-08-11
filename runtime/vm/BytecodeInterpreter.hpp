@@ -8238,12 +8238,21 @@ done:
 	VMINLINE VM_BytecodeAction
 	invokeBasic(REGISTER_ARGS_LIST)
 	{
-		U_16 index = *(U_16*)(_pc + 1);
-		J9ConstantPool *ramConstantPool = J9_CP_FROM_METHOD(_literals);
-		J9RAMMethodRef *ramMethodRef = ((J9RAMMethodRef*)ramConstantPool) + index;
-		UDATA volatile methodIndexAndArgCount = ramMethodRef->methodIndexAndArgCount;
+		VM_BytecodeAction rc = GOTO_RUN_METHOD;
+		bool fromJIT = J9_ARE_ANY_BITS_SET(_currentThread->jitStackFrameFlags, J9_SSF_JIT_NATIVE_TRANSITION_FRAME);
+		UDATA methodArgCount = 0;
 
-		j9object_t mhReceiver = ((j9object_t*)_sp)[methodIndexAndArgCount & 0xFF];
+		if (fromJIT) {
+			methodArgCount = _currentThread->tempSlot;
+		} else {
+			U_16 index = *(U_16*)(_pc + 1);
+			J9ConstantPool *ramConstantPool = J9_CP_FROM_METHOD(_literals);
+			J9RAMMethodRef *ramMethodRef = ((J9RAMMethodRef*)ramConstantPool) + index;
+			UDATA volatile methodIndexAndArgCount = ramMethodRef->methodIndexAndArgCount;
+			methodArgCount = (methodIndexAndArgCount & 0xFF);
+		}
+
+		j9object_t mhReceiver = ((j9object_t*)_sp)[methodArgCount];
 		if (J9_UNEXPECTED(NULL == mhReceiver)) {
 			return THROW_NPE;
 		}
@@ -8252,12 +8261,20 @@ done:
 		j9object_t memberName = J9VMJAVALANGINVOKELAMBDAFORM_VMENTRY(_currentThread, lambdaForm);
 		_sendMethod = (J9Method *)J9OBJECT_ADDRESS_LOAD(_currentThread, memberName, _vm->vmtargetOffset);
 
-		return GOTO_RUN_METHOD;
+		if (fromJIT) {
+			_currentThread->jitStackFrameFlags = 0;
+			rc = j2iTransition(REGISTER_ARGS);
+		}
+
+		return rc;
 	}
 
 	VMINLINE VM_BytecodeAction
 	linkToStaticSpecial(REGISTER_ARGS_LIST)
 	{
+		VM_BytecodeAction rc = GOTO_RUN_METHOD;
+		bool fromJIT = J9_ARE_ANY_BITS_SET(_currentThread->jitStackFrameFlags, J9_SSF_JIT_NATIVE_TRANSITION_FRAME);
+
 		/* pop memberNameObject from stack*/
 		j9object_t memberNameObject = *(j9object_t *)_sp++;
 		if (J9_UNEXPECTED(NULL == memberNameObject)) {
@@ -8266,12 +8283,20 @@ done:
 
 		_sendMethod = (J9Method *)J9OBJECT_ADDRESS_LOAD(_currentThread, memberNameObject, _vm->vmtargetOffset);
 
-		return GOTO_RUN_METHOD;
+		if (fromJIT) {
+			_currentThread->jitStackFrameFlags = 0;
+			rc = j2iTransition(REGISTER_ARGS);
+		}
+
+		return rc;
 	}
 
 	VMINLINE VM_BytecodeAction
 	linkToVirtual(REGISTER_ARGS_LIST)
 	{
+		VM_BytecodeAction rc = GOTO_RUN_METHOD;
+		bool fromJIT = J9_ARE_ANY_BITS_SET(_currentThread->jitStackFrameFlags, J9_SSF_JIT_NATIVE_TRANSITION_FRAME);
+
 		/* pop memberNameObject from stack*/
 		j9object_t memberNameObject = *(j9object_t *)_sp++;
 		if (J9_UNEXPECTED(NULL == memberNameObject)) {
@@ -8289,12 +8314,20 @@ done:
 		J9Class *receiverClass = J9OBJECT_CLAZZ(currentThread, receiverObject);
 		_sendMethod = *(J9Method**)(((UDATA)receiverClass) + methodID->vTableIndex);
 
-		return GOTO_RUN_METHOD;
+		if (fromJIT) {
+			_currentThread->jitStackFrameFlags = 0;
+			rc = j2iTransition(REGISTER_ARGS);
+		}
+
+		return rc;
 	}
 
 	VMINLINE VM_BytecodeAction
 	linkToInterface(REGISTER_ARGS_LIST)
 	{
+		VM_BytecodeAction rc = GOTO_RUN_METHOD;
+		bool fromJIT = J9_ARE_ANY_BITS_SET(_currentThread->jitStackFrameFlags, J9_SSF_JIT_NATIVE_TRANSITION_FRAME);
+
 		/* pop memberNameObject from stack*/
 		j9object_t memberNameObject = *(j9object_t *)_sp++;
 		if (J9_UNEXPECTED(NULL == memberNameObject)) {
@@ -8336,7 +8369,12 @@ foundITable:
 
 		_sendMethod = *(J9Method**)(((UDATA)receiverClass) + vTableOffset);
 
-		return GOTO_RUN_METHOD;
+		if (fromJIT) {
+			_currentThread->jitStackFrameFlags = 0;
+			rc = j2iTransition(REGISTER_ARGS);
+		}
+
+		return rc;
 	}
 #endif /* defined(J9VM_OPT_OPENJDK_METHODHANDLE) */
 
