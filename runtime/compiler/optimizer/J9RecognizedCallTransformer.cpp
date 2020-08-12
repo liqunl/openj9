@@ -42,6 +42,7 @@
 #include "codegen/CodeGenerator.hpp"
 #include "optimizer/TransformUtil.hpp"
 #include "env/j9method.h"
+#include "env/VMAccessCriticalSection.hpp"
 #include "optimizer/Optimization_inlines.hpp"
 
 void J9::RecognizedCallTransformer::processIntrinsicFunction(TR::TreeTop* treetop, TR::Node* node, TR::ILOpCodes opcode)
@@ -347,6 +348,84 @@ void J9::RecognizedCallTransformer::processUnsafeAtomicCall(TR::TreeTop* treetop
    unsafeCall->setSymbolReference(comp()->getSymRefTab()->findOrCreateCodeGenInlinedHelper(helper));
    }
 
+
+static TR::KnownObjectTable::Index
+getKnownObjectIndexFrom(TR::Node* node)
+   {
+   TR::KnownObjectTable::Index objIndex = TR::KnownObjectTable::UNKNOWN;
+   if (node->getOpCode().hasSymbolReference() &&
+       node->getSymbolReference()->hasKnownObjectIndex())
+      {
+      objIndex = node->getSymbolReference()->getKnownObjectIndex();
+      }
+   return objIndex;
+   }
+
+void J9::RecognizedCallTransformer::processInvokeBasic(TR::TreeTop* treetop, TR::Node* node)
+   {
+   TR_J9VMBase* fej9 = comp()->fej9();
+   J9Method* targetMethod = NULL;
+   // If the first argument is known object, refine the call
+   auto mhNode = node->getFirstArgument();
+   auto objIndex = getKnownObjectIndexFrom(mhNode);
+   if (objIndex != TR::KnownObjectTable::UNKNOWN)
+      {
+      auto knot = comp()->getKnownObjectTable();
+      if (!knot->isNull(objIndex))
+         {
+         TR::VMAccessCriticalSection getTarget(fej9);
+         uintptr_t mhObject = knot->getPointer(objIndex);
+         targetMethod = fej9->targetMethodFromMethodHandle(mhObject);
+         }
+      }
+
+   auto symRef = node->getSymbolReference();
+   if (targetMethod)
+      {
+      // Refine the call
+      //auto refinedMethod = symRef->getOwningMethod(comp())->createResolvedMethodFromJ9Method(comp(), -1 /*cpIndex*/, 0, targetMethod, NULL, NULL);
+      auto refinedMethod = fej9->createResolvedMethod(comp()->trMemory(), (TR_OpaqueMethodBlock *)targetMethod, symRef->getOwningMethod(comp()));
+      if (!performTransformation(comp(), "%sspecialize and devirtualize invokeBasic [%p] with known MH object\n", optDetailString(), node))
+         return;
+
+      TR::SymbolReference *newSymRef =
+          getSymRefTab()->findOrCreateMethodSymbol
+          (symRef->getOwningMethodIndex(), -1, refinedMethod, TR::MethodSymbol::Static);
+      newSymRef->copyAliasSets(symRef, getSymRefTab());
+      node->setSymbolReference(newSymRef);
+      node->devirtualizeCall(treetop);
+      }
+   }
+
+void J9::RecognizedCallTransformer::processLinkTo(TR::TreeTop* treetop, TR::Node* node)
+   {
+   return;
+   TR_J9VMBase* fej9 = comp()->fej9();
+   J9Method* targetMethod = NULL;
+   J9JNIMethodID *methodID = NULL;
+   // Last argument is MemberName, check if it is a known object
+   auto memberNameNode = node->getLastChild();
+   auto objIndex = getKnownObjectIndexFrom(memberNameNode);
+   if (objIndex == TR::KnownObjectTable::UNKNOWN)
+      return;
+
+   auto knot = comp()->getKnownObjectTable();
+   if (!knot->isNull(objIndex))
+      {
+      TR::VMAccessCriticalSection getTarget(fej9);
+      uintptr_t memberNameObject = knot->getPointer(objIndex);
+      targetMethod = fej9->targetMethodFromMemberName(memberNameObject);
+      }
+
+   auto rm = node->getSymbol()->castToMethodSymbol()->getMandatoryRecognizedMethod();
+   switch(rm)
+      {
+      case TR::java_lang_invoke_MethodHandle_linkToVirtual:
+      case TR::java_lang_invoke_MethodHandle_linkToInterface:
+         return;
+      }
+  }
+
 bool J9::RecognizedCallTransformer::isInlineable(TR::TreeTop* treetop)
    {
    auto node = treetop->getNode()->getFirstChild();
@@ -387,6 +466,12 @@ bool J9::RecognizedCallTransformer::isInlineable(TR::TreeTop* treetop)
       case TR::java_lang_StrictMath_sqrt:
       case TR::java_lang_Math_sqrt:
          return comp()->target().cpu.getSupportsHardwareSQRT();
+      case TR::java_lang_invoke_MethodHandle_invokeBasic:
+      case TR::java_lang_invoke_MethodHandle_linkToStatic:
+      case TR::java_lang_invoke_MethodHandle_linkToSpecial:
+      case TR::java_lang_invoke_MethodHandle_linkToVirtual:
+      case TR::java_lang_invoke_MethodHandle_linkToInterface:
+         return true;
       default:
          return false;
       }
@@ -467,6 +552,14 @@ void J9::RecognizedCallTransformer::transform(TR::TreeTop* treetop)
       case TR::java_lang_Math_sqrt:
          process_java_lang_StrictMath_and_Math_sqrt(treetop, node);
          break;
+      case TR::java_lang_invoke_MethodHandle_invokeBasic:
+         processInvokeBasic(treetop, node);
+         break;
+      case TR::java_lang_invoke_MethodHandle_linkToStatic:
+      case TR::java_lang_invoke_MethodHandle_linkToSpecial:
+      case TR::java_lang_invoke_MethodHandle_linkToVirtual:
+      case TR::java_lang_invoke_MethodHandle_linkToInterface:
+         processLinkTo(treetop, node);
       default:
          break;
       }

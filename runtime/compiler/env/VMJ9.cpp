@@ -1113,6 +1113,13 @@ TR_J9VMBase::getStaticReferenceFieldAtAddress(uintptr_t fieldAddress)
    return (uintptr_t)J9STATIC_OBJECT_LOAD(vmThread(), NULL, fieldAddress);
    }
 
+void*
+TR_J9VMBase::getAddressFromObject(uintptr_t object, uintptr_t offset)
+   {
+   TR_ASSERT(haveAccess(), "Must haveAccess in getAddressFromObject");
+   return J9OBJECT_ADDRESS_LOAD(vmThread(), object, offset);
+   }
+
 uintptr_t
 TR_J9VMBase::getReferenceFieldAtAddress(uintptr_t fieldAddress)
    {
@@ -4748,6 +4755,26 @@ TR_J9VMBase::methodHandle_jitInvokeExactThunk(uintptr_t methodHandle)
       methodHandle,
       "thunks", "Ljava/lang/invoke/ThunkTuple;"),
       "invokeExactThunk");
+   }
+
+J9Method*
+TR_J9VMBase::targetMethodFromMemberName(uintptr_t memberName)
+   {
+   TR_ASSERT(haveAccess(), "targetFromMethodHandle requires VM access");
+   return (J9Method*)getAddressFromObject(memberName, vmThread()->javaVM->vmtargetOffset);
+   }
+
+J9Method*
+TR_J9VMBase::targetMethodFromMethodHandle(uintptr_t methodHandle)
+   {
+   TR_ASSERT(haveAccess(), "targetFromMethodHandle requires VM access");
+   uintptr_t form = getReferenceField(
+      methodHandle,
+      "form",             "Ljava/lang/invoke/LambdaForm;");
+   uintptr_t vmentry = getReferenceField(
+      form,
+      "vmentry",             "Ljava/lang/invoke/MemberName;");
+   return targetMethodFromMemberName(vmentry);
    }
 
 /**

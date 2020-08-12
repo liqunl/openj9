@@ -543,6 +543,9 @@ public:
       setInt64FieldAt(objectPointer, getInstanceFieldOffset(getObjectClass(objectPointer), fieldName, "J"), newValue);
       }
 
+   // Get a native pointer from `object` at `offset`
+   void* getAddressFromObject(uintptr_t object, uintptr_t offset);
+
    virtual bool                 compareAndSwapInt64FieldAt(uintptr_t objectPointer, uintptr_t fieldOffset, int64_t oldValue, int64_t newValue);
    bool compareAndSwapInt64Field(uintptr_t objectPointer, char *fieldName, int64_t oldValue, int64_t newValue)
       {
@@ -756,6 +759,10 @@ public:
    virtual uintptr_t mutableCallSiteCookie(uintptr_t mutableCallSite, uintptr_t potentialCookie=0);
 
    bool hasMethodTypesSideTable();
+
+   // Openjdk implementation
+   J9Method* targetMethodFromMemberName(uintptr_t memberName);
+   J9Method* targetMethodFromMethodHandle(uintptr_t methodHandle);
 
    // JSR292 }}}
 
