@@ -361,23 +361,6 @@ getKnownObjectIndexFrom(TR::Node* node)
    return objIndex;
    }
 
-// pass in owning method symbol, we can get resolved method and owning method index from it
-TR::SymbolReference*
-createMethodSymbolFromJ9Method(TR::Compilation* comp, J9Method* method, TR::ResolvedMethod* owningMethod, TR::MethodSymbol::Kinds callKind)
-   {
-   auto resolvedMethod = fej9->createResolvedMethod(comp()->trMemory(), (TR_OpaqueMethodBlock *)targetMethod, symRef->getOwningMethod(comp()));
-   TR::SymbolReference *symRef =
-       getSymRefTab()->findOrCreateMethodSymbol
-       (symRef->getOwningMethodIndex(), -1, refinedMethod, TR::MethodSymbol::Static);
-   }
-
-refineCall()
-   {
-   // Create resolved method
-   // Create symref
-   // Change the call to the target method
-   }
-
 void J9::RecognizedCallTransformer::processInvokeBasic(TR::TreeTop* treetop, TR::Node* node)
    {
    TR_J9VMBase* fej9 = comp()->fej9();
@@ -385,75 +368,62 @@ void J9::RecognizedCallTransformer::processInvokeBasic(TR::TreeTop* treetop, TR:
    // If the first argument is known object, refine the call
    auto mhNode = node->getFirstArgument();
    auto objIndex = getKnownObjectIndexFrom(mhNode);
-   targetMethod = fej9->targetMethodFromMemberName(comp(), objIndex);
-
-   if (!targetMethod) return;
-
-   auto symRef = node->getSymbolReference();
-   // Refine the call
-   auto refinedMethod = fej9->createResolvedMethod(comp()->trMemory(), (TR_OpaqueMethodBlock *)targetMethod, symRef->getOwningMethod(comp()));
-   if (!performTransformation(comp(), "%sspecialize and devirtualize invokeBasic [%p] with known MH object\n", optDetailString(), node))
-      return;
-
-   TR::SymbolReference *newSymRef =
-       getSymRefTab()->findOrCreateMethodSymbol
-       (symRef->getOwningMethodIndex(), -1, refinedMethod, TR::MethodSymbol::Static);
-
-
-   newSymRef->copyAliasSets(symRef, getSymRefTab());
-   node->setSymbolReference(newSymRef);
-   node->devirtualizeCall(treetop);
-   // Should probably use recreate
-   // TR::Node::recreateWithSymRef(node, opcode, newSymRef)?
-   }
-
-void J9::RecognizedCallTransformer::processLinkToStatic(TR::TreeTop* treetop, TR::Node* node)
-   {
-   // Get j9method from MemberName
-   TR_J9VMBase* fej9 = comp()->fej9();
-   J9Method* targetMethod = NULL;
-   auto memberNameNode = node->getLastChild();
-   auto objIndex = getKnownObjectIndexFrom(memberNameNode);
-   targetMethod = fej9->targetMethodFromMemberName(comp(), objIndex);
-
-   if (!targetMethod) return;
+   if (objIndex != TR::KnownObjectTable::UNKNOWN)
+      {
+      auto knot = comp()->getKnownObjectTable();
+      if (!knot->isNull(objIndex))
+         {
+         TR::VMAccessCriticalSection getTarget(fej9);
+         uintptr_t mhObject = knot->getPointer(objIndex);
+         targetMethod = fej9->targetMethodFromMethodHandle(mhObject);
+         }
+      }
 
    auto symRef = node->getSymbolReference();
-   // Create resolved method
-   // Create symref
-   // Change the call to the target method
+   if (targetMethod)
+      {
+      // Refine the call
+      //auto refinedMethod = symRef->getOwningMethod(comp())->createResolvedMethodFromJ9Method(comp(), -1 /*cpIndex*/, 0, targetMethod, NULL, NULL);
+      auto refinedMethod = fej9->createResolvedMethod(comp()->trMemory(), (TR_OpaqueMethodBlock *)targetMethod, symRef->getOwningMethod(comp()));
+      if (!performTransformation(comp(), "%sspecialize and devirtualize invokeBasic [%p] with known MH object\n", optDetailString(), node))
+         return;
+
+      TR::SymbolReference *newSymRef =
+          getSymRefTab()->findOrCreateMethodSymbol
+          (symRef->getOwningMethodIndex(), -1, refinedMethod, TR::MethodSymbol::Static);
+      newSymRef->copyAliasSets(symRef, getSymRefTab());
+      node->setSymbolReference(newSymRef);
+      node->devirtualizeCall(treetop);
+      }
    }
 
 void J9::RecognizedCallTransformer::processLinkTo(TR::TreeTop* treetop, TR::Node* node)
    {
+   return;
    TR_J9VMBase* fej9 = comp()->fej9();
    J9Method* targetMethod = NULL;
    J9JNIMethodID *methodID = NULL;
    // Last argument is MemberName, check if it is a known object
    auto memberNameNode = node->getLastChild();
    auto objIndex = getKnownObjectIndexFrom(memberNameNode);
-   targetMethod = fej9->targetMethodFromMemberName(comp(), objIndex);
+   if (objIndex == TR::KnownObjectTable::UNKNOWN)
+      return;
 
-   if (!targetMethod) return;
+   auto knot = comp()->getKnownObjectTable();
+   if (!knot->isNull(objIndex))
+      {
+      TR::VMAccessCriticalSection getTarget(fej9);
+      uintptr_t memberNameObject = knot->getPointer(objIndex);
+      targetMethod = fej9->targetMethodFromMemberName(memberNameObject);
+      }
 
    auto rm = node->getSymbol()->castToMethodSymbol()->getMandatoryRecognizedMethod();
-   // Get vTableIndex for linkToVirtual and linkToInterface
    switch(rm)
       {
       case TR::java_lang_invoke_MethodHandle_linkToVirtual:
       case TR::java_lang_invoke_MethodHandle_linkToInterface:
          return;
       }
-
-   // Remove last child
-   node->removeLastChild();
-   // Refine linkToStatic
-   // Change the call symref
-   // TR::Node::recreateWithSymRef(node, opcode, newSymRef)
-
-
-   // For linkToSpecial, linkToVirtual, linkToInterface, add a NULLCHK on the receiver
-   // For linkToVirtual, linkToInterface
   }
 
 bool J9::RecognizedCallTransformer::isInlineable(TR::TreeTop* treetop)
