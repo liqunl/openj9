@@ -8263,6 +8263,7 @@ done:
 
 		if (fromJIT) {
 			_currentThread->jitStackFrameFlags = 0;
+			VM_JITInterface::restoreJITReturnAddress(_currentThread, _sp, (void*)_literals);
 			rc = j2iTransition(REGISTER_ARGS);
 		}
 
@@ -8285,6 +8286,7 @@ done:
 
 		if (fromJIT) {
 			_currentThread->jitStackFrameFlags = 0;
+			VM_JITInterface::restoreJITReturnAddress(_currentThread, _sp, (void*)_literals);
 			rc = j2iTransition(REGISTER_ARGS);
 		}
 
@@ -8316,6 +8318,7 @@ done:
 
 		if (fromJIT) {
 			_currentThread->jitStackFrameFlags = 0;
+			VM_JITInterface::restoreJITReturnAddress(_currentThread, _sp, (void*)_literals);
 			rc = j2iTransition(REGISTER_ARGS);
 		}
 
@@ -8371,6 +8374,7 @@ foundITable:
 
 		if (fromJIT) {
 			_currentThread->jitStackFrameFlags = 0;
+			VM_JITInterface::restoreJITReturnAddress(_currentThread, _sp, (void*)_literals);
 			rc = j2iTransition(REGISTER_ARGS);
 		}
 
