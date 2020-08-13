@@ -762,7 +762,9 @@ public:
 
    // Openjdk implementation
    J9Method* targetMethodFromMemberName(uintptr_t memberName);
+   J9Method* targetMethodFromMemberName(TR::Compilation* comp, TR::KnownObjectTable::Index objIndex);
    J9Method* targetMethodFromMethodHandle(uintptr_t methodHandle);
+   J9Method* targetMethodFromMethodHandle(TR::Compilation* comp, TR::KnownObjectTable::Index objIndex);
 
    // JSR292 }}}
 

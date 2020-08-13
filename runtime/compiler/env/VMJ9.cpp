@@ -4758,10 +4758,57 @@ TR_J9VMBase::methodHandle_jitInvokeExactThunk(uintptr_t methodHandle)
    }
 
 J9Method*
+TR_J9VMBase::targetMethodFromMemberName(TR::Compilation* comp, TR::KnownObjectTable::Index objIndex)
+   {
+   auto knot = comp->getKnownObjectTable();
+   if (knot && !knot->isNull(objIndex))
+      {
+      TR::VMAccessCriticalSection getTarget(fej9);
+      uintptr_t object = knot->getPointer(objIndex);
+      return targetMethodFromMemberName(object);
+      }
+   return NULL;
+   }
+
+
+uintptr_t
+TR_J9VMBase::vTableIndexFromMemberName(uintptr_t memberName)
+   {
+   TR_ASSERT(haveAccess(), "methodIDFromMemberName requires VM access");
+   J9JNIMethodID* methodID = (J9JNIMethodID*)getAddressFromObject(memberName, vmThread()->javaVM->vmindexOffset);
+   return methodID->vTableIndex;
+   }
+
+J9JNIMethodID*
+TR_J9VMBase::methodIDFromMemberName(uintptr_t memberName)
+   {
+   TR_ASSERT(haveAccess(), "methodIDFromMemberName requires VM access");
+   return (J9JNIMethodID*)getAddressFromObject(memberName, vmThread()->javaVM->vmindexOffset);
+   }
+
+J9Method*
 TR_J9VMBase::targetMethodFromMemberName(uintptr_t memberName)
    {
-   TR_ASSERT(haveAccess(), "targetFromMethodHandle requires VM access");
+   TR_ASSERT(haveAccess(), "targetFromMembername requires VM access");
    return (J9Method*)getAddressFromObject(memberName, vmThread()->javaVM->vmtargetOffset);
+   }
+
+
+// Don't call this function on leaf handle,as leaf handle doesn't have lambdaForm
+// leaf handle's MemberName is stored in its `member` field
+J9Method*
+TR_J9VMBase::targetMethodFromMethodHandle(TR::Compilation* comp, TR::KnownObjectTable::Index objIndex)
+   {
+   auto knot = comp->getKnownObjectTable();
+   if (objIndex != TR::KnownObjectTable::UNKNOWN &&
+       knot &&
+       !knot->isNull(objIndex))
+      {
+      TR::VMAccessCriticalSection getTarget(fej9);
+      uintptr_t object = knot->getPointer(objIndex);
+      return targetMethodFromMethodHandle(object);
+      }
+   return NULL;
    }
 
 J9Method*
