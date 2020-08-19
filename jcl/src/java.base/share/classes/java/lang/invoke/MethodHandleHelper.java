@@ -99,7 +99,7 @@ public final class MethodHandleHelper {
 		VMLangAccess access = VM.getVMLangAccess();
 		MethodType mt = MethodType.fromMethodDescriptorString(type, access.getClassloader(callerClass));
 
-		return MethodHandleNatives.linkMethodTracing(callerClass, refKind, defc, name, mt, appendixResult);
+		return MethodHandleNatives.linkMethod(callerClass, refKind, defc, name, mt, appendixResult);
 	}
 
 	
@@ -152,7 +152,7 @@ public final class MethodHandleHelper {
 		 * Exceptions thrown before invocation should be passed through unwrapped.
 		 */
 		try {
-			result = MethodHandleNatives.linkDynamicConstantTracing(classObject, bsm, name, typeClass, (Object)staticArgs);
+			result = MethodHandleNatives.linkDynamicConstant(classObject, bsm, name, typeClass, (Object)staticArgs);
 			/* result validation */
 			result = MethodHandles.identity(typeClass).invoke(result);
 		} catch(Throwable e) {
@@ -200,7 +200,7 @@ public final class MethodHandleHelper {
 			Object[] appendixResult = new Object[1];
 			appendixResult[0] = null;
 			try {
-				MemberName mname = MethodHandleNatives.linkCallSiteTracing(classObject, bsm, name, type, (Object)staticArgs, appendixResult);
+				MemberName mname = MethodHandleNatives.linkCallSite(classObject, bsm, name, type, (Object)staticArgs, appendixResult);
 
 				result[0] = mname;
 				result[1] = appendixResult[0];
