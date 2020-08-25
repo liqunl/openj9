@@ -2208,7 +2208,11 @@ fail:
 		classSize += totalStaticSlots;
 
 		/* add in the call sites */
+#if defined(J9VM_OPT_OPENJDK_METHODHANDLE)
+		classSize += romClass->callSiteCount * 2;
+#else /* defined(J9VM_OPT_OPENJDK_METHODHANDLE) */
 		classSize += romClass->callSiteCount;
+#endif /* defined(J9VM_OPT_OPENJDK_METHODHANDLE) */
 
 		/* add in the method types */
 #if defined(J9VM_OPT_OPENJDK_METHODHANDLE)
