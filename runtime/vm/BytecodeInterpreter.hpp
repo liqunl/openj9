@@ -8285,6 +8285,13 @@ done:
 		_sendMethod = (J9Method *)J9OBJECT_ADDRESS_LOAD(_currentThread, memberNameObject, _vm->vmtargetOffset);
 
 		if (fromJIT) {
+			UDATA argSlotCount = _currentThread->tempSlot;
+			/* restore sp position before poping memberNameObject */
+			--_sp;
+			/* shift arguments by 1 and place memberNameObject before the first argument */
+			memcpy(_sp, _sp + 1, argSlotCount * sizeof(UDATA));
+			_sp[methodArgCount] = memberNameObject;
+
 			_currentThread->jitStackFrameFlags = 0;
 			VM_JITInterface::restoreJITReturnAddress(_currentThread, _sp, (void*)_literals);
 			rc = j2iTransition(REGISTER_ARGS);
@@ -8317,6 +8324,13 @@ done:
 		_sendMethod = *(J9Method**)(((UDATA)receiverClass) + methodID->vTableIndex);
 
 		if (fromJIT) {
+			UDATA argSlotCount = _currentThread->tempSlot;
+			/* restore sp position before poping memberNameObject */
+			--_sp;
+			/* shift arguments by 1 and place memberNameObject before the first argument */
+			memcpy(_sp, _sp + 1, argSlotCount * sizeof(UDATA));
+			_sp[argSlotCount] = memberNameObject;
+
 			_currentThread->jitStackFrameFlags = 0;
 			VM_JITInterface::restoreJITReturnAddress(_currentThread, _sp, (void*)_literals);
 			rc = j2iTransition(REGISTER_ARGS);
@@ -8373,6 +8387,13 @@ foundITable:
 		_sendMethod = *(J9Method**)(((UDATA)receiverClass) + vTableOffset);
 
 		if (fromJIT) {
+			UDATA argSlotCount = _currentThread->tempSlot;
+			/* restore sp position before poping memberNameObject */
+			--_sp;
+			/* shift arguments by 1 and place memberNameObject before the first argument */
+			memcpy(_sp, _sp + 1, argSlotCount * sizeof(UDATA));
+			_sp[argSlotCount] = memberNameObject;
+
 			_currentThread->jitStackFrameFlags = 0;
 			VM_JITInterface::restoreJITReturnAddress(_currentThread, _sp, (void*)_literals);
 			rc = j2iTransition(REGISTER_ARGS);
