@@ -79,7 +79,7 @@ enum TR_J9ByteCode
    J9BCgenericReturn,
    J9BCgetstatic, J9BCputstatic,
    J9BCgetfield, J9BCputfield,
-   J9BCinvokevirtual, J9BCinvokespecial, J9BCinvokestatic, J9BCinvokeinterface, J9BCinvokedynamic, J9BCinvokehandle, J9BCinvokehandlegeneric, J9BCinvokespecialsplit, J9BCinvokehandlebasic,
+   J9BCinvokevirtual, J9BCinvokespecial, J9BCinvokestatic, J9BCinvokeinterface, J9BCinvokedynamic, J9BCinvokehandle, J9BCinvokehandlegeneric, J9BCinvokespecialsplit,
 
    /** \brief
     *      Pops 1 int32_t argument off the stack and truncates to a uint16_t.

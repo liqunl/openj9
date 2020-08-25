@@ -193,7 +193,6 @@ class NeedsPeekingHeuristic
                case J9BCinvokedynamic:
                case J9BCinvokehandle:
                case J9BCinvokehandlegeneric:
-               case J9BCinvokehandlebasic:
                   checkIfThereIsAParmLoadWithinDistance ();
                default :
                   break;
@@ -761,7 +760,6 @@ TR_J9EstimateCodeSize::processBytecodeAndGenerateCFG(TR_CallTarget *calltarget, 
          case J9BCinvokedynamic:
          case J9BCinvokehandle:
          case J9BCinvokehandlegeneric:
-         case J9BCinvokehandlebasic:
             // TODO:JSR292: Use getResolvedHandleMethod
          case J9BCmonitorenter:
          case J9BCmonitorexit:
