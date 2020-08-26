@@ -8290,7 +8290,7 @@ done:
 			/* restore sp position before poping memberNameObject */
 			--_sp;
 			/* shift arguments by 1 and place memberNameObject before the first argument */
-			memcpy(_sp, _sp + 1, methodArgCount * sizeof(UDATA));
+			memmove(_sp, _sp + 1, methodArgCount * sizeof(UDATA));
 			_sp[methodArgCount] = (UDATA)memberNameObject;
 
 			_currentThread->jitStackFrameFlags = 0;
