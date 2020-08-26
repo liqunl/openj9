@@ -8290,7 +8290,7 @@ done:
 			--_sp;
 			/* shift arguments by 1 and place memberNameObject before the first argument */
 			memcpy(_sp, _sp + 1, argSlotCount * sizeof(UDATA));
-			_sp[methodArgCount] = memberNameObject;
+			_sp[argSlotCount] = (UDATA)memberNameObject;
 
 			_currentThread->jitStackFrameFlags = 0;
 			VM_JITInterface::restoreJITReturnAddress(_currentThread, _sp, (void*)_literals);
@@ -8329,7 +8329,7 @@ done:
 			--_sp;
 			/* shift arguments by 1 and place memberNameObject before the first argument */
 			memcpy(_sp, _sp + 1, argSlotCount * sizeof(UDATA));
-			_sp[argSlotCount] = memberNameObject;
+			_sp[argSlotCount] = (UDATA)memberNameObject;
 
 			_currentThread->jitStackFrameFlags = 0;
 			VM_JITInterface::restoreJITReturnAddress(_currentThread, _sp, (void*)_literals);
@@ -8392,7 +8392,7 @@ foundITable:
 			--_sp;
 			/* shift arguments by 1 and place memberNameObject before the first argument */
 			memcpy(_sp, _sp + 1, argSlotCount * sizeof(UDATA));
-			_sp[argSlotCount] = memberNameObject;
+			_sp[argSlotCount] = (UDATA)memberNameObject;
 
 			_currentThread->jitStackFrameFlags = 0;
 			VM_JITInterface::restoreJITReturnAddress(_currentThread, _sp, (void*)_literals);
