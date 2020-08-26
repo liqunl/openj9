@@ -8285,7 +8285,7 @@ done:
 		_sendMethod = (J9Method *)J9OBJECT_ADDRESS_LOAD(_currentThread, memberNameObject, _vm->vmtargetOffset);
 
 		if (fromJIT) {
-			UDATA argSlotCount = _currentThread->tempSlot;
+			UDATA argSlotCount = _currentThread->tempSlot - 1;
 			/* restore sp position before poping memberNameObject */
 			--_sp;
 			/* shift arguments by 1 and place memberNameObject before the first argument */
@@ -8324,7 +8324,7 @@ done:
 		_sendMethod = *(J9Method**)(((UDATA)receiverClass) + methodID->vTableIndex);
 
 		if (fromJIT) {
-			UDATA argSlotCount = _currentThread->tempSlot;
+			UDATA argSlotCount = _currentThread->tempSlot - 1;
 			/* restore sp position before poping memberNameObject */
 			--_sp;
 			/* shift arguments by 1 and place memberNameObject before the first argument */
@@ -8387,7 +8387,7 @@ foundITable:
 		_sendMethod = *(J9Method**)(((UDATA)receiverClass) + vTableOffset);
 
 		if (fromJIT) {
-			UDATA argSlotCount = _currentThread->tempSlot;
+			UDATA argSlotCount = _currentThread->tempSlot - 1;
 			/* restore sp position before poping memberNameObject */
 			--_sp;
 			/* shift arguments by 1 and place memberNameObject before the first argument */
