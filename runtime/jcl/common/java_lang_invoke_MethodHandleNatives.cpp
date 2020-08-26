@@ -136,8 +136,8 @@ initImpl(J9VMThread *currentThread, j9object_t membernameObject, j9object_t refO
 	if (!VM_VMHelpers::exceptionPending(currentThread)) {
 		J9VMJAVALANGINVOKEMEMBERNAME_SET_FLAGS(currentThread, membernameObject, flags);
 		J9VMJAVALANGINVOKEMEMBERNAME_SET_CLAZZ(currentThread, membernameObject, clazzObject);
-		J9OBJECT_ADDRESS_STORE(currentThread, membernameObject, vm->vmindexOffset, (void*)vmindex);
-		J9OBJECT_ADDRESS_STORE(currentThread, membernameObject, vm->vmtargetOffset, (void*)target);
+		J9OBJECT_U64_STORE(currentThread, membernameObject, vm->vmindexOffset, (U_64)vmindex);
+		J9OBJECT_U64_STORE(currentThread, membernameObject, vm->vmtargetOffset, (U_64)target);
 		INFO(("initImpl set : flags=0x%08X, clazz=%p, vmindex=%ld, target=%ld\n",flags, clazzObject, vmindex, target));
 	}
 }
@@ -687,8 +687,8 @@ Java_java_lang_invoke_MethodHandleNatives_resolve(JNIEnv *env, jclass clazz, job
 		j9object_t clazzObject = J9VMJAVALANGINVOKEMEMBERNAME_CLAZZ(currentThread, membernameObject);
 		j9object_t nameObject = J9VMJAVALANGINVOKEMEMBERNAME_NAME(currentThread, membernameObject);
 		j9object_t typeObject = J9VMJAVALANGINVOKEMEMBERNAME_TYPE(currentThread, membernameObject);
-		jlong vmindex = (jlong)J9OBJECT_ADDRESS_LOAD(currentThread, membernameObject, vm->vmindexOffset);
-		jlong target = (jlong)J9OBJECT_ADDRESS_LOAD(currentThread, membernameObject, vm->vmtargetOffset);
+		jlong vmindex = (jlong)(UDATA)J9OBJECT_U64_LOAD(currentThread, membernameObject, vm->vmindexOffset);
+		jlong target = (jlong)(UDATA)J9OBJECT_U64_LOAD(currentThread, membernameObject, vm->vmtargetOffset);
 
 		jint flags = J9VMJAVALANGINVOKEMEMBERNAME_FLAGS(currentThread, membernameObject);
 		jint new_flags = 0;
@@ -861,8 +861,8 @@ Java_java_lang_invoke_MethodHandleNatives_resolve(JNIEnv *env, jclass clazz, job
 			if ((0 != vmindex) && (0 != target)) {
 				J9VMJAVALANGINVOKEMEMBERNAME_SET_FLAGS(currentThread, membernameObject, new_flags);
 				J9VMJAVALANGINVOKEMEMBERNAME_SET_CLAZZ(currentThread, membernameObject, new_clazz);
-				J9OBJECT_ADDRESS_STORE(currentThread, membernameObject, vm->vmindexOffset, (void*)vmindex);
-				J9OBJECT_ADDRESS_STORE(currentThread, membernameObject, vm->vmtargetOffset, (void*)target);
+				J9OBJECT_U64_STORE(currentThread, membernameObject, vm->vmindexOffset, (U_64)vmindex);
+				J9OBJECT_U64_STORE(currentThread, membernameObject, vm->vmtargetOffset, (U_64)target);
 
 				INFO(("MethodHandleNatives_resolve resolved to: vmindex=%ld, target=%ld, flags=0x%08X\n", vmindex, target, flags));
 
@@ -1146,7 +1146,7 @@ Java_java_lang_invoke_MethodHandleNatives_objectFieldOffset(JNIEnv *env, jclass 
 		} else {
 			jint flags = J9VMJAVALANGINVOKEMEMBERNAME_FLAGS(currentThread, membernameObject);
 			if (J9_ARE_ALL_BITS_SET(flags, MN_IS_FIELD) && J9_ARE_NO_BITS_SET(flags, J9AccStatic)) {
-				J9JNIFieldID *fieldID = (J9JNIFieldID*)J9OBJECT_ADDRESS_LOAD(currentThread, membernameObject, vm->vmindexOffset);
+				J9JNIFieldID *fieldID = (J9JNIFieldID*)(UDATA)J9OBJECT_U64_LOAD(currentThread, membernameObject, vm->vmindexOffset);
 				result = (jlong)fieldID->offset + J9VMTHREAD_OBJECT_HEADER_SIZE(currentThread);
 			} else {
 				vmFuncs->setCurrentExceptionUTF(currentThread, J9VMCONSTANTPOOL_JAVALANGINTERNALERROR, NULL);
@@ -1184,7 +1184,7 @@ Java_java_lang_invoke_MethodHandleNatives_staticFieldOffset(JNIEnv *env, jclass 
 		} else {
 			jint flags = J9VMJAVALANGINVOKEMEMBERNAME_FLAGS(currentThread, membernameObject);
 			if (J9_ARE_ALL_BITS_SET(flags, MN_IS_FIELD & J9AccStatic)) {
-				result = (jlong)J9OBJECT_ADDRESS_LOAD(currentThread, membernameObject, vm->vmtargetOffset);
+				result = (jlong)(UDATA)J9OBJECT_U64_LOAD(currentThread, membernameObject, vm->vmtargetOffset);
 			} else {
 				vmFuncs->setCurrentExceptionUTF(currentThread, J9VMCONSTANTPOOL_JAVALANGINTERNALERROR, NULL);
 			}
@@ -1247,7 +1247,7 @@ Java_java_lang_invoke_MethodHandleNatives_getMemberVMInfo(JNIEnv *env, jclass cl
 		j9object_t membernameObject = J9_JNI_UNWRAP_REFERENCE(self);
 		j9object_t clazzObject = J9VMJAVALANGINVOKEMEMBERNAME_CLAZZ(currentThread, membernameObject);
 		jint flags = J9VMJAVALANGINVOKEMEMBERNAME_FLAGS(currentThread, membernameObject);
-		jlong vmindex = (jlong)J9OBJECT_ADDRESS_LOAD(currentThread, membernameObject, vm->vmindexOffset);
+		jlong vmindex = (jlong)(UDATA)J9OBJECT_U64_LOAD(currentThread, membernameObject, vm->vmindexOffset);
 		j9object_t target;
 		if (J9_ARE_ANY_BITS_SET(flags, MN_IS_FIELD)) {
 			vmindex = ((J9JNIFieldID*)vmindex)->offset;

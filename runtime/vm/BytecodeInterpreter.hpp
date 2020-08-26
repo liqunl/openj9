@@ -8064,7 +8064,7 @@ retry:
 		if (J9_EXPECTED(NULL != memberName)) {
 			//U_32 size = J9INDEXABLEOBJECT_SIZE(_currentThread, targetArray);
 			if (J9OBJECT_CLAZZ(_currentThread, memberName) == J9VMJAVALANGINVOKEMEMBERNAME_OR_NULL(_vm)) {
-				_sendMethod = (J9Method *)J9OBJECT_ADDRESS_LOAD(_currentThread, memberName, _vm->vmtargetOffset);
+				_sendMethod = (J9Method *)(UDATA)J9OBJECT_U64_LOAD(_currentThread, memberName, _vm->vmtargetOffset);
 				*--_sp = (UDATA)invokeCache->appendix;
 			} else {
 				VM_VMHelpers::setExceptionPending(_currentThread, memberName);
@@ -8145,7 +8145,7 @@ retry:
 		j9object_t volatile memberNameObject = resultEntry->target;
 		if (J9_EXPECTED(NULL != memberNameObject)) {
 			*--_sp = (UDATA)resultEntry->appendix;
-			_sendMethod = (J9Method *)J9OBJECT_ADDRESS_LOAD(_currentThread, memberNameObject, _vm->vmtargetOffset);
+			_sendMethod = (J9Method *)(UDATA)J9OBJECT_U64_LOAD(_currentThread, memberNameObject, _vm->vmtargetOffset);
 		} else {
 			buildGenericSpecialStackFrame(REGISTER_ARGS, 0);
 			updateVMStruct(REGISTER_ARGS);
@@ -8259,7 +8259,7 @@ done:
 
 		j9object_t lambdaForm = J9VMJAVALANGINVOKEMETHODHANDLE_FORM(_currentThread, mhReceiver);
 		j9object_t memberName = J9VMJAVALANGINVOKELAMBDAFORM_VMENTRY(_currentThread, lambdaForm);
-		_sendMethod = (J9Method *)J9OBJECT_ADDRESS_LOAD(_currentThread, memberName, _vm->vmtargetOffset);
+		_sendMethod = (J9Method *)(UDATA)J9OBJECT_U64_LOAD(_currentThread, memberName, _vm->vmtargetOffset);
 
 		if (fromJIT) {
 			_currentThread->jitStackFrameFlags = 0;
@@ -8282,7 +8282,7 @@ done:
 			return THROW_NPE;
 		}
 
-		_sendMethod = (J9Method *)J9OBJECT_ADDRESS_LOAD(_currentThread, memberNameObject, _vm->vmtargetOffset);
+		_sendMethod = (J9Method *)(UDATA)J9OBJECT_U64_LOAD(_currentThread, memberNameObject, _vm->vmtargetOffset);
 
 		if (fromJIT) {
 			J9ROMMethod *romMethod = J9_ROM_METHOD_FROM_RAM_METHOD(_sendMethod);
@@ -8313,7 +8313,7 @@ done:
 			return THROW_NPE;
 		}
 
-		J9JNIMethodID *methodID = (J9JNIMethodID *)J9OBJECT_ADDRESS_LOAD(_currentThread, memberNameObject, _vm->vmindexOffset);
+		J9JNIMethodID *methodID = (J9JNIMethodID *)(UDATA)J9OBJECT_U64_LOAD(_currentThread, memberNameObject, _vm->vmindexOffset);
 		J9ROMMethod *romMethod = J9_ROM_METHOD_FROM_RAM_METHOD(methodID->method);
 		UDATA methodArgCount = romMethod->argCount;
 
@@ -8351,7 +8351,7 @@ done:
 			return THROW_NPE;
 		}
 
-		J9JNIMethodID *methodID = (J9JNIMethodID *)J9OBJECT_ADDRESS_LOAD(_currentThread, memberNameObject, _vm->vmindexOffset);
+		J9JNIMethodID *methodID = (J9JNIMethodID *)(UDATA)J9OBJECT_U64_LOAD(_currentThread, memberNameObject, _vm->vmindexOffset);
 		J9ROMMethod *romMethod = J9_ROM_METHOD_FROM_RAM_METHOD(methodID->method);
 		UDATA methodArgCount = romMethod->argCount;
 
@@ -8360,7 +8360,7 @@ done:
 			return THROW_NPE;
 		}
 		J9Class *receiverClass = J9OBJECT_CLAZZ(currentThread, receiverObject);
-		J9Method *method = (J9Method *)J9OBJECT_ADDRESS_LOAD(_currentThread, memberNameObject, _vm->vmtargetOffset);
+		J9Method *method = (J9Method *)(UDATA)J9OBJECT_U64_LOAD(_currentThread, memberNameObject, _vm->vmtargetOffset);
 		UDATA vTableOffset = methodID->vTableIndex;
 
 
