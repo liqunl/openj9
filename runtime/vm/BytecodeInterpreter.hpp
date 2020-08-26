@@ -8285,12 +8285,13 @@ done:
 		_sendMethod = (J9Method *)J9OBJECT_ADDRESS_LOAD(_currentThread, memberNameObject, _vm->vmtargetOffset);
 
 		if (fromJIT) {
-			UDATA argSlotCount = _currentThread->tempSlot - 1;
+			J9ROMMethod *romMethod = J9_ROM_METHOD_FROM_RAM_METHOD(_sendMethod);
+			UDATA methodArgCount = romMethod->argCount;
 			/* restore sp position before poping memberNameObject */
 			--_sp;
 			/* shift arguments by 1 and place memberNameObject before the first argument */
-			memcpy(_sp, _sp + 1, argSlotCount * sizeof(UDATA));
-			_sp[argSlotCount] = (UDATA)memberNameObject;
+			memcpy(_sp, _sp + 1, methodArgCount * sizeof(UDATA));
+			_sp[methodArgCount] = (UDATA)memberNameObject;
 
 			_currentThread->jitStackFrameFlags = 0;
 			VM_JITInterface::restoreJITReturnAddress(_currentThread, _sp, (void*)_literals);
@@ -8314,9 +8315,9 @@ done:
 
 		J9JNIMethodID *methodID = (J9JNIMethodID *)J9OBJECT_ADDRESS_LOAD(_currentThread, memberNameObject, _vm->vmindexOffset);
 		J9ROMMethod *romMethod = J9_ROM_METHOD_FROM_RAM_METHOD(methodID->method);
-		UDATA methodArgCount = romMethod->argCount - 1;
+		UDATA methodArgCount = romMethod->argCount;
 
-		j9object_t receiverObject = ((j9object_t*)_sp)[methodArgCount];
+		j9object_t receiverObject = ((j9object_t*)_sp)[methodArgCount - 1];
 		if (J9_UNEXPECTED(NULL == receiverObject)) {
 			return THROW_NPE;
 		}
@@ -8324,12 +8325,11 @@ done:
 		_sendMethod = *(J9Method**)(((UDATA)receiverClass) + methodID->vTableIndex);
 
 		if (fromJIT) {
-			UDATA argSlotCount = _currentThread->tempSlot - 1;
 			/* restore sp position before poping memberNameObject */
 			--_sp;
 			/* shift arguments by 1 and place memberNameObject before the first argument */
-			memcpy(_sp, _sp + 1, argSlotCount * sizeof(UDATA));
-			_sp[argSlotCount] = (UDATA)memberNameObject;
+			memcpy(_sp, _sp + 1, methodArgCount * sizeof(UDATA));
+			_sp[methodArgCount] = (UDATA)memberNameObject;
 
 			_currentThread->jitStackFrameFlags = 0;
 			VM_JITInterface::restoreJITReturnAddress(_currentThread, _sp, (void*)_literals);
@@ -8353,9 +8353,9 @@ done:
 
 		J9JNIMethodID *methodID = (J9JNIMethodID *)J9OBJECT_ADDRESS_LOAD(_currentThread, memberNameObject, _vm->vmindexOffset);
 		J9ROMMethod *romMethod = J9_ROM_METHOD_FROM_RAM_METHOD(methodID->method);
-		UDATA methodArgCount = romMethod->argCount - 1;
+		UDATA methodArgCount = romMethod->argCount;
 
-		j9object_t receiverObject = ((j9object_t*)_sp)[methodArgCount];
+		j9object_t receiverObject = ((j9object_t*)_sp)[methodArgCount - 1];
 		if (J9_UNEXPECTED(NULL == receiverObject)) {
 			return THROW_NPE;
 		}
@@ -8387,12 +8387,11 @@ foundITable:
 		_sendMethod = *(J9Method**)(((UDATA)receiverClass) + vTableOffset);
 
 		if (fromJIT) {
-			UDATA argSlotCount = _currentThread->tempSlot - 1;
 			/* restore sp position before poping memberNameObject */
 			--_sp;
 			/* shift arguments by 1 and place memberNameObject before the first argument */
-			memcpy(_sp, _sp + 1, argSlotCount * sizeof(UDATA));
-			_sp[argSlotCount] = (UDATA)memberNameObject;
+			memcpy(_sp, _sp + 1, methodArgCount * sizeof(UDATA));
+			_sp[methodArgCount] = (UDATA)memberNameObject;
 
 			_currentThread->jitStackFrameFlags = 0;
 			VM_JITInterface::restoreJITReturnAddress(_currentThread, _sp, (void*)_literals);
