@@ -816,6 +816,7 @@ public:
 
    virtual bool getStringFieldByName( TR::Compilation *, TR::SymbolReference *stringRef, TR::SymbolReference *fieldRef, void* &pResult);
    virtual bool      isString(TR_OpaqueClassBlock *clazz);
+   virtual bool      isMethodHandle(TR_OpaqueClassBlock *clazz);
    virtual TR_YesNoMaybe typeReferenceStringObject(TR_OpaqueClassBlock *clazz);
    virtual bool      isJavaLangObject(TR_OpaqueClassBlock *clazz);
    virtual bool      isString(uintptr_t objectPointer);
