@@ -5916,7 +5916,39 @@ TR_J9ByteCodeIlGenerator::loadFromCP(TR::DataType type, int32_t cpIndex)
             }
          else if (method()->isStringConstant(cpIndex))
             {
-            loadSymbol(TR::aload, symRefTab()->findOrCreateStringSymbol(_methodSymbol, cpIndex));
+            // check the object's real type if it is resolved
+            TR_OpaqueClassBlock* clazz = NULL;
+            if (!method()->isUnresolvedString(cpIndex))
+               {
+               uintptr_t * stringLocation = (uintptr_t *)method()->stringConstant(cpIndex);
+               TR::VMAccessCriticalSection stringConstantCriticalSection(comp()->fej9());
+               if (*stringLocation != 0)
+                  {
+                  clazz = comp()->fej9()->getObjectClass(*stringLocation);
+                  }
+               }
+
+            if (clazz == NULL || comp()->fej9()->isString(clazz))
+               {
+               loadSymbol(TR::aload, symRefTab()->findOrCreateStringSymbol(_methodSymbol, cpIndex));
+               }
+            else if (comp()->fej9()->isMethodHandle(clazz))
+               {
+               if (comp()->compileRelocatableCode())
+                  {
+                  if (comp()->getOption(TR_TraceILGen))
+                     traceMsg(comp(), "  Method Handle Constant not supported in AOT.\n");
+                  comp()->failCompilation<J9::AOTHasMethodHandleConstant>("Method Handle Constant not supported in AOT.");
+                  }
+
+               loadSymbol(TR::aload, symRefTab()->findOrCreateMethodHandleSymbol(_methodSymbol, cpIndex));
+               }
+            else
+               {
+               int32_t len = 0;
+               char* className = comp()->fej9()->getClassNameChars(clazz, len);
+               TR_ASSERT_FATAL(false, "Unexpected type of object in constant pool entry at cp index %d class %.*s %p", cpIndex, len, className, clazz);
+               }
             }
          else if (method()->isMethodHandleConstant(cpIndex))
             {
