@@ -5067,6 +5067,14 @@ TR_J9VMBase::isString(TR_OpaqueClassBlock *clazz)
    }
 
 bool
+TR_J9VMBase::isMethodHandle(TR_OpaqueClassBlock *clazz)
+   {
+   // MethodHandle is abstract class
+   TR_OpaqueClassBlock* methodHandleClazz = (TR_OpaqueClassBlock *)J9VMJAVALANGINVOKEMETHODHANDLE(jitConfig->javaVM);
+   return isInstanceOf(clazz, methodHandleClazz, TR_yes, TR_yes);
+   }
+
+bool
 TR_J9VMBase::isString(uintptr_t objectPointer)
    {
    TR_ASSERT(haveAccess(), "isString requires VM access");
