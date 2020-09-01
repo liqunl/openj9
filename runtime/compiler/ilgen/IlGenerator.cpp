@@ -3105,6 +3105,7 @@ void TR_J9ByteCodeIlGenerator::expandInvokeDynamic(TR::TreeTop *tree)
  *     logic is enabled for invocations outside of thunk archetype.
  *
  */
+
 void TR_J9ByteCodeIlGenerator::expandInvokeHandleGeneric(TR::TreeTop *tree)
    {
    TR_ASSERT(!comp()->compileRelocatableCode(), "in expandInvokeHandleGeneric under AOT\n");
@@ -3176,6 +3177,7 @@ void TR_J9ByteCodeIlGenerator::expandInvokeHandleGeneric(TR::TreeTop *tree)
  *  \param tree
  *     Tree of the invokeExact call.
  */
+
 void TR_J9ByteCodeIlGenerator::expandInvokeExact(TR::TreeTop *tree)
    {
    TR_ASSERT(!comp()->compileRelocatableCode(), "in expandInvokeExact under AOT\n");

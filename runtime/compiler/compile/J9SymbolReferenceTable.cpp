@@ -378,7 +378,11 @@ J9::SymbolReferenceTable::findOrCreateDynamicMethodSymbol(TR::ResolvedMethodSymb
    if (method)
       owningMethodSymbol->setMayHaveInlineableCall(true);
 
+#if defined(J9VM_OPT_OPENJDK_METHODHANDLE)
+   TR::SymbolReference * symRef = findOrCreateMethodSymbol(owningMethodSymbol->getResolvedMethodIndex(), -1, method, TR::MethodSymbol::Static);
+#else
    TR::SymbolReference * symRef = findOrCreateMethodSymbol(owningMethodSymbol->getResolvedMethodIndex(), -1, method, TR::MethodSymbol::ComputedVirtual);
+#endif /* J9VM_OPT_OPENJDK_METHODHANDLE */
    methods->add(symRef);
    return symRef;
    }
@@ -404,7 +408,11 @@ J9::SymbolReferenceTable::findOrCreateHandleMethodSymbol(TR::ResolvedMethodSymbo
    if (method)
       owningMethodSymbol->setMayHaveInlineableCall(true);
 
+#if defined(J9VM_OPT_OPENJDK_METHODHANDLE)
+   TR::SymbolReference * symRef = findOrCreateMethodSymbol(owningMethodSymbol->getResolvedMethodIndex(), cpIndex, method, TR::MethodSymbol::Static);
+#else
    TR::SymbolReference * symRef = findOrCreateMethodSymbol(owningMethodSymbol->getResolvedMethodIndex(), cpIndex, method, TR::MethodSymbol::ComputedVirtual);
+#endif /* J9VM_OPT_OPENJDK_METHODHANDLE */
    return symRef;
    }
 
@@ -415,7 +423,14 @@ J9::SymbolReferenceTable::findOrCreateCallSiteTableEntrySymbol(TR::ResolvedMetho
    TR::SymbolReference *symRef;
    TR_SymRefIterator i(aliasBuilder.callSiteTableEntrySymRefs(), self());
    TR_ResolvedMethod *owningMethod = owningMethodSymbol->getResolvedMethod();
+#if defined(J9VM_OPT_OPENJDK_METHODHANDLE)
+   J9InvokeCacheEntry *invokeCache = (J9InvokeCacheEntry *) owningMethod->callSiteTableEntryAddress(callSiteIndex);
+   if (!invokeCache)
+      comp()->failCompilation<TR::CompilationException>("unable to retrieve side table entry for invokeDynamic");
+   void * entryLocation = (void *) (&invokeCache->appendix);
+#else
    void *entryLocation = owningMethod->callSiteTableEntryAddress(callSiteIndex);
+#endif
    for (symRef = i.getNext(); symRef; symRef = i.getNext())
       if (  owningMethodSymbol->getResolvedMethodIndex() == symRef->getOwningMethodIndex()
          && symRef->getSymbol()->castToStaticSymbol()->getStaticAddress() == entryLocation)
@@ -458,7 +473,14 @@ J9::SymbolReferenceTable::findOrCreateMethodTypeTableEntrySymbol(TR::ResolvedMet
    TR::SymbolReference *symRef;
    TR_SymRefIterator i(aliasBuilder.methodTypeTableEntrySymRefs(), self());
    TR_ResolvedMethod *owningMethod = owningMethodSymbol->getResolvedMethod();
+#if defined(J9VM_OPT_OPENJDK_METHODHANDLE)
+   J9InvokeCacheEntry *invokeCache = (J9InvokeCacheEntry *) owningMethod->methodTypeTableEntryAddress(cpIndex);
+   if (!invokeCache)
+      comp()->failCompilation<TR::CompilationException>("unable to retrieve side table entry for invokeDynamic");
+   void *entryLocation = (void *) (&invokeCache->appendix);
+#else
    void *entryLocation = owningMethod->methodTypeTableEntryAddress(cpIndex);
+#endif
    for (symRef = i.getNext(); symRef; symRef = i.getNext())
       if (  owningMethodSymbol->getResolvedMethodIndex() == symRef->getOwningMethodIndex()
          && symRef->getSymbol()->castToStaticSymbol()->getStaticAddress() == entryLocation)
@@ -469,6 +491,15 @@ J9::SymbolReferenceTable::findOrCreateMethodTypeTableEntrySymbol(TR::ResolvedMet
    TR::StaticSymbol *sym = TR::StaticSymbol::createMethodTypeTableEntry(trHeapMemory(),cpIndex);
    sym->setStaticAddress(entryLocation);
    bool isUnresolved = owningMethod->isUnresolvedMethodTypeTableEntry(cpIndex);
+
+   TR::KnownObjectTable::Index knownObjectIndex = TR::KnownObjectTable::UNKNOWN;
+   if (!isUnresolved)
+      {
+      TR::KnownObjectTable *knot = comp()->getOrCreateKnownObjectTable();
+      if (knot)
+         knownObjectIndex = knot->getOrCreateIndexAt((uintptr_t*)entryLocation);
+      }
+
    symRef = new (trHeapMemory()) TR::SymbolReference(self(), sym, owningMethodSymbol->getResolvedMethodIndex(), -1,
                                                     isUnresolved ? _numUnresolvedSymbols++ : 0);
 
