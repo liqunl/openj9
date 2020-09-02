@@ -1911,6 +1911,14 @@ void J9::X86::PrivateLinkage::buildDirectCall(TR::SymbolReference *methodSymRef,
 
    if (cg()->supportVMInternalNatives() && methodSymbol->isVMInternalNative())
       {
+      // Save number of explicit arguments to VMThread.tempSlot for MethodHandle.invokeBasic
+      //
+      if (methodSymbol->getRecognizedMethod() == TR::java_lang_invoke_MethodHandle_invokeBasic)
+         {
+         int32_t numExplicitArgs = callNode->getNumArguments() - 1;
+         generateMemImmInstruction(S8MemImm4, callNode, generateX86MemoryReference(cg()->getVMThreadRegister(), offsetof(J9VMThread, tempSlot), cg()), numExplicitArgs, cg());
+         }
+
       // Find the virtual register for edi
       // TODO: The register used should come from the linkage properties, rather than being hardcoded
       //
