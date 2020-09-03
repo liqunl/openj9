@@ -7198,6 +7198,13 @@ TR_J9ByteCodeIlGenerator::storeAuto(TR::DataType type, int32_t slot, bool isAdju
       }
 
    symRef = symRefTab()->findOrCreateAutoSymbol(_methodSymbol, slot, type, true, false, true, isAdjunct);
+
+   // Self-storing, skip the store
+   if (storeValue->getOpCode().isLoadDirect() && storeValue->getSymbolReference() == symRef)
+      {
+      return;
+      }
+
    if (storeValue->isDualHigh() || storeValue->isSelectHigh() || isAdjunct)
       symRef->setIsDual();
 
