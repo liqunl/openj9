@@ -986,6 +986,12 @@ TR_J9MethodBase::setArchetypeSpecimen(bool b)
    _flags.set(ArchetypeSpecimen, b);
    }
 
+void
+TR_J9MethodBase::setAdapterOrLambdaForm(bool b)
+   {
+   _flags.set(AdapterOrLambdaForm, b);
+   }
+
 char *
 TR_ResolvedJ9Method::localName(U_32 slotNumber, U_32 bcIndex, TR_Memory *trMemory)
    {
@@ -3919,6 +3925,12 @@ void TR_ResolvedJ9Method::construct()
       {  TR::unknownMethod}
       };
 
+   static X DirectMethodHandleMethods[] =
+      {
+      {x(TR::java_lang_invoke_DirectMethodHandle_internalMemberName,  "internalMemberName",       "(Ljava/lang/Object;)Ljava/lang/Object;")},
+      {  TR::unknownMethod}
+      };
+
    static X PrimitiveHandleMethods[] =
       {
       {x(TR::java_lang_invoke_PrimitiveHandle_initializeClassIfRequired,  "initializeClassIfRequired",       "()V")},
@@ -4428,6 +4440,7 @@ void TR_ResolvedJ9Method::construct()
    static Y class35[] =
       {
       { "java/lang/invoke/ExplicitCastHandle", ExplicitCastHandleMethods },
+      { "java/lang/invoke/DirectMethodHandle", DirectMethodHandleMethods },
       { 0 }
       };
 
@@ -6834,6 +6847,7 @@ TR_ResolvedJ9Method::getResolvedDynamicMethod(TR::Compilation * comp, I_32 callS
       TR::VMAccessCriticalSection getResolvedDynamicMethod(fej9());
       TR_OpaqueMethodBlock * targetJ9MethodBlock = fej9()->targetMethodFromMemberName((uintptr_t) invokeCache->target);
       result = fej9()->createResolvedMethod(comp->trMemory(), targetJ9MethodBlock, owningMethod);
+      result->convertToMethod()->setAdapterOrLambdaForm();
       }
 #else
    // JSR292: "Dynamic methods" differ from other kinds because the bytecode doesn't
@@ -6890,6 +6904,7 @@ TR_ResolvedJ9Method::getResolvedHandleMethod(TR::Compilation * comp, I_32 cpInde
       TR::VMAccessCriticalSection getResolvedHandleMethod(fej9());
       TR_OpaqueMethodBlock * targetJ9MethodBlock = fej9()->targetMethodFromMemberName((uintptr_t) invokeCache->target);
       result = fej9()->createResolvedMethod(comp->trMemory(), targetJ9MethodBlock, owningMethod);
+      result->convertToMethod()->setAdapterOrLambdaForm();
       }
 #else
    // JSR292: "Handle methods" differ from other kinds because the CP entry is
