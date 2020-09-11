@@ -447,6 +447,7 @@ public:
 
    virtual bool                    isCompilable(TR_Memory *);
 
+   virtual bool                    forceCompileTimeResolveMethod(I_32 cpIndex);
    static TR_OpaqueMethodBlock *   getVirtualMethod(TR_J9VMBase *fej9, J9ConstantPool *cp, I_32 cpIndex, UDATA *vTableOffset, bool *unresolvedInCP);
    static TR_OpaqueClassBlock  *   getInterfaceITableIndexFromCP(TR_J9VMBase *fej9, J9ConstantPool *cp, int32_t cpIndex, uintptr_t *pITableIndex);
 
