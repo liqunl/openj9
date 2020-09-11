@@ -26,10 +26,20 @@
 #include "optimizer/J9CallGraph.hpp"
 #include "ilgen/IlGenRequest.hpp"
 #include "jilconsts.h"
+#include "il/ParameterSymbol.hpp"
+#include "optimizer/PreExistence.hpp"
 #if defined(J9VM_OPT_JITSERVER)
 #include "control/CompilationRuntime.hpp"
 #include "env/j9methodServer.hpp"
 #endif /* defined(J9VM_OPT_JITSERVER) */
+
+char*
+ClassOperand::getSignature(TR::Compilation *comp, TR_Memory *trMemory)
+   {
+   if (!_signature)
+      _signature = TR::Compiler->cls.classSignature(comp, _clazz, trMemory);
+   return _signature;
+   }
 
 void
 InterpreterEmulator::maintainStackForIf(TR_J9ByteCode bc)
@@ -162,6 +172,73 @@ InterpreterEmulator::saveStack(int32_t targetIndex)
       _stacks[targetIndex] = new (trStackMemory()) ByteCodeStack(this->trMemory(), std::max<uint32_t>(20, _stack->size()));
    }
 
+int32_t
+InterpreterEmulator::numberOfBlocks()
+   {
+   int32_t numBlocks = 0;
+   TR_J9ByteCode bc = first();
+   while (bc != J9BCunknown)
+      {
+      if (_InterpreterEmulatorFlags[_bcIndex].testAny(InterpreterEmulator::BytecodePropertyFlag::bbStart))
+         numBlocks++;
+      bc = next();
+      }
+   return numBlocks;
+   }
+
+void
+InterpreterEmulator::checkMaintainableSlot()
+   {
+   int32_t numParmSlots = method()->numberOfParameterSlots();
+   int32_t numSlots = numParmSlots + method()->numberOfTemps();
+   if (numSlots == 0) return;
+
+   _localVariables = new (trStackMemory()) TR_Array<Operand*>(this->trMemory(), numSlots);
+   _maintainableSlot = new (trStackMemory()) bool[numSlots];
+   memset(_maintainableSlot, 1, numSlots * sizeof(bool));
+
+   for (uint32_t i = 0; i < numSlots; i++)
+      {
+      (*_localVariables)[i] = _unknownOperand;
+      }
+
+   // Slots of method without control flow are maintainable
+   if (numberOfBlocks() == 1)
+      return;
+
+   int32_t *numWritesToSlot = new (trStackMemory()) int32_t[numSlots];
+   memset(numWritesToSlot, 0, numSlots * sizeof(int32_t));
+
+   TR_J9ByteCode bc = first();
+   while (bc != J9BCunknown)
+      {
+      switch (bc)
+         {
+         case J9BCistore: case J9BClstore: case J9BCfstore: case J9BCdstore: case J9BCastore:
+            numWritesToSlot[nextByte()]++; break;
+         case J9BCistorew: case J9BClstorew: case J9BCfstorew: case J9BCdstorew: case J9BCastorew:
+            numWritesToSlot[next2Bytes()]++; break;
+         case J9BCistore0: case J9BClstore0: case J9BCfstore0: case J9BCdstore0: case J9BCastore0:
+            numWritesToSlot[0]++; break;
+         case J9BCistore1: case J9BClstore1: case J9BCfstore1: case J9BCdstore1: case J9BCastore1:
+            numWritesToSlot[1]++; break;
+         case J9BCistore2: case J9BClstore2: case J9BCfstore2: case J9BCdstore2: case J9BCastore2:
+            numWritesToSlot[2]++; break;
+         case J9BCistore3: case J9BClstore3: case J9BCfstore3: case J9BCdstore3: case J9BCastore3:
+            numWritesToSlot[3]++; break;
+         }
+      bc = next();
+      }
+
+   for (int32_t i = 0; i < numSlots; i++)
+      {
+      if (i < numParmSlots && numWritesToSlot[i] > 0)
+         _maintainableSlot[i] = false;
+      else if ( i>= numParmSlots && numWritesToSlot[i] > 1)
+         _maintainableSlot[i] = false;
+      }
+   }
+
 void
 InterpreterEmulator::initializeIteratorWithState()
    {
@@ -173,6 +250,59 @@ InterpreterEmulator::initializeIteratorWithState()
    memset(_flags, 0, size * sizeof(flags8_t));
    memset(_stacks, 0, size * sizeof(ByteCodeStack *));
    _stack = new (trStackMemory()) TR_Stack<Operand *>(this->trMemory(), 20, false, stackAlloc);
+
+   // Get an array of bool for each slot, initialize it with parms
+   // Check if there is a write to parm slot
+   // check if there is two writes to auto slot
+   checkMaintainableSlot();
+
+   TR_PrexArgInfo *argInfo = _calltarget->_ecsPrexArgInfo;
+
+   if (_maintainableSlot && argInfo)
+      {
+      TR_ASSERT_FATAL(argInfo->getNumArgs() == method()->numberOfParameters(), "Prex arg number should match parm number");
+
+      if (tracer()->heuristicLevel())
+         {
+         debugTrace(tracer(), "Save argInfo to slot state array\n");
+         argInfo->dumpTrace();
+         }
+
+      // save prex arg into local var arrays
+      // liqun: there may be a problem creating parameter list now?
+      // create the list such that we know what slot an arg uses
+      method()->makeParameterList(_methodSymbol);
+
+      ListIterator<TR::ParameterSymbol> parms(&_methodSymbol->getParameterList());
+      for (TR::ParameterSymbol *p = parms.getFirst(); p != NULL; p = parms.getNext())
+          {
+          int32_t ordinal = p->getOrdinal();
+          int32_t slotIndex = p->getSlot();
+          TR_PrexArgument *prexArgument = argInfo->get(ordinal);
+          if (!prexArgument) continue;
+
+          if (TR_PrexArgument::knowledgeLevel(prexArgument) == KNOWN_OBJECT)
+             {
+             debugTrace(tracer(), "aload known obj%d from slot %d\n", prexArgument->getKnownObjectIndex(), slotIndex);
+             (*_localVariables)[slotIndex] = new (trStackMemory()) KnownObjOperand(prexArgument->getKnownObjectIndex());
+             }
+          else if (TR_PrexArgument::knowledgeLevel(prexArgument) == FIXED_CLASS)
+             {
+             (*_localVariables)[slotIndex] = new (trStackMemory()) FixedClassOperand(prexArgument->getClass());
+             debugTrace(tracer(), "aload fixed class %s from slot %d\n", (*_localVariables)[slotIndex]->getSignature(comp(), this->trMemory()), slotIndex);
+             }
+          else if (TR_PrexArgument::knowledgeLevel(prexArgument) == PREEXISTENT)
+             {
+             (*_localVariables)[slotIndex] = new (trStackMemory()) PrexClassOperand(prexArgument->getClass());
+             debugTrace(tracer(), "aload prex class %s from slot %d\n", (*_localVariables)[slotIndex]->getSignature(comp(), this->trMemory()), slotIndex);
+             }
+          else if (prexArgument->getClass())
+             {
+             (*_localVariables)[slotIndex] = new (trStackMemory()) ClassOperand(prexArgument->getClass());
+             debugTrace(tracer(), "aload class %s from slot %d\n", (*_localVariables)[slotIndex]->getSignature(comp(), this->trMemory()), slotIndex);
+             }
+          }
+      }
 
    genBBStart(0);
    setupBBStartContext(0);
@@ -228,14 +358,18 @@ InterpreterEmulator::maintainStack(TR_J9ByteCode bc)
          pushUnknownOperand();
          break;
       case J9BCistore: case J9BClstore: case J9BCfstore: case J9BCdstore: case J9BCastore:
+         maintainStackForStoreAuto(nextByte()); break;
       case J9BCistorew: case J9BClstorew: case J9BCfstorew: case J9BCdstorew: case J9BCastorew:
-      case J9BCistore0: case J9BCistore1: case J9BCistore2: case J9BCistore3:
-      case J9BClstore0: case J9BClstore1: case J9BClstore2: case J9BClstore3:
-      case J9BCfstore0: case J9BCfstore1: case J9BCfstore2: case J9BCfstore3:
-      case J9BCdstore0: case J9BCdstore1: case J9BCdstore2: case J9BCdstore3:
-      case J9BCastore0: case J9BCastore1: case J9BCastore2: case J9BCastore3:
-         pop();
-         break;
+         maintainStackForStoreAuto(next2Bytes()); break;
+      case J9BCistore0: case J9BClstore0: case J9BCfstore0: case J9BCdstore0: case J9BCastore0:
+         maintainStackForStoreAuto(0); break;
+      case J9BCistore1: case J9BClstore1: case J9BCfstore1: case J9BCdstore1: case J9BCastore1:
+         maintainStackForStoreAuto(1); break;
+      case J9BCistore2: case J9BClstore2: case J9BCfstore2: case J9BCdstore2: case J9BCastore2:
+         maintainStackForStoreAuto(2); break;
+      case J9BCistore3: case J9BClstore3: case J9BCfstore3: case J9BCdstore3: case J9BCastore3:
+         maintainStackForStoreAuto(3); break;
+      // liqun: TODO: maintain stack for the following load auto
       case J9BCiload0: case J9BCiload1: case J9BCiload2: case J9BCiload3:
       case J9BCdload0: case J9BCdload1: case J9BCdload2: case J9BCdload3:
       case J9BClload0: case J9BClload1: case J9BClload2: case J9BClload3:
@@ -253,6 +387,13 @@ InterpreterEmulator::maintainStack(TR_J9ByteCode bc)
       case J9BCinvokestatic:
       case J9BCinvokestaticsplit:
          break;
+      case J9BCcheckcast:
+         break;
+      case J9BCdup:
+         push(top());
+         break;
+      case J9BCldc:
+         maintainStackForldc(nextByte()); break;
       default:
          static const bool assertfatal = feGetEnv("TR_AssertFatalForUnexpectedBytecodeInMethodHandleThunk") ? true: false;
          if (!assertfatal)
@@ -274,9 +415,56 @@ InterpreterEmulator::maintainStack(TR_J9ByteCode bc)
    }
 
 void
+InterpreterEmulator::maintainStackForldc(int32_t cpIndex)
+   {
+   TR::DataType type = method()->getLDCType(cpIndex);
+   switch (type)
+      {
+      case TR::Address:
+         // liqun: TODO: should add a function to check if cp entry is unresolved for constant
+         // not just for string
+         if (method()->isStringConstant(cpIndex) && !method()->isUnresolvedString(cpIndex))
+            {
+            uintptr_t * location = (uintptr_t *)method()->stringConstant(cpIndex);
+            TR::KnownObjectTable *knot = comp()->getKnownObjectTable();
+            if (knot)
+               {
+               TR::KnownObjectTable::Index koi = knot->getOrCreateIndexAt(location);
+               push(new (trStackMemory()) KnownObjOperand(koi));
+               debugTrace(tracer(), "aload known obj%d from ldc %d\n", koi, cpIndex);
+               return;
+               }
+            }
+         break;
+      default:
+         break;
+      }
+
+   pushUnknownOperand();
+   }
+
+void
+InterpreterEmulator::maintainStackForStoreAuto(int slotIndex)
+   {
+   TR_ASSERT_FATAL(_iteratorWithState, "has to be called when the iterator has state!");
+   if (_maintainableSlot[slotIndex])
+      {
+      (*_localVariables)[slotIndex] = pop();
+      }
+   else
+      pop();
+   }
+
+void
 InterpreterEmulator::maintainStackForAload(int slotIndex)
    {
    TR_ASSERT_FATAL(_iteratorWithState, "has to be called when the iterator has state!");
+   if (_maintainableSlot[slotIndex])
+      {
+      push((*_localVariables)[slotIndex]);
+      return;
+      }
+
    TR_PrexArgInfo *argInfo = _calltarget->_ecsPrexArgInfo;
    TR_ASSERT_FATAL(argInfo, "thunk archetype target doesn't have _ecsPrexArgInfo %p\n", _calltarget);
    if (slotIndex < argInfo->getNumArgs())
@@ -293,9 +481,25 @@ InterpreterEmulator::maintainStackForAload(int slotIndex)
    }
 
 void
+InterpreterEmulator::maintainStackForCall(TR_ResolvedMethod *callerMethod, Operand *result, int32_t numArgs, TR::DataType returnType)
+   {
+   TR_ASSERT_FATAL(_iteratorWithState, "has to be called when the iterator has state!");
+
+   for (int i = 1; i <= numArgs; i++)
+      pop();
+
+   if (result)
+      push(result);
+   else if (returnType != TR::NoType)
+      pushUnknownOperand();
+   }
+
+void
 InterpreterEmulator::maintainStackForCall(TR_ResolvedMethod *callerMethod, Operand *result, bool isDirect)
    {
    TR_ASSERT_FATAL(_iteratorWithState, "has to be called when the iterator has state!");
+   // liqun: can't use cpIndex to get callee. This is the initial callee, it can be
+   // refined to a method that takes different number of arguments
    int32_t cpIndex = next2Bytes();
    TR::Method * calleeMethod = comp()->fej9()->createMethod(trMemory(), callerMethod->containingClass(), cpIndex);
    int32_t argNum = calleeMethod->numberOfExplicitParameters() + (isDirect ? 0: 1);
@@ -346,6 +550,23 @@ InterpreterEmulator::getReturnValueForInvokestatic(TR_ResolvedMethod *callee)
       case TR::java_lang_invoke_ILGenMacros_isShareableThunk:
          result = new (trStackMemory()) IconstOperand(0);
          break;
+      case TR::java_lang_invoke_DirectMethodHandle_internalMemberName:
+         {
+         Operand* mh = top();
+         TR::KnownObjectTable::Index mhIndex = top()->getKnownObjectIndex();
+         debugTrace(tracer(), "Known DirectMethodHandle koi %d\n", mhIndex);
+         TR::KnownObjectTable *knot = comp()->getKnownObjectTable();
+         if (mhIndex != TR::KnownObjectTable::UNKNOWN)
+            {
+            TR::VMAccessCriticalSection dereferenceKnownObjectField(comp()->fej9());
+            uintptr_t mhObjectAddress = knot->getPointer(mhIndex);
+            uintptr_t memberAddress = comp()->fej9()->getReferenceField(mhObjectAddress, "member", "Ljava/lang/invoke/MemberName;");
+            TR::KnownObjectTable::Index memberIndex = knot->getOrCreateIndex(memberAddress);
+            debugTrace(tracer(), "Known internal member name koi %d\n", memberIndex);
+            result = new (trStackMemory()) KnownObjOperand(memberIndex);
+            }
+         break;
+         }
       }
    return result;
    }
@@ -356,13 +577,15 @@ InterpreterEmulator::getReturnValueForInvokevirtual(TR_ResolvedMethod *callee)
    if (!callee)
       return NULL;
    Operand *result = NULL;
-   int argNum = callee->numberOfExplicitParameters();
    TR::KnownObjectTable *knot = comp()->getKnownObjectTable();
-   TR::KnownObjectTable::Index receiverIndex = topn(argNum)->getKnownObjectIndex();
    if (callee->getRecognizedMethod() == TR::java_lang_invoke_MutableCallSite_getTarget &&
-      receiverIndex != TR::KnownObjectTable::UNKNOWN &&
       knot)
       {
+      int argNum = callee->numberOfExplicitParameters();
+      TR::KnownObjectTable::Index receiverIndex = topn(argNum)->getKnownObjectIndex();
+      if (receiverIndex == TR::KnownObjectTable::UNKNOWN)
+         return NULL;
+
       TR::KnownObjectTable::Index resultIndex = TR::KnownObjectTable::UNKNOWN;
       TR_OpaqueClassBlock *mutableCallsiteClass = callee->classOfMethod();
       debugTrace(tracer(), "java_lang_invoke_MutableCallSite_target receiver obj%d(*%p) mutableCallsiteClass %p\n", receiverIndex, knot->getPointerLocation(receiverIndex), mutableCallsiteClass);
@@ -504,6 +727,20 @@ InterpreterEmulator::refineResolvedCalleeForInvokestatic(TR_ResolvedMethod *&cal
          callee = fej9->createResolvedMethod(this->trMemory(), j9method);
          return;
          }
+      case TR::java_lang_invoke_MethodHandle_linkToStatic:
+      case TR::java_lang_invoke_MethodHandle_linkToSpecial:
+         {
+         TR::KnownObjectTable::Index memberNameIndex = top()->getKnownObjectIndex();
+         TR_J9VMBase* fej9 = comp()->fej9();
+         auto targetMethod = fej9->targetMethodFromMemberName(comp(), memberNameIndex);
+         if (!targetMethod) return;
+
+         callee = fej9->createResolvedMethod(comp()->trMemory(), targetMethod, _calltarget->_calleeMethod);
+         isIndirectCall = false;
+         heuristicTrace(tracer(), "Refined linkTo\n");
+         // The refined method doesn't take MemberName as an argument
+         pop();
+         }
       }
    }
 
@@ -629,6 +866,52 @@ InterpreterEmulator::visitInvokedynamic()
       }
    }
 
+#if defined(J9VM_OPT_OPENJDK_METHODHANDLE)
+void
+InterpreterEmulator::visitInvokehandle()
+   {
+
+   bool isInterface = false;
+   bool isIndirectCall = false;
+   TR::Method *interfaceMethod = 0;
+   TR::TreeTop *callNodeTreeTop = 0;
+   TR::Node *parent = 0;
+   TR::Node *callNode = 0;
+   TR::ResolvedMethodSymbol *resolvedSymbol = 0;
+   Operand *result = NULL;
+   int32_t cpIndex = next2Bytes();
+   TR_ResolvedMethod * owningMethod = _methodSymbol->getResolvedMethod();
+
+   J9InvokeCacheEntry *invokeCache = (J9InvokeCacheEntry *) owningMethod->methodTypeTableEntryAddress(cpIndex);
+   if (!invokeCache) return; // unresolved
+
+   // add appendix object to knot and push to stack
+   TR::KnownObjectTable *knot = comp()->getOrCreateKnownObjectTable();
+   if (knot) push(new (trStackMemory()) KnownObjOperand(knot->getOrCreateIndexAt((uintptr_t*) (&invokeCache->appendix))));
+
+   TR_J9VMBase *fej9 = comp()->fej9();
+   TR_OpaqueMethodBlock * targetMethodObj = 0;
+      {
+      TR::VMAccessCriticalSection vmAccess(fej9);
+      targetMethodObj = fej9->targetMethodFromMemberName((uintptr_t) invokeCache->target);
+      }
+   TR_ResolvedMethod * targetMethod = fej9->createResolvedMethod(this->trMemory(), targetMethodObj, owningMethod);
+   targetMethod->convertToMethod()->setAdapterOrLambdaForm();
+
+   bool allconsts = false;
+   if (targetMethod->numberOfExplicitParameters() > 0 && targetMethod->numberOfExplicitParameters() <= _pca.getNumPrevConstArgs(targetMethod->numberOfExplicitParameters()))
+         allconsts = true;
+   TR_CallSite *callsite = new (comp()->trHeapMemory()) TR_DirectCallSite(_calltarget->_calleeMethod, callNodeTreeTop,   parent,
+                                                                        callNode, interfaceMethod, targetMethod->classOfMethod(),
+                                                                        -1, cpIndex, targetMethod,
+                                                                        resolvedSymbol, isIndirectCall, isInterface, *_newBCInfo, comp(),
+                                                                        _recursionDepth, allconsts);
+
+   findTargetAndUpdateInfoForCallsite(callsite);
+
+>>>>>>> ec40b8d9e0... Inline MethodHandle chain
+   }
+
 bool
 InterpreterEmulator::isCurrentCallUnresolvedOrCold(TR_ResolvedMethod *resolvedMethod, bool isUnresolvedInCP)
    {
@@ -663,6 +946,27 @@ InterpreterEmulator::debugUnresolvedOrCold(TR_ResolvedMethod *resolvedMethod)
       }
    }
 
+// liqun: TODO: merge this with refineResolvedCalleeForInvokestatic
+TR_ResolvedMethod*
+InterpreterEmulator::refineCall(TR_ResolvedMethod* resolvedMethod)
+   {
+   if (resolvedMethod->getRecognizedMethod() == TR::java_lang_invoke_MethodHandle_invokeBasic)
+      {
+      int argNum = resolvedMethod->numberOfExplicitParameters();
+      TR::KnownObjectTable::Index receiverIndex = topn(argNum)->getKnownObjectIndex();
+      TR_J9VMBase* fej9 = comp()->fej9();
+      auto targetMethod = fej9->targetMethodFromMethodHandle(comp(), receiverIndex);
+      if (!targetMethod) return NULL;
+
+      auto refinedMethod = fej9->createResolvedMethod(comp()->trMemory(), targetMethod, _calltarget->_calleeMethod);
+      refinedMethod->convertToMethod()->setAdapterOrLambdaForm();
+      heuristicTrace(tracer(), "Refined invokeBasic\n");
+      return refinedMethod;
+      }
+
+   return NULL;
+   }
+
 void
 InterpreterEmulator::visitInvokevirtual()
    {
@@ -677,14 +981,18 @@ InterpreterEmulator::visitInvokevirtual()
       }
    else if (resolvedMethod)
       {
+      auto refinedMethod = refineCall(resolvedMethod);
+      if (refinedMethod)
+         resolvedMethod = refinedMethod;
+
       bool allconsts= false;
       heuristicTrace(tracer(),"numberOfExplicitParameters = %d  _pca.getNumPrevConstArgs = %d\n",resolvedMethod->numberOfExplicitParameters() ,_pca.getNumPrevConstArgs(resolvedMethod->numberOfExplicitParameters()));
       if ( resolvedMethod->numberOfExplicitParameters() > 0 && resolvedMethod->numberOfExplicitParameters() <= _pca.getNumPrevConstArgs(resolvedMethod->numberOfExplicitParameters()))
          allconsts = true;
 
       TR_CallSite *callsite;
-      bool isIndirectCall = resolvedMethod == NULL ||
-                           (!resolvedMethod->isFinal() && !resolvedMethod->isPrivate());
+      bool isIndirectCall = resolvedMethod->isStatic() ? false :
+                                                         resolvedMethod == NULL || (!resolvedMethod->isFinal() && !resolvedMethod->isPrivate());
       bool isInterface = false;
       TR::Method *interfaceMethod = 0;
       TR::TreeTop *callNodeTreeTop = 0;
@@ -721,7 +1029,7 @@ InterpreterEmulator::visitInvokevirtual()
          {
          callsite = new (comp()->trHeapMemory()) TR_DirectCallSite(_calltarget->_calleeMethod, callNodeTreeTop, parent,
                                                                         callNode, interfaceMethod, resolvedMethod->classOfMethod(),
-                                                                        (int32_t) resolvedMethod->virtualCallSelector(cpIndex), cpIndex, resolvedMethod,
+                                                                        -1, cpIndex, resolvedMethod,
                                                                         resolvedSymbol, isIndirectCall, isInterface, *_newBCInfo, comp(),
                                                                         _recursionDepth, allconsts);
 
@@ -733,7 +1041,7 @@ InterpreterEmulator::visitInvokevirtual()
       }
 
    if (_iteratorWithState)
-      maintainStackForIndirectCall(_calltarget->_calleeMethod, getReturnValueForInvokevirtual(resolvedMethod));
+      maintainStackForCall(_calltarget->_calleeMethod, getReturnValueForInvokestatic(resolvedMethod), resolvedMethod->numberOfParameters(), resolvedMethod->returnType());
    }
 
 void
@@ -846,7 +1154,7 @@ InterpreterEmulator::visitInvokestatic()
       }
 
    if (_iteratorWithState)
-      maintainStackForDirectCall(_calltarget->_calleeMethod, getReturnValueForInvokestatic(origResolvedMethod));
+      maintainStackForCall(_calltarget->_calleeMethod, getReturnValueForInvokestatic(resolvedMethod), resolvedMethod->numberOfParameters(), resolvedMethod->returnType());
    }
 
 void
@@ -918,11 +1226,110 @@ InterpreterEmulator::visitInvokeinterface()
    findTargetAndUpdateInfoForCallsite(callsite);
    }
 
+TR_PrexArgument*
+InterpreterEmulator::createPrexArgFromOperand(Operand* operand)
+   {
+   if (operand->asKnownObject())
+      {
+      return new (comp()->trHeapMemory()) TR_PrexArgument(operand->getKnownObjectIndex(), comp());
+      }
+   else if (operand->asClassOperand())
+      {
+      TR_OpaqueClassBlock* clazz = operand->asClassOperand()->getClass();
+      TR_PrexArgument::ClassKind kind = TR_PrexArgument::ClassIsUnknown;
+      if (operand->asFixedClassOperand())
+         kind = TR_PrexArgument::ClassIsFixed;
+      else if (operand->asPrexClassOperand())
+         kind = TR_PrexArgument::ClassIsPreexistent;
+
+      return new (comp()->trHeapMemory()) TR_PrexArgument(kind, clazz);
+      }
+
+   return NULL;
+   }
+
+// liqun: can't propagate receiver for static method
+// this is a problem. We should propagate arg info for any method and any arg
+// we should propagate arg info even if peeking is not successfull
+// Or no need to propagate, since we've walked through the bytecodes and maintained
+// the stack and auto slots, we know what the arguments are
 void
 InterpreterEmulator::findTargetAndUpdateInfoForCallsite(TR_CallSite *callsite)
    {
    callsite->_callerBlock = _currentInlinedBlock;
-   if (current() == J9BCinvokevirtual || current() == J9BCinvokeinterface)
+
+   int32_t numOfArgs = 0;
+   if (callsite->_isInterface)
+      {
+      numOfArgs = callsite->_interfaceMethod->numberOfExplicitParameters() + 1;
+      }
+   else if (callsite->_initialCalleeMethod)
+      {
+      numOfArgs = callsite->_initialCalleeMethod->numberOfParameters();
+      }
+
+   if (_iteratorWithState)
+      {
+      // Get arg info from stack
+      if (!callsite->_ecsPrexArgInfo)
+         {
+         // liqun: todo: should it be stack memory?
+         callsite->_ecsPrexArgInfo = new (comp()->trHeapMemory()) TR_PrexArgInfo(numOfArgs, comp()->trMemory());
+         }
+
+      for (int32_t i = 0; i < numOfArgs; i++)
+         {
+         int32_t posInStack = numOfArgs - i - 1;
+         callsite->_ecsPrexArgInfo->set(i, createPrexArgFromOperand(topn(posInStack)));
+         }
+
+      if (tracer()->heuristicLevel())
+         {
+         alwaysTrace(tracer(), "argInfo from operand stack:");
+         if (callsite->_ecsPrexArgInfo)
+            callsite->_ecsPrexArgInfo->dumpTrace();
+         }
+
+      if (_ecs->isInlineable(_callStack, callsite))
+         {
+         _callSites[_bcIndex] = callsite;
+         _inlineableCallExists = true;
+
+         // Improve prex argInfo of call targets
+         for (int j = 0; j < callsite->numTargets(); j++)
+            {
+            TR_CallTarget* callSiteTarget = callsite->getTarget(j);
+            if (!callSiteTarget->_ecsPrexArgInfo)
+               continue;
+
+            TR_PrexArgInfo* targetArgInfo = callSiteTarget->_ecsPrexArgInfo;
+            TR_PrexArgInfo* callSiteArgInfo = callsite->_ecsPrexArgInfo;
+            callSiteTarget->_ecsPrexArgInfo = TR_PrexArgInfo::enhance(targetArgInfo, callSiteArgInfo, comp());
+            }
+
+         if (tracer()->heuristicLevel())
+            {
+            alwaysTrace(tracer(), "propagateArgs :");
+            if (callsite->numTargets() && callsite->getTarget(0)->_ecsPrexArgInfo)
+               callsite->getTarget(0)->_ecsPrexArgInfo->dumpTrace();
+            }
+
+         if (!_currentInlinedBlock->isCold())
+               _nonColdCallExists = true;
+
+         for (int i = 0; i < callsite->numTargets(); i++)
+            callsite->getTarget(i)->_originatingBlock = _currentInlinedBlock;
+         }
+      else
+         {
+         //support counters
+         _calltarget->addDeadCallee(callsite);
+         }
+     return;
+      }
+
+   // No _initialCalleeMethod means the method is interface
+   if (!callsite->_initialCalleeMethod || !callsite->_initialCalleeMethod->isStatic())
       {
       if (_wasPeekingSuccessfull)
          {
