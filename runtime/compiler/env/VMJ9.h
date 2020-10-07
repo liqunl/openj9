@@ -361,6 +361,7 @@ public:
       }
 
    virtual TR::Method * createMethod(TR_Memory *, TR_OpaqueClassBlock *, int32_t);
+   virtual TR::Method * createMethod(TR_Memory *, TR_OpaqueMethodBlock*);
    virtual TR_ResolvedMethod * createResolvedMethod(TR_Memory *, TR_OpaqueMethodBlock *, TR_ResolvedMethod * = 0, TR_OpaqueClassBlock * = 0);
    virtual TR_ResolvedMethod * createResolvedMethodWithSignature(TR_Memory *, TR_OpaqueMethodBlock *, TR_OpaqueClassBlock *, char *signature, int32_t signatureLength, TR_ResolvedMethod *);
    virtual void * getStaticFieldAddress(TR_OpaqueClassBlock *, unsigned char *, uint32_t, unsigned char *, uint32_t);
@@ -701,6 +702,7 @@ public:
    virtual bool               startAsyncCompile(TR_OpaqueMethodBlock *methodInfo, void *oldStartPC, bool *queued, TR_OptimizationPlan *optimizationPlan  = NULL);
    virtual bool               isBeingCompiled(TR_OpaqueMethodBlock *methodInfo, void *startPC);
    virtual uint32_t           virtualCallOffsetToVTableSlot(uint32_t offset);
+   virtual uint32_t           vTableSlotToVirtualCallOffset(uint32_t vTableSlot);
    virtual void *             addressOfFirstClassStatic(TR_OpaqueClassBlock *);
 
    virtual TR_ResolvedMethod * getDefaultConstructor(TR_Memory *, TR_OpaqueClassBlock *);
@@ -756,6 +758,50 @@ public:
    virtual uintptr_t mutableCallSiteCookie(uintptr_t mutableCallSite, uintptr_t potentialCookie=0);
 
    bool hasMethodTypesSideTable();
+
+   // Openjdk implementation
+#if defined(J9VM_OPT_OPENJDK_METHODHANDLE)
+   /*
+    * \brief
+    *    Return MemberName.vmtarget, a J9method pointer for method represented by `memberName`
+    *    Caller must acquire VM access
+    */
+   TR_OpaqueMethodBlock* targetMethodFromMemberName(uintptr_t memberName);
+   /*
+    * \brief
+    *    Return MemberName.vmtarget, a J9method pointer for method represented by `memberName`
+    *    VM access is not required
+    */
+   TR_OpaqueMethodBlock* targetMethodFromMemberName(TR::Compilation* comp, TR::KnownObjectTable::Index objIndex);
+   /*
+    * \brief
+    *    Return MethodHandle.form.vmentry.vmtarget, J9method for the underlying java method
+    *    The J9Method is the target to be invoked intrinsically by MethodHandle.invokeBasic
+    *    Caller must acquire VM access
+    */
+   TR_OpaqueMethodBlock* targetMethodFromMethodHandle(uintptr_t methodHandle);
+   /*
+    * \brief
+    *    Return MethodHandle.form.vmentry.vmtarget, J9method for the underlying java method
+    *    The J9Method is the target to be invoked intrinsically by MethodHandle.invokeBasic
+    *    VM access is not required
+    */
+   TR_OpaqueMethodBlock* targetMethodFromMethodHandle(TR::Compilation* comp, TR::KnownObjectTable::Index objIndex);
+   /*
+    * \brief
+    *    Return MemberName.vmindex, a J9JNIMethodID pointer containing vtable/itable offset for the MemberName method
+    *    Caller must acquire VM access
+    */
+   J9JNIMethodID* jniMethodIdFromMemberName(uintptr_t memberName);
+   /*
+    * \brief
+    *    Return MemberName.vmindex, a J9JNIMethodID pointer containing vtable/itable offset for the MemberName method
+    *    VM access is not required
+    */
+   J9JNIMethodID* jniMethodIdFromMemberName(TR::Compilation* comp, TR::KnownObjectTable::Index objIndex);
+   int32_t vTableOrITableIndexFromMemberName(uintptr_t memberName);
+   int32_t vTableOrITableIndexFromMemberName(TR::Compilation* comp, TR::KnownObjectTable::Index objIndex);
+#endif
 
    // JSR292 }}}
 
