@@ -411,6 +411,30 @@ J9::SymbolReferenceTable::findOrCreateInterfaceMethodSymbol(TR::ResolvedMethodSy
    return symRef;
    }
 
+// TODO: change it to support creating unresolved method symbol for any kinds of calls
+// last arg can be int32_t refOffset
+// may take valid cpIndex
+TR::SymbolReference *
+J9::SymbolReferenceTable::createInterfaceMethodSymbol(TR::ResolvedMethodSymbol * owningMethodSymbol, TR_OpaqueMethodBlock* aMethod, int32_t iTableIndex)
+   {
+   owningMethodSymbol->setMayHaveInlineableCall(true);
+   auto fej9 = (TR_J9VMBase *)(fe());
+   // Is this needed? The unresolved call is not from original bytecode?
+   int32_t unresolvedIndex = _numUnresolvedSymbols++;
+   auto sym = TR::MethodSymbol::create(trHeapMemory(), TR_Private, fej9->createMethod(trMemory(), aMethod));
+   sym->setMethodKind(TR::MethodSymbol::Interface);
+
+   auto symRef = new (trHeapMemory()) TR::SymbolReference(self(), sym, owningMethodSymbol->getResolvedMethodIndex(), -1, unresolvedIndex);
+   symRef->setOffset(iTableIndex);
+   symRef->setCanGCandReturn();
+   symRef->setCanGCandExcept();
+   symRef->setUnresolved();
+
+   aliasBuilder.methodSymRefs().set(symRef->getReferenceNumber());
+   symRef->setHasBeenAccessedAtRuntime(TR_maybe);
+
+   return symRef;
+   }
 
 TR::SymbolReference *
 J9::SymbolReferenceTable::findOrCreateDynamicMethodSymbol(TR::ResolvedMethodSymbol * owningMethodSymbol, int32_t callSiteIndex)

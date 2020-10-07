@@ -197,6 +197,12 @@ TR_J9VMBase::createMethod(TR_Memory * trMemory, TR_OpaqueClassBlock * clazz, int
    return new (trMemory->trHeapMemory()) TR_J9Method(this, trMemory, TR::Compiler->cls.convertClassOffsetToClassPtr(clazz), refOffset);
    }
 
+TR::Method *
+TR_J9VMBase::createMethod(TR_Memory * trMemory, TR_OpaqueMethodBlock* aMethod)
+   {
+   return new (trMemory->trHeapMemory()) TR_J9Method(this, trMemory, aMethod);
+   }
+
 TR_ResolvedMethod *
 TR_J9VMBase::createResolvedMethod(TR_Memory * trMemory, TR_OpaqueMethodBlock * aMethod,
                                   TR_ResolvedMethod * owningMethod, TR_OpaqueClassBlock *classForNewInstance)
