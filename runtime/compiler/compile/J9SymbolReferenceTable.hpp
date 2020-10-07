@@ -110,6 +110,8 @@ class SymbolReferenceTable : public OMR::SymbolReferenceTableConnector
    TR::SymbolReference * findOrCreateWriteBarrierClassStoreRealTimeGCSymbolRef(TR::ResolvedMethodSymbol * owningMethodSymbol = 0);
    TR::SymbolReference * findOrCreateWriteBarrierBatchStoreSymbolRef(TR::ResolvedMethodSymbol * owningMethodSymbol = 0);
 
+   TR::SymbolReference * createInterfaceMethodSymbol(TR::ResolvedMethodSymbol * owningMethodSymbol, TR_OpaqueMethodBlock* aMethod, int32_t iTableIndex);
+
    TR::SymbolReference * findOrCreateAcmpHelperSymbolRef(TR::ResolvedMethodSymbol * owningMEthodSymbol = NULL);
 
    TR::SymbolReference * findOrCreateShadowSymbol(TR::ResolvedMethodSymbol * owningMethodSymbol, int32_t cpIndex, bool isStore);
