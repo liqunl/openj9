@@ -334,6 +334,7 @@ class InterpreterEmulator : public TR_ByteCodeIteratorWithState<TR_J9ByteCode, J
       void maintainStackForStoreAuto(int slotIndex);
       void maintainStackForldc(int32_t cpIndex);
       TR_ResolvedMethod* refineCall(TR_ResolvedMethod* resolvedMethod);
+      bool hasByteCodeRequireState();
 
       TR_LogTracer *_tracer;
       TR_EstimateCodeSize *_ecs;
