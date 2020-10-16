@@ -589,6 +589,8 @@ void J9::RecognizedCallTransformer::processLinkTo(TR::TreeTop* treetop, TR::Node
    if (trace())
       traceMsg(comp(), "%sspecialize and devirtualize linkTo [%p] with known MH object\n", optDetailString(), node);
 
+   comp()->dumpMethodTrees("Trees before recognized call transformer", comp()->getMethodSymbol());
+
    auto symRef = node->getSymbolReference();
    auto rm = node->getSymbol()->castToMethodSymbol()->getMandatoryRecognizedMethod();
    TR::MethodSymbol::Kinds callKind = getTargetMethodCallKind(rm);
@@ -602,13 +604,16 @@ void J9::RecognizedCallTransformer::processLinkTo(TR::TreeTop* treetop, TR::Node
       }
    else
       {
-      auto resolvedMethod = fej9->createResolvedMethod(comp()->trMemory(), targetMethod, symRef->getOwningMethod(comp()));
-      newSymRef = getSymRefTab()->findOrCreateMethodSymbol(symRef->getOwningMethodIndex(), -1, resolvedMethod, callKind);
+      uint32_t vTableSlot = 0;
       if (rm == TR::java_lang_invoke_MethodHandle_linkToVirtual)
          {
-         int32_t vTableIndex = fej9->vTableOrITableIndexFromMemberName(comp(), objIndex);
-         newSymRef->setOffset(fej9->vTableSlotToVirtualCallOffset(vTableIndex));
+         vTableSlot = fej9->vTableOrITableIndexFromMemberName(comp(), objIndex);
          }
+      auto resolvedMethod = fej9->createResolvedMethod(comp()->trMemory(), vTableSlot, targetMethod, symRef->getOwningMethod(comp()));
+      newSymRef = getSymRefTab()->findOrCreateMethodSymbol(symRef->getOwningMethodIndex(), -1, resolvedMethod, callKind);
+
+      if (rm == TR::java_lang_invoke_MethodHandle_linkToVirtual)
+         newSymRef->setOffset(fej9->vTableSlotToVirtualCallOffset(vTableSlot));
       }
 
    bool needNullChk, needVftChild, needResolveChk;
@@ -643,11 +648,13 @@ void J9::RecognizedCallTransformer::processLinkTo(TR::TreeTop* treetop, TR::Node
          args[i] = node->getArgument(i);
 
       // Anchor all children to a treetop before transmuting the call node
+      node->removeLastChild();
       anchorAllChildren(node, treetop);
-      prepareToReplaceNode(node);
+      node->removeAllChildren();
+      //prepareToReplaceNode(node);
       // vtable/itable index/offset has to be stashed in refinedMethod or in newSymRef
       // Recreate the node to a indirect call node
-      TR::Node::recreateWithoutProperties(node, callOpCode, numArgs - 1, vftLoad, newSymRef);
+      TR::Node::recreateWithoutProperties(node, callOpCode, numArgs, vftLoad, newSymRef);
       //
       for (int32_t i = 0; i < numArgs - 1; i++)
          node->setAndIncChild(i + 1, args[i]);
@@ -662,6 +669,13 @@ void J9::RecognizedCallTransformer::processLinkTo(TR::TreeTop* treetop, TR::Node
 
    // The profiling info might be polluted, don't look at it
    node->getByteCodeInfo().setDoNotProfile(true);
+
+   traceMsg(comp(), "   /--- node n%dn --------------------\n", node->getGlobalIndex());
+   comp()->getDebug()->printWithFixedPrefix(comp()->getOutFile(), node, 1, true, true, "      ");
+   for (int i = 0; i < node->getNumChildren(); i++)
+      comp()->getDebug()->printWithFixedPrefix(comp()->getOutFile(), node->getChild(i), 1, true, true, "        ");
+
+   comp()->dumpMethodTrees("Trees after recognized call transformer", comp()->getMethodSymbol());
    }
 
 bool J9::RecognizedCallTransformer::isInlineable(TR::TreeTop* treetop)
