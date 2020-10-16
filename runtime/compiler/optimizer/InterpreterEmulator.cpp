@@ -633,7 +633,8 @@ InterpreterEmulator::refineResolvedCalleeForInvokestatic(TR_ResolvedMethod *&cal
 
    bool isVirtual = false;
    bool isInterface = false;
-   switch (callee->getRecognizedMethod())
+   TR::RecognizedMethod rm = callee->getRecognizedMethod();
+   switch (rm)
       {
       // refine the ILGenMacros_invokeExact* callees
       case TR::java_lang_invoke_ILGenMacros_invokeExact:
@@ -729,14 +730,19 @@ InterpreterEmulator::refineResolvedCalleeForInvokestatic(TR_ResolvedMethod *&cal
          }
       case TR::java_lang_invoke_MethodHandle_linkToStatic:
       case TR::java_lang_invoke_MethodHandle_linkToSpecial:
+      case TR::java_lang_invoke_MethodHandle_linkToVirtual:
          {
          TR::KnownObjectTable::Index memberNameIndex = top()->getKnownObjectIndex();
          TR_J9VMBase* fej9 = comp()->fej9();
          auto targetMethod = fej9->targetMethodFromMemberName(comp(), memberNameIndex);
          if (!targetMethod) return;
 
-         callee = fej9->createResolvedMethod(comp()->trMemory(), targetMethod, _calltarget->_calleeMethod);
-         isIndirectCall = false;
+         uint32_t vTableSlot = 0;
+         if (rm == TR::java_lang_invoke_MethodHandle_linkToVirtual)
+            vTableSlot = fej9->vTableOrITableIndexFromMemberName(comp(), memberNameIndex);
+
+         callee = fej9->createResolvedMethod(comp()->trMemory(), vTableSlot, targetMethod, _calltarget->_calleeMethod);
+         isIndirectCall = rm == TR::java_lang_invoke_MethodHandle_linkToVirtual || rm == TR::java_lang_invoke_MethodHandle_linkToInterface;
          heuristicTrace(tracer(), "Refined linkTo\n");
          // The refined method doesn't take MemberName as an argument
          pop();
@@ -744,11 +750,29 @@ InterpreterEmulator::refineResolvedCalleeForInvokestatic(TR_ResolvedMethod *&cal
       }
    }
 
+bool InterpreterEmulator::hasByteCodeRequireState()
+   {
+   TR_J9ByteCode bc = first();
+   while (bc != J9BCunknown)
+      {
+      switch (bc)
+         {
+         case J9BCinvokedynamic:
+         case J9BCinvokehandle:
+            // liqun: TODO: only return true if call is resolved
+            return true;
+         }
+      bc = next();
+      }
+   return false;
+   }
+
 bool
 InterpreterEmulator::findAndCreateCallsitesFromBytecodes(bool wasPeekingSuccessfull, bool withState)
    {
+   debugTrace(tracer(),"With state %d\n", withState);
    TR::Region findCallsitesRegion(comp()->region());
-   if (withState)
+   if (withState || hasByteCodeRequireState())
       initializeIteratorWithState();
    _wasPeekingSuccessfull = wasPeekingSuccessfull;
    _currentInlinedBlock = NULL;
@@ -989,6 +1013,7 @@ InterpreterEmulator::refineCall(TR_ResolvedMethod* resolvedMethod)
    {
    if (resolvedMethod->getRecognizedMethod() == TR::java_lang_invoke_MethodHandle_invokeBasic)
       {
+      heuristicTrace(tracer(), "Refining invokeBasic\n");
       int argNum = resolvedMethod->numberOfExplicitParameters();
       TR::KnownObjectTable::Index receiverIndex = topn(argNum)->getKnownObjectIndex();
       TR_J9VMBase* fej9 = comp()->fej9();
@@ -1176,7 +1201,7 @@ InterpreterEmulator::visitInvokestatic()
          {
          callsite = new (comp()->trHeapMemory()) TR_J9VirtualCallSite(
                _calltarget->_calleeMethod, callNodeTreeTop, parent, callNode,
-               interfaceMethod, resolvedMethod->classOfMethod(), -1, cpIndex,
+               interfaceMethod, resolvedMethod->classOfMethod(), (int32_t) resolvedMethod->virtualCallSelector(cpIndex), cpIndex,
                resolvedMethod, resolvedSymbol, isIndirectCall, isInterface,
                *_newBCInfo, comp(), _recursionDepth, allconsts);
          }
