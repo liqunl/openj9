@@ -551,6 +551,7 @@ InterpreterEmulator::getReturnValueForInvokestatic(TR_ResolvedMethod *callee)
          result = new (trStackMemory()) IconstOperand(0);
          break;
       case TR::java_lang_invoke_DirectMethodHandle_internalMemberName:
+      case TR::java_lang_invoke_DirectMethodHandle_internalMemberNameEnsureInit:
          {
          Operand* mh = top();
          TR::KnownObjectTable::Index mhIndex = top()->getKnownObjectIndex();
@@ -562,6 +563,23 @@ InterpreterEmulator::getReturnValueForInvokestatic(TR_ResolvedMethod *callee)
             uintptr_t mhObjectAddress = knot->getPointer(mhIndex);
             uintptr_t memberAddress = comp()->fej9()->getReferenceField(mhObjectAddress, "member", "Ljava/lang/invoke/MemberName;");
             TR::KnownObjectTable::Index memberIndex = knot->getOrCreateIndex(memberAddress);
+            debugTrace(tracer(), "Known internal member name koi %d\n", memberIndex);
+            result = new (trStackMemory()) KnownObjOperand(memberIndex);
+            }
+         break;
+         }
+      case TR::java_lang_invoke_DirectMethodHandle_constructorMethod:
+         {
+         Operand* mh = top();
+         TR::KnownObjectTable::Index mhIndex = top()->getKnownObjectIndex();
+         debugTrace(tracer(), "Known DirectMethodHandle koi %d\n", mhIndex);
+         TR::KnownObjectTable *knot = comp()->getKnownObjectTable();
+         if (mhIndex != TR::KnownObjectTable::UNKNOWN)
+            {
+            TR::VMAccessCriticalSection dereferenceKnownObjectField(comp()->fej9());
+            uintptr_t mhObjectAddress = knot->getPointer(mhIndex);
+            uintptr_t memberNameObject = comp()->fej9()->getReferenceField(mhObjectAddress, "initMethod", "Ljava/lang/invoke/MemberName;");
+            TR::KnownObjectTable::Index memberIndex = knot->getOrCreateIndex(memberNameObject);
             debugTrace(tracer(), "Known internal member name koi %d\n", memberIndex);
             result = new (trStackMemory()) KnownObjOperand(memberIndex);
             }
