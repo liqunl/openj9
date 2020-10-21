@@ -1011,6 +1011,8 @@
    java_lang_invoke_MethodHandle_linkToVirtual,
    java_lang_invoke_MethodHandle_linkToInterface,
    java_lang_invoke_DirectMethodHandle_internalMemberName,
+   java_lang_invoke_DirectMethodHandle_internalMemberNameEnsureInit,
+   java_lang_invoke_DirectMethodHandle_constructorMethod,
    java_lang_invoke_MethodHandles_getStackClass,
    java_lang_invoke_MethodHandle_type,
    java_lang_invoke_MethodHandle_undoCustomizationLogic,
