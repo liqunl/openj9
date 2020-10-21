@@ -471,8 +471,8 @@ TR::TreeTop* findInternalMemberNameCall(TR::TreeTop* treetop)
    return NULL;
    }
 
-TR::Node*
-defToAutoOrParm(TR::Compilation* comp, TR::TreeTop* treetop, TR::SymbolReference* symRef)
+TR::TreeTop*
+defToAutoOrParm(TR::Compilation* comp, TR::TreeTop* treetop, TR::SymbolReference* symRef, TR::Node** valueNode = NULL)
    {
    while (treetop)
       {
@@ -482,12 +482,77 @@ defToAutoOrParm(TR::Compilation* comp, TR::TreeTop* treetop, TR::SymbolReference
       if (ttNode->getOpCode().isStoreDirect() &&
           ttNode->getSymbolReference() == symRef)
          {
-         return ttNode->getFirstChild();
+         if (valueNode)
+            *valueNode = ttNode->getFirstChild();
+         return treetop;
          }
       treetop = treetop->getPrevTreeTop();
       }
 
    return NULL;
+   }
+
+
+TR::Node* getMethodHandleFromCall(TR::Compilation* comp, TR::Node* callNode)
+   {
+   auto symRef = callNode->getSymbolReference();
+   if (symRef->isUnresolved())
+      {
+      return NULL;
+      }
+
+   switch (symRef->getSymbol()->castToMethodSymbol()->getMandatoryRecognizedMethod())
+      {
+      case TR::java_lang_invoke_DirectMethodHandle_internalMemberName:
+      case TR::java_lang_invoke_DirectMethodHandle_internalMemberNameEnsureInit:
+      case TR::java_lang_invoke_DirectMethodHandle_constructorMethod:
+         return callNode->getFirstArgument();
+      }
+
+   TR::DebugCounter::incStaticDebugCounter(comp,
+      TR::DebugCounter::debugCounterName(comp,
+         "lambdaForm.MemberNameCallIsNotRecognized/root=(%s)/callee=(%s)",
+         comp->signature(),
+         comp->getCurrentMethod()->signature(comp->trMemory()))
+      );
+
+   return NULL;
+   }
+
+TR::KnownObjectTable::Index
+getValueOfMethodHandleCall(TR::Compilation* comp, TR::Node* callNode, TR::KnownObjectTable::Index mhIndex)
+   {
+   auto symRef = callNode->getSymbolReference();
+   if (symRef->isUnresolved())
+      return TR::KnownObjectTable::UNKNOWN;
+
+   auto rm = symRef->getSymbol()->castToMethodSymbol()->getMandatoryRecognizedMethod();
+
+   if (mhIndex != TR::KnownObjectTable::UNKNOWN)
+      {
+      auto knot = comp->getKnownObjectTable();
+      TR::VMAccessCriticalSection dereferenceKnownObjectField(comp->fej9());
+      uintptr_t mhObject = knot->getPointer(mhIndex);
+      switch (rm)
+        {
+        case TR::java_lang_invoke_DirectMethodHandle_internalMemberName:
+        case TR::java_lang_invoke_DirectMethodHandle_internalMemberNameEnsureInit:
+           {
+           uintptr_t mnObject = comp->fej9()->getReferenceField(mhObject, "member", "Ljava/lang/invoke/MemberName;");
+           auto mnIndex = knot->getOrCreateIndex(mnObject);
+           traceMsg(comp, "Get DirectMethodHandle.member known object %d\n", mnIndex);
+           return mnIndex;
+           }
+        case TR::java_lang_invoke_DirectMethodHandle_constructorMethod:
+           {
+           uintptr_t mnObject = comp->fej9()->getReferenceField(mhObject, "initMethod", "Ljava/lang/invoke/MemberName;");
+           auto mnIndex = knot->getOrCreateIndex(mnObject);
+           traceMsg(comp, "Get DirectMethodHandle.initMethod known object %d\n", mnIndex);
+           return mnIndex;
+           }
+        }
+      }
+
    }
 
 TR::KnownObjectTable::Index
@@ -503,20 +568,61 @@ getKnownMemberNameForLinkTo(TR::Compilation* comp, TR::TreeTop* treetop, TR::Nod
       return symRef->getKnownObjectIndex();
       }
 
-   auto callerMethodSymbol = comp->getMethodSymbol();
-   if (!callerMethodSymbol->getMethod()->isAdapterOrLambdaForm())
-      return TR::KnownObjectTable::UNKNOWN;
-
-   auto memberNameCallTree = findInternalMemberNameCall(treetop->getPrevTreeTop());
-   if (!memberNameCallTree)
+   // Assumption is: MemberName is from an auto slot
+   if (!symRef->getSymbol()->isAuto())
       {
-      traceMsg(comp, "Can't find call to internalMemberName\n");
+      traceMsg(comp, "MemberName is not from auto n%dn %p\n", mnNode->getGlobalIndex(), mnNode);
+
+      TR::DebugCounter::incStaticDebugCounter(comp,
+         TR::DebugCounter::debugCounterName(comp,
+            "lambdaForm.MemberNameNotFromAuto/root=(%s)/callee=(%s)",
+            comp->signature(),
+            comp->getCurrentMethod()->signature(comp->trMemory()))
+         );
+
+      return objIndex;
+      }
+
+   auto callerMethodSymbol = comp->getMethodSymbol();
+   // We may not have the chance to set the method flag. For example, leaf LambdaForm as the
+   // outer most method
+//   if (!callerMethodSymbol->getMethod()->isAdapterOrLambdaForm())
+//      return TR::KnownObjectTable::UNKNOWN;
+
+   TR::Node* memberNameValueNode = NULL;
+   auto defToMemberNameTree = defToAutoOrParm(comp, treetop->getPrevTreeTop(), symRef, &memberNameValueNode);
+   if (!defToMemberNameTree)
+      {
+      traceMsg(comp, "Can't find call that return MemberName\n");
+      TR::DebugCounter::incStaticDebugCounter(comp,
+         TR::DebugCounter::debugCounterName(comp,
+            "lambdaForm.MemberNameUnknownSource/root=(%s)/callee=(%s)",
+            comp->signature(),
+            comp->getCurrentMethod()->signature(comp->trMemory()))
+         );
+
       return TR::KnownObjectTable::UNKNOWN;
       }
 
-   // Get the MethodHandle object of DirectMethodHandle.internalMemberName
-   auto memberNameCallNode = memberNameCallTree->getNode()->getFirstChild();
-   auto mhNode = memberNameCallNode->getFirstChild();
+   if (!memberNameValueNode->getOpCode().isCall())
+      {
+      traceMsg(comp, "MemberName is not result of a call n%dn %p\n", memberNameValueNode->getGlobalIndex(), memberNameValueNode);
+
+      TR::DebugCounter::incStaticDebugCounter(comp,
+         TR::DebugCounter::debugCounterName(comp,
+            "lambdaForm.MemberNameNotResultOfCall/root=(%s)/callee=(%s)",
+            comp->signature(),
+            comp->getCurrentMethod()->signature(comp->trMemory()))
+         );
+
+      }
+
+   auto mhNode = getMethodHandleFromCall(comp, memberNameValueNode);
+   if (!mhNode)
+      {
+      return TR::KnownObjectTable::UNKNOWN;
+      }
+
    auto mhSymRef = mhNode->getSymbolReference();
    TR::KnownObjectTable::Index mhIndex = mhSymRef->getKnownObjectIndex();
 
@@ -542,7 +648,8 @@ getKnownMemberNameForLinkTo(TR::Compilation* comp, TR::TreeTop* treetop, TR::Nod
          }
       else if (mhSymRef->getSymbol()->isAutoOrParm())
          {
-         auto defNodeOfMH = defToAutoOrParm(comp, memberNameCallTree->getPrevTreeTop(), mhSymRef);
+         TR::Node* defNodeOfMH = NULL;
+         defToAutoOrParm(comp, defToMemberNameTree->getPrevTreeTop(), mhSymRef, &defNodeOfMH);
          traceMsg(comp, "Def to MethodHandle is %p\n", defNodeOfMH);
          if (defNodeOfMH && defNodeOfMH->getOpCode().hasSymbolReference())
             mhIndex = defNodeOfMH->getSymbolReference()->getKnownObjectIndex();
@@ -552,12 +659,7 @@ getKnownMemberNameForLinkTo(TR::Compilation* comp, TR::TreeTop* treetop, TR::Nod
    // get DirectMethodHandle.member
    if (mhIndex != TR::KnownObjectTable::UNKNOWN)
       {
-      auto knot = comp->getKnownObjectTable();
-      TR::VMAccessCriticalSection dereferenceKnownObjectField(comp->fej9());
-      uintptr_t mhObjectAddress = knot->getPointer(mhIndex);
-      uintptr_t memberAddress = comp->fej9()->getReferenceField(mhObjectAddress, "member", "Ljava/lang/invoke/MemberName;");
-      objIndex = knot->getOrCreateIndex(memberAddress);
-      traceMsg(comp, "Get DirectMethodHandle.member known object %d\n", objIndex);
+      objIndex = getValueOfMethodHandleCall(comp, memberNameValueNode, mhIndex);
       }
 
    return objIndex;
@@ -673,7 +775,10 @@ void J9::RecognizedCallTransformer::processLinkTo(TR::TreeTop* treetop, TR::Node
    traceMsg(comp(), "   /--- node n%dn --------------------\n", node->getGlobalIndex());
    comp()->getDebug()->printWithFixedPrefix(comp()->getOutFile(), node, 1, true, true, "      ");
    for (int i = 0; i < node->getNumChildren(); i++)
+      {
       comp()->getDebug()->printWithFixedPrefix(comp()->getOutFile(), node->getChild(i), 1, true, true, "        ");
+      traceMsg(comp(), "\n");
+      }
 
    comp()->dumpMethodTrees("Trees after recognized call transformer", comp()->getMethodSymbol());
    }
