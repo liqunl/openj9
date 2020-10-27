@@ -993,6 +993,12 @@ TR_J9MethodBase::setArchetypeSpecimen(bool b)
    _flags.set(ArchetypeSpecimen, b);
    }
 
+void
+TR_J9MethodBase::setAdapterOrLambdaForm(bool b)
+   {
+   _flags.set(AdapterOrLambdaForm, b);
+   }
+
 char *
 TR_ResolvedJ9Method::localName(U_32 slotNumber, U_32 bcIndex, TR_Memory *trMemory)
    {
@@ -6898,6 +6904,7 @@ TR_ResolvedJ9Method::getResolvedDynamicMethod(TR::Compilation * comp, I_32 callS
          targetJ9MethodBlock = fej9()->targetMethodFromMemberName((uintptr_t) *((uintptr_t *)memberNameAddressFromInvokeDynamicSideTable(callSiteIndex)));
          }
       result = fej9()->createResolvedMethod(comp->trMemory(), targetJ9MethodBlock, this);
+      result->convertToMethod()->setAdapterOrLambdaForm();
       return result;
       }
 #endif
@@ -6954,6 +6961,7 @@ TR_ResolvedJ9Method::getResolvedHandleMethod(TR::Compilation * comp, I_32 cpInde
          targetJ9MethodBlock = fej9()->targetMethodFromMemberName((uintptr_t) *((uintptr_t *)memberNameAddressFromInvokeHandleSideTable(cpIndex)));
          }
       result = fej9()->createResolvedMethod(comp->trMemory(), targetJ9MethodBlock, this);
+      result->convertToMethod()->setAdapterOrLambdaForm();
       return result;
       }
    TR_OpaqueMethodBlock *dummyInvoke = _fe->getMethodFromName("java/lang/invoke/MethodHandle", "linkToStatic", "([Ljava/lang/Object;)Ljava/lang/Object;");
