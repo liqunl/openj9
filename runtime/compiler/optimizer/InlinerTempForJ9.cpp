@@ -2374,6 +2374,9 @@ TR_J9InlinerPolicy::callMustBeInlined(TR_CallTarget *calltarget)
    if (method->convertToMethod()->isArchetypeSpecimen())
       return true;
 
+   if (method->convertToMethod()->isAdapterOrLambdaForm())
+      return true;
+
    if (insideIntPipelineForEach(method, comp()))
       {
       if (comp()->trace(OMR::inlining))
@@ -3839,7 +3842,7 @@ void TR_MultipleCallTargetInliner::weighCallSite( TR_CallStack * callStack , TR_
 
       int32_t weightBeforeLookingForBenefits = weight;
 
-      if (calltarget->_calleeMethod->convertToMethod()->isArchetypeSpecimen() && calltarget->_calleeMethod->getMethodHandleLocation())
+      if ((calltarget->_calleeMethod->convertToMethod()->isArchetypeSpecimen() && calltarget->_calleeMethod->getMethodHandleLocation()) || calltarget->_calleeMethod->convertToMethod()->isAdapterOrLambdaForm())
          {
          static char *methodHandleThunkWeightFactorStr = feGetEnv("TR_methodHandleThunkWeightFactor");
          static int32_t methodHandleThunkWeightFactor = methodHandleThunkWeightFactorStr? atoi(methodHandleThunkWeightFactorStr) : 10;
@@ -4224,13 +4227,16 @@ TR_MultipleCallTargetInliner::exceedsSizeThreshold(TR_CallSite *callSite, int by
      // HACK: Get frequency from both sources, and use both.  You're
      // only cold if you're cold according to both.
 
+     bool callerIsJSR292Method = callerResolvedMethod->convertToMethod()->isArchetypeSpecimen() || callerResolvedMethod->convertToMethod()->isAdapterOrLambdaForm();
+
      frequency1 = comp()->convertNonDeterministicInput(comp()->fej9()->getIProfilerCallCount(bcInfo, comp()), MAX_BLOCK_COUNT + MAX_COLD_BLOCK_COUNT, randomGenerator(), 0);
      frequency2 = comp()->convertNonDeterministicInput(block->getFrequency(), MAX_BLOCK_COUNT + MAX_COLD_BLOCK_COUNT, randomGenerator(), 0);
-     if (frequency1 > frequency2 && callerResolvedMethod->convertToMethod()->isArchetypeSpecimen())
-        frequency2 = frequency1;
+//     if (frequency1 > frequency2 && callerResolvedMethod->convertToMethod()->isArchetypeSpecimen())
+//        frequency2 = frequency1;
 
      if ((frequency1 <= 0) && ((0 <= frequency2) &&  (frequency2 <= MAX_COLD_BLOCK_COUNT)) &&
-        !alwaysWorthInlining(calleeResolvedMethod, callNode))
+        !alwaysWorthInlining(calleeResolvedMethod, callNode) &&
+        !callerIsJSR292Method)
         {
         isCold = true;
         }
@@ -4240,6 +4246,7 @@ TR_MultipleCallTargetInliner::exceedsSizeThreshold(TR_CallSite *callSite, int by
      if (allowBiggerMethods() &&
          !comp()->getMethodSymbol()->doJSR292PerfTweaks() &&
          calleeResolvedMethod &&
+         !callerIsJSR292Method &&
          !j9InlinerPolicy->isInlineableJNI(calleeResolvedMethod, callNode))
         {
         bytecodeSize = scaleSizeBasedOnBlockFrequency(bytecodeSize,frequency2,borderFrequency, calleeResolvedMethod,callNode,veryColdBorderFrequency);
@@ -5026,6 +5033,9 @@ bool TR_J9InlinerPolicy::isJSR292AlwaysWorthInlining(TR_ResolvedMethod *resolved
       return true;
 
    if (resolvedMethod->convertToMethod()->isArchetypeSpecimen())
+      return true;
+
+   if (resolvedMethod->convertToMethod()->isAdapterOrLambdaForm())
       return true;
 
    return false;

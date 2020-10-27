@@ -1151,7 +1151,8 @@ TR_J9EstimateCodeSize::realEstimateCodeSize(TR_CallTarget *calltarget, TR_CallSt
 
    const static bool debugMHInlineWithOutPeeking = feGetEnv("TR_DebugMHInlineWithOutPeeking") ? true: false;
    bool mhInlineWithPeeking =  comp()->getOption(TR_DisableMHInlineWithoutPeeking);
-   bool isCalleeMethodHandleThunkInFirstPass = calltarget->_calleeMethod->convertToMethod()->isArchetypeSpecimen() && _inliner->firstPass();
+   bool isCalleeMethodHandleThunkInFirstPass = _inliner->firstPass() && (calltarget->_calleeMethod->convertToMethod()->isArchetypeSpecimen() ||
+                                                                         calltarget->_calleeMethod->convertToMethod()->isAdapterOrLambdaForm());
    if (nph.doPeeking() && recurseDown ||
        isCalleeMethodHandleThunkInFirstPass && mhInlineWithPeeking)
       {
@@ -1288,6 +1289,7 @@ TR_J9EstimateCodeSize::realEstimateCodeSize(TR_CallTarget *calltarget, TR_CallSt
    if (!callsitesAreCreatedFromTrees)
       {
       bci.prepareToFindAndCreateCallsites(blocks, flags, callSites, &cfg, &newBCInfo, _recursionDepth, &callStack);
+      // liqun: TODO: true for adapter methods and lambdaForm
       bool iteratorWithState = isCalleeMethodHandleThunkInFirstPass && !mhInlineWithPeeking;
       if (!bci.findAndCreateCallsitesFromBytecodes(wasPeekingSuccessfull, iteratorWithState))
          {
