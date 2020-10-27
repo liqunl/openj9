@@ -1012,6 +1012,9 @@
    java_lang_invoke_MethodHandle_linkToSpecial,
    java_lang_invoke_MethodHandle_linkToVirtual,
    java_lang_invoke_MethodHandle_linkToInterface,
+   java_lang_invoke_DirectMethodHandle_internalMemberName,
+   java_lang_invoke_DirectMethodHandle_internalMemberNameEnsureInit,
+   java_lang_invoke_DirectMethodHandle_constructorMethod,
    java_lang_invoke_MethodHandles_getStackClass,
    java_lang_invoke_MethodHandle_type,
    java_lang_invoke_MethodHandle_undoCustomizationLogic,
@@ -1065,6 +1068,10 @@
    java_lang_invoke_ByteArrayViewVarHandle_ByteArrayViewVarHandleOperations_OpMethod,
    java_lang_invoke_VirtualHandle_virtualCall,
    java_lang_invoke_VirtualHandle_invokeExact,
+
+   // Openjdk MethodHandle
+   java_lang_invoke_Invokers_checkExactType,
+   java_lang_invoke_Invokers_checkCustomized,
 
    // Clone and Deep Copy
    java_lang_J9VMInternals_is32Bit,
