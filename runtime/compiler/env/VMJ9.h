@@ -795,6 +795,19 @@ public:
    J9JNIMethodID* jniMethodIdFromMemberName(TR::Compilation* comp, TR::KnownObjectTable::Index objIndex);
    int32_t vTableOrITableIndexFromMemberName(uintptr_t memberName);
    int32_t vTableOrITableIndexFromMemberName(TR::Compilation* comp, TR::KnownObjectTable::Index objIndex);
+
+   /**
+    * \brief
+    *    Get the signature For MethodHandle.linkToStatic call.
+    *
+    *    For unresolved invokeDynamic and invokeHandle, we do not know the adapter method at
+    *    compile time. The call is expressed as a call to the signature-polymorphic
+    *    MethodHandle.linkToStatic method. In addition to the signature of the original call,
+    *    we need to provide the target and appendix objects as the last two arguments.
+    *    Therefore, we need to modify the signature of the original call and adapt it to accept
+    *    two extra arguments.
+    */
+   char *                getSignatureForLinkToStatic(TR::Compilation* comp, J9UTF8* romMethodSignature);
 #endif
 
    // JSR292 }}}
@@ -1304,4 +1317,3 @@ inline TR_PersistentMemory * persistentMemory(J9JITConfig * jitConfig) { return 
 bool signalOutOfMemory(J9JITConfig *);
 
 #endif // VMJ9
-

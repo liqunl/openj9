@@ -4871,6 +4871,18 @@ TR_J9VMBase::vTableOrITableIndexFromMemberName(TR::Compilation* comp, TR::KnownO
       }
    return -1;
    }
+
+char *
+TR_J9VMBase::getSignatureForLinkToStatic(TR::Compilation* comp, J9UTF8* romMethodSignature)
+   {
+   char * signatureString = (char *) comp->trMemory()->allocateMemory((J9UTF8_LENGTH(romMethodSignature))*sizeof(char), heapAlloc);
+   char * linkToStaticSignature = (char *) comp->trMemory()->allocateMemory((J9UTF8_LENGTH(romMethodSignature)+40)*sizeof(char), heapAlloc);
+   strcpy(signatureString, utf8Data(romMethodSignature));
+   char * sigTokenStart = strtok(signatureString, ")");
+   char * sigTokenEnd = strtok(NULL, ")");
+   sprintf(linkToStaticSignature, "%sLjava/lang/Object;Ljava/lang/Object;)%s", sigTokenStart, sigTokenEnd);
+   return linkToStaticSignature;
+   }
 #endif /* defined(J9VM_OPT_OPENJDK_METHODHANDLE) */
 
 /**
