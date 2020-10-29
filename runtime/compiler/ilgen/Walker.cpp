@@ -3266,6 +3266,18 @@ TR_J9ByteCodeIlGenerator::genInvokeDynamic(int32_t callSiteIndex)
 
    if (comp()->getOption(TR_FullSpeedDebug) && !isPeekingMethod())
       comp()->failCompilation<J9::FSDHasInvokeHandle>("FSD_HAS_INVOKEHANDLE 0");
+#if defined(J9VM_OPT_OPENJDK_METHODHANDLE)
+
+   TR::SymbolReference * targetMethodSymRef = symRefTab()->findOrCreateDynamicMethodSymbol(_methodSymbol, callSiteIndex);
+
+   loadFromSideTableForInvokeDynamic(callSiteIndex);
+
+   if (comp()->getOption(TR_TraceILGen))
+      printStack(comp(), _stack, "(Stack after load from callsite table)");
+
+   TR::Node* callNode = genInvokeDirect(targetMethodSymRef);
+
+#else
 
    TR::SymbolReference *symRef = symRefTab()->findOrCreateDynamicMethodSymbol(_methodSymbol, callSiteIndex);
 
@@ -3292,6 +3304,8 @@ TR_J9ByteCodeIlGenerator::genInvokeDynamic(int32_t callSiteIndex)
    TR::Node* callNode = genInvokeHandle(symRef, receiver);
 
    _invokeDynamicCalls->set(_bcIndex);
+
+#endif // J9VM_OPT_OPENJDK_METHODHANDLE
    }
 
 TR::Node *
@@ -3304,6 +3318,15 @@ TR_J9ByteCodeIlGenerator::genInvokeHandle(int32_t cpIndex)
 
    if (comp()->getOption(TR_FullSpeedDebug) && !isPeekingMethod())
       comp()->failCompilation<J9::FSDHasInvokeHandle>("FSD_HAS_INVOKEHANDLE 1");
+#if defined(J9VM_OPT_OPENJDK_METHODHANDLE)
+
+   TR::SymbolReference * targetMethodSymRef = symRefTab()->findOrCreateHandleMethodSymbol(_methodSymbol, cpIndex);
+
+   loadFromSideTableForInvokeHandle(cpIndex);
+
+   TR::Node* callNode = genInvokeDirect(targetMethodSymRef);
+
+#else
 
    TR::SymbolReference * invokeExactSymRef = symRefTab()->findOrCreateHandleMethodSymbol(_methodSymbol, cpIndex);
 
@@ -3312,6 +3335,7 @@ TR_J9ByteCodeIlGenerator::genInvokeHandle(int32_t cpIndex)
    TR::Node* callNode = genInvokeHandle(invokeExactSymRef);
 
    _invokeHandleCalls->set(_bcIndex);
+#endif // J9VM_OPT_OPENJDK_METHODHANDLE
 
    return callNode;
    }
@@ -3345,6 +3369,40 @@ TR_J9ByteCodeIlGenerator::genInvokeHandle(TR::SymbolReference *invokeExactSymRef
    _methodHandleInvokeCalls->set(_bcIndex);
    return callNode;
    }
+
+#if defined(J9VM_OPT_OPENJDK_METHODHANDLE)
+void
+TR_J9ByteCodeIlGenerator::loadFromSideTableForInvokeDynamic(int32_t callSiteIndex)
+   {
+   TR::SymbolReference *appendixSymRef = symRefTab()->findOrCreateCallSiteTableEntrySymbol(_methodSymbol, callSiteIndex);
+   TR::Node * appendixNode = loadSymbol(TR::aload, appendixSymRef);
+   if (appendixSymRef->isUnresolved())
+      {
+      // Appendix being unresolved means the target is also unresolved.
+      // Instead of creating a call to the adapter method, we construct
+      // a call to linkToStatic and provide appendix and target as
+      // additional parameters.
+      TR::SymbolReference *memberNameSymRef = symRefTab()->findOrCreateCallSiteTableEntrySymbol(_methodSymbol, callSiteIndex, true);
+      TR::Node * memberNameNode = loadSymbol(TR::aload, memberNameSymRef);
+      }
+   }
+
+void
+TR_J9ByteCodeIlGenerator::loadFromSideTableForInvokeHandle(int32_t cpIndex)
+   {
+   TR::SymbolReference *appendixSymRef = symRefTab()->findOrCreateMethodTypeTableEntrySymbol(_methodSymbol, cpIndex);
+   TR::Node * appendixNode = loadSymbol(TR::aload, appendixSymRef);
+   if (appendixSymRef->isUnresolved())
+      {
+      // Appendix being unresolved means the target is also unresolved.
+      // Instead of creating a call to the adapter method, we construct
+      // a call to linkToStatic and provide appendix and target as
+      // additional parameters.
+      TR::SymbolReference *memberNameSymRef = symRefTab()->findOrCreateMethodTypeTableEntrySymbol(_methodSymbol, cpIndex, true);
+      TR::Node * memberNameNode = loadSymbol(TR::aload, memberNameSymRef);
+      }
+   }
+#endif
 
 TR::Node *
 TR_J9ByteCodeIlGenerator::genILGenMacroInvokeExact(TR::SymbolReference *invokeExactSymRef)

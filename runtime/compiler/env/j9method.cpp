@@ -6238,7 +6238,11 @@ void *
 TR_ResolvedJ9Method::callSiteTableEntryAddress(int32_t callSiteIndex)
    {
    J9Class *ramClass = constantPoolHdr();
+#if defined (J9VM_OPT_OPENJDK_METHODHANDLE)
+   return (void *)(((J9InvokeCacheEntry *)ramClass->callSites) + callSiteIndex);
+#else
    return ramClass->callSites + callSiteIndex;
+#endif
    }
 
 bool
@@ -6287,10 +6291,15 @@ TR_ResolvedJ9Method::isUnresolvedVarHandleMethodTypeTableEntry(int32_t cpIndex)
 void *
 TR_ResolvedJ9Method::methodTypeTableEntryAddress(int32_t cpIndex)
    {
+   J9Class *ramClass = constantPoolHdr();
+#if defined(J9VM_OPT_OPENJDK_METHODHANDLE)
+   UDATA invokeCacheIndex = (((J9RAMMethodRef*) literals())[cpIndex]).methodIndexAndArgCount >> 8;
+   return (void *)(((J9InvokeCacheEntry *)ramClass->invokeCache) + invokeCacheIndex);
+#else
    UDATA methodTypeIndex = (((J9RAMMethodRef*) literals())[cpIndex]).methodIndexAndArgCount;
    methodTypeIndex >>= 8;
-   J9Class *ramClass = constantPoolHdr();
    return ramClass->methodTypes + methodTypeIndex;
+#endif
    }
 
 bool
@@ -6868,30 +6877,45 @@ TR_ResolvedJ9Method::getResolvedDynamicMethod(TR::Compilation * comp, I_32 callS
    // the CP entry is resolved, even in rtResolve mode.
 
    // See if the constant pool entry is already resolved or not
+
+   J9Class    *ramClass = constantPoolHdr();
+   J9ROMClass *romClass = romClassPtr();
+
+   if (unresolvedInCP)
       {
-      TR::VMAccessCriticalSection getResolvedDynamicMethod(fej9());
-
-      J9Class    *ramClass = constantPoolHdr();
-      J9ROMClass *romClass = romClassPtr();
-
-      if (unresolvedInCP)
-         {
-         // "unresolvedInCP" is a bit of a misnomer here, but we can describe
-         // something equivalent by checking the callSites table.
-         //
-         *unresolvedInCP = (ramClass->callSites[callSiteIndex] == NULL);
-         }
-
-      J9SRP                 *namesAndSigs = (J9SRP*)J9ROMCLASS_CALLSITEDATA(romClass);
-      J9ROMNameAndSignature *nameAndSig   = NNSRP_GET(namesAndSigs[callSiteIndex], J9ROMNameAndSignature*);
-      J9UTF8                *signature    = J9ROMNAMEANDSIGNATURE_SIGNATURE(nameAndSig);
-
-      TR_OpaqueMethodBlock *dummyInvokeExact = _fe->getMethodFromName("java/lang/invoke/MethodHandle", "invokeExact", JSR292_invokeExactSig);
-      result = _fe->createResolvedMethodWithSignature(comp->trMemory(), dummyInvokeExact, NULL, utf8Data(signature), J9UTF8_LENGTH(signature), this);
+      // "unresolvedInCP" is a bit of a misnomer here, but we can describe
+      // something equivalent by checking the callSites table.
+      //
+      *unresolvedInCP = isUnresolvedCallSiteTableEntry(callSiteIndex);
       }
 
-   return result;
+#if defined(J9VM_OPT_OPENJDK_METHODHANDLE)
+   if (!isUnresolvedCallSiteTableEntry(callSiteIndex))
+      {
+      TR_OpaqueMethodBlock * targetJ9MethodBlock = NULL;
+         {
+         TR::VMAccessCriticalSection getResolvedDynamicMethod(fej9());
+         targetJ9MethodBlock = fej9()->targetMethodFromMemberName((uintptr_t) *((uintptr_t *)memberNameAddressFromInvokeDynamicSideTable(callSiteIndex)));
+         }
+      result = fej9()->createResolvedMethod(comp->trMemory(), targetJ9MethodBlock, this);
+      return result;
+      }
 #endif
+
+   J9SRP                 *namesAndSigs = (J9SRP*)J9ROMCLASS_CALLSITEDATA(romClass);
+   J9ROMNameAndSignature *nameAndSig   = NNSRP_GET(namesAndSigs[callSiteIndex], J9ROMNameAndSignature*);
+   J9UTF8                *signature    = J9ROMNAMEANDSIGNATURE_SIGNATURE(nameAndSig);
+
+#if defined(J9VM_OPT_OPENJDK_METHODHANDLE)
+   TR_OpaqueMethodBlock *dummyInvoke = _fe->getMethodFromName("java/lang/invoke/MethodHandle", "linkToStatic", "([Ljava/lang/Object;)Ljava/lang/Object;");
+   char * linkToStaticSignature = _fe->getSignatureForLinkToStatic(comp, signature);
+   result = _fe->createResolvedMethodWithSignature(comp->trMemory(), dummyInvoke, NULL, linkToStaticSignature, strlen(linkToStaticSignature), this);
+#else
+   TR_OpaqueMethodBlock *dummyInvokeExact = _fe->getMethodFromName("java/lang/invoke/MethodHandle", "invokeExact", JSR292_invokeExactSig);
+   result = _fe->createResolvedMethodWithSignature(comp->trMemory(), dummyInvokeExact, NULL, utf8Data(signature), J9UTF8_LENGTH(signature), this);
+#endif /* J9VM_OPT_OPENJDK_METHODHANDLE */
+   return result;
+#endif /* TURN_OFF_INLINING */
    }
 
 TR_ResolvedMethod *
@@ -6903,7 +6927,6 @@ TR_ResolvedJ9Method::getResolvedHandleMethod(TR::Compilation * comp, I_32 cpInde
    return 0;
 #else
    TR_ResolvedMethod *result = NULL;
-
    // JSR292: "Handle methods" differ from other kinds because the CP entry is
    // not a MethodRef, but rather a MethodTypeRef.
 
@@ -6913,21 +6936,39 @@ TR_ResolvedJ9Method::getResolvedHandleMethod(TR::Compilation * comp, I_32 cpInde
    // the CP entry is resolved, even in rtResolve mode.
 
    // See if the constant pool entry is already resolved or not
+
+   if (unresolvedInCP)
+      *unresolvedInCP = isUnresolvedMethodTypeTableEntry(cpIndex);
+
+   J9ROMMethodRef *romMethodRef = (J9ROMMethodRef *)(cp()->romConstantPool + cpIndex);
+   J9ROMNameAndSignature *nameAndSig = J9ROMMETHODREF_NAMEANDSIGNATURE(romMethodRef);
+
+#if defined(J9VM_OPT_OPENJDK_METHODHANDLE)
+   J9UTF8                *signature    = J9ROMNAMEANDSIGNATURE_SIGNATURE(nameAndSig);
+
+   if (!isUnresolvedMethodTypeTableEntry(cpIndex))
       {
-      TR::VMAccessCriticalSection getResolvedHandleMethod(fej9());
-
-      if (unresolvedInCP)
-         *unresolvedInCP = isUnresolvedMethodTypeTableEntry(cpIndex);
-      TR_OpaqueMethodBlock *dummyInvokeExact = _fe->getMethodFromName("java/lang/invoke/MethodHandle", "invokeExact", JSR292_invokeExactSig);
-      J9ROMMethodRef *romMethodRef = (J9ROMMethodRef *)(cp()->romConstantPool + cpIndex);
-      J9ROMNameAndSignature *nameAndSig = J9ROMMETHODREF_NAMEANDSIGNATURE(romMethodRef);
-      int32_t signatureLength;
-      char   *signature = utf8Data(J9ROMNAMEANDSIGNATURE_SIGNATURE(nameAndSig), signatureLength);
-      result = _fe->createResolvedMethodWithSignature(comp->trMemory(), dummyInvokeExact, NULL, signature, signatureLength, this);
+      TR_OpaqueMethodBlock * targetJ9MethodBlock = NULL;
+         {
+         TR::VMAccessCriticalSection getResolvedHandleMethod(fej9());
+         targetJ9MethodBlock = fej9()->targetMethodFromMemberName((uintptr_t) *((uintptr_t *)memberNameAddressFromInvokeHandleSideTable(cpIndex)));
+         }
+      result = fej9()->createResolvedMethod(comp->trMemory(), targetJ9MethodBlock, this);
+      return result;
       }
+   TR_OpaqueMethodBlock *dummyInvoke = _fe->getMethodFromName("java/lang/invoke/MethodHandle", "linkToStatic", "([Ljava/lang/Object;)Ljava/lang/Object;");
+   char * linkToStaticSignature = _fe->getSignatureForLinkToStatic(comp, signature);
+   result = _fe->createResolvedMethodWithSignature(comp->trMemory(), dummyInvoke, NULL, linkToStaticSignature, strlen(linkToStaticSignature), this);
+#else
 
+   TR_OpaqueMethodBlock *dummyInvokeExact = _fe->getMethodFromName("java/lang/invoke/MethodHandle", "invokeExact", JSR292_invokeExactSig);
+
+   int32_t signatureLength;
+   char   *signature = utf8Data(J9ROMNAMEANDSIGNATURE_SIGNATURE(nameAndSig), signatureLength);
+   result = _fe->createResolvedMethodWithSignature(comp->trMemory(), dummyInvokeExact, NULL, signature, signatureLength, this);
+#endif /* J9VM_OPT_OPENJDK_METHODHANDLE */
    return result;
-#endif
+#endif /* TURN_OFF_INLINING */
    }
 
 TR_ResolvedMethod *
@@ -7000,6 +7041,36 @@ TR_ResolvedJ9Method::fieldsAreSame(I_32 cpIndex1, TR_ResolvedMethod * m2, I_32 c
 
    return false;
    }
+
+#if defined(J9VM_OPT_OPENJDK_METHODHANDLE)
+void *
+TR_ResolvedJ9Method::memberNameAddressFromInvokeDynamicSideTable(int32_t callSiteIndex)
+   {
+   J9InvokeCacheEntry *invokeCache = (J9InvokeCacheEntry *) callSiteTableEntryAddress(callSiteIndex);
+   return (void *) &invokeCache->target;
+   }
+
+void *
+TR_ResolvedJ9Method::appendixAddressFromInvokeDynamicSideTable(int32_t callSiteIndex)
+   {
+   J9InvokeCacheEntry *invokeCache = (J9InvokeCacheEntry *) callSiteTableEntryAddress(callSiteIndex);
+   return (void *) &invokeCache->appendix;
+   }
+
+void *
+TR_ResolvedJ9Method::memberNameAddressFromInvokeHandleSideTable(int32_t cpIndex)
+   {
+   J9InvokeCacheEntry *invokeCache = (J9InvokeCacheEntry *) methodTypeTableEntryAddress(cpIndex);
+   return (void *) &invokeCache->target;
+   }
+
+void *
+TR_ResolvedJ9Method::appendixAddressFromInvokeHandleSideTable(int32_t cpIndex)
+   {
+   J9InvokeCacheEntry *invokeCache = (J9InvokeCacheEntry *) methodTypeTableEntryAddress(cpIndex);
+   return (void *) &invokeCache->appendix;
+   }
+#endif
 
 bool
 TR_ResolvedJ9Method::staticsAreSame(I_32 cpIndex1, TR_ResolvedMethod * m2, I_32 cpIndex2, bool &sigSame)

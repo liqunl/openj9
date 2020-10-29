@@ -513,6 +513,40 @@ public:
     */
    virtual void makeParameterList(TR::ResolvedMethodSymbol *methodSym);
 
+#if defined(J9VM_OPT_OPENJDK_METHODHANDLE)
+   /**
+    * \brief Get member name object address from invokeDynamic side table
+    *
+    * \param callSiteIndex the call site index
+    * \return void * the member name object address
+    */
+   void * memberNameAddressFromInvokeDynamicSideTable(int32_t callSiteIndex);
+
+   /**
+    * \brief Get appendix object address from invokeDynamic side table
+    *
+    * \param callSiteIndex the call site index
+    * \return void * the appendix object address
+    */
+   void * appendixAddressFromInvokeDynamicSideTable(int32_t callSiteIndex);
+
+   /**
+    * \brief Get member name object address from invokeHandle side table
+    *
+    * \param cpIndex the CP index
+    * \return void * the member name object address
+    */
+   void * memberNameAddressFromInvokeHandleSideTable(int32_t cpIndex);
+
+   /**
+    * \brief Get appendix object address from invokeHandle side table
+    *
+    * \param cpIndex the CP index
+    * \return void * the appendix object address
+    */
+   void * appendixAddressFromInvokeHandleSideTable(int32_t cpIndex);
+#endif
+
 protected:
    virtual TR_J9MethodBase *       asJ9Method(){ return this; }
    TR_ResolvedJ9Method(TR_FrontEnd *, TR_ResolvedMethod * owningMethod = 0);
