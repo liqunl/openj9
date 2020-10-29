@@ -2089,7 +2089,7 @@ old_slow_jitResolveHandleMethod(J9VMThread *currentThread)
 	J9JavaVM *vm = currentThread->javaVM;
 
 #if defined(J9VM_OPT_OPENJDK_METHODHANDLE)
-	J9RAMMethodRef *ramMethodRef = ((J9RAMMethodRef*)ramConstantPool) + index;
+	J9RAMMethodRef *ramMethodRef = ((J9RAMMethodRef*)ramConstantPool) + cpIndex;
 	UDATA invokeCacheIndex = ramMethodRef->methodIndexAndArgCount >> 8;
 	J9InvokeCacheEntry *resultEntry = ((J9InvokeCacheEntry *)J9_CLASS_FROM_CP(ramConstantPool)->invokeCache) + invokeCacheIndex;
 retry:
@@ -2098,7 +2098,7 @@ retry:
 		buildJITResolveFrameWithPC(currentThread, J9_SSF_JIT_RESOLVE_DATA, parmCount, true, 0, jitEIP);
 		// add new resolve code which calls sendResolveInvokeHandle -> MHN.linkMethod()
 		// store the memberName/appendix values in invokeCache[invokeCacheIndex]
-		vm->internalVMFunctions->resolveMethodHandle(currentThread, ramConstantPool, index, J9_RESOLVE_FLAG_RUNTIME_RESOLVE);
+		vm->internalVMFunctions->resolveMethodHandle(currentThread, ramConstantPool, cpIndex, J9_RESOLVE_FLAG_RUNTIME_RESOLVE);
 		addr = restoreJITResolveFrame(currentThread, jitEIP);
 		if (NULL != addr) {
 			goto done;
