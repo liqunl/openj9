@@ -40,7 +40,7 @@
 
 extern "C" {
 
-#define DEBUG_INFO true
+#define DEBUG_INFO false
 
 void dbg_printf(const char *fmt, ...)
 {
