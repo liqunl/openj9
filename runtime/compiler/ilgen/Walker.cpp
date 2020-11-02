@@ -5470,6 +5470,8 @@ TR_J9ByteCodeIlGenerator::loadStatic(int32_t cpIndex)
                                                           TR::VMAccessCriticalSection::tryToAcquireVMAccess,
                                                           comp());
 
+   TR::Node * load = NULL;
+
    if (canOptimizeFinalStatic &&
        loadStaticCriticalSection.hasVMAccess())
       {
@@ -5487,9 +5489,9 @@ TR_J9ByteCodeIlGenerator::loadStatic(int32_t cpIndex)
                {
                // the address isn't constant, because a GC could move it, however is it nonnull
                //
-               TR::Node * node = TR::Node::createLoad(symRef);
-               node->setIsNonNull(true);
-               push(node);
+               load = TR::Node::createLoad(symRef);
+               load->setIsNonNull(true);
+               push(load);
                break;
                }
          case TR::Double:  loadConstant(TR::dconst, *(double *) p); break;
@@ -5514,7 +5516,6 @@ TR_J9ByteCodeIlGenerator::loadStatic(int32_t cpIndex)
       }
    else
       {
-      TR::Node * load;
       if (_generateReadBarriersForFieldWatch)
          {
          void * staticClass = method()->classOfStatic(cpIndex);
@@ -5541,8 +5542,16 @@ TR_J9ByteCodeIlGenerator::loadStatic(int32_t cpIndex)
          genTreeTop(treeTopNode);
          }
 
+      push(load);
+      }
+
+   if (load && load->getOpCode().isLoadVarDirect() && load->isLoadOfStaticFinalField())
+      {
       static char *disableFinalFieldFoldingInILGen = feGetEnv("TR_DisableFinalFieldFoldingInILGen");
       static char *disableStaticFinalFieldFoldingInILGen = feGetEnv("TR_DisableStaticFinalFieldFoldingInILGen");
+      bool result =  TR::TransformUtil::canFoldStaticFinalField(comp(), load) == TR_yes;
+      if (trace())
+         traceMsg(comp(), "can fold static field %d\n", result);
       if (!disableFinalFieldFoldingInILGen &&
           !disableStaticFinalFieldFoldingInILGen &&
           symbol->isFinal() &&
@@ -5550,8 +5559,6 @@ TR_J9ByteCodeIlGenerator::loadStatic(int32_t cpIndex)
          {
          TR::TransformUtil::foldReliableStaticFinalField(comp(), load);
          }
-
-      push(load);
       }
    }
 
