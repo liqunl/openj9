@@ -48,6 +48,7 @@
 #include "ilgen/J9ByteCodeIlGenerator.hpp"
 #include "infra/Bit.hpp"               //for trailingZeroes
 #include "env/JSR292Methods.h"
+#include "optimizer/PreExistence.hpp"
 
 #if defined(J9VM_OPT_JITSERVER)
 #include "env/j9methodServer.hpp"
@@ -5213,14 +5214,34 @@ TR_J9ByteCodeIlGenerator::loadInstance(TR::SymbolReference * symRef)
    static char *disableInstanceFinalFieldFoldingInILGen = feGetEnv("TR_DisableInstanceFinalFieldFoldingInILGen");
    if (!disableFinalFieldFoldingInILGen &&
        !disableInstanceFinalFieldFoldingInILGen &&
-       address->getOpCode().hasSymbolReference() &&
-       address->getSymbolReference()->hasKnownObjectIndex() &&
-       address->isNonNull())
+       address->getOpCode().hasSymbolReference())
       {
-      TR::Node* nodeToRemove = NULL;
-      if (TR::TransformUtil::transformIndirectLoadChain(comp(), dummyLoad, address, address->getSymbolReference()->getKnownObjectIndex(), &nodeToRemove) && nodeToRemove)
+      TR::KnownObjectTable::Index koi = TR::KnownObjectTable::UNKNOWN;
+      if (address->getSymbolReference()->hasKnownObjectIndex())
+         koi = address->getSymbolReference()->getKnownObjectIndex();
+      else if (comp()->getInlineDepth() > 0 &&
+               !comp()->isPeekingMethod() &&
+               comp()->getCurrentInlinedCallArgInfo())
+        {
+        auto symbol = address->getSymbolReference()->getSymbol();
+        if (symbol->isParm())
+           {
+           TR_PrexArgInfo *argInfo = comp()->getCurrentInlinedCallArgInfo();
+           int32_t argIndex =  symbol->getParmSymbol()->getOrdinal();
+           if (argIndex < argInfo->getNumArgs() &&
+               argInfo->get(argIndex) &&
+               argInfo->get(argIndex)->hasKnownObjectIndex())
+              koi = argInfo->get(argIndex)->getKnownObjectIndex();
+           }
+        }
+      if (koi != TR::KnownObjectTable::UNKNOWN &&
+          !comp()->getKnownObjectTable()->isNull(koi))
          {
-         nodeToRemove->recursivelyDecReferenceCount();
+         TR::Node* nodeToRemove = NULL;
+         if (TR::TransformUtil::transformIndirectLoadChain(comp(), dummyLoad, address, koi, &nodeToRemove) && nodeToRemove)
+            {
+            nodeToRemove->recursivelyDecReferenceCount();
+            }
          }
       }
 
