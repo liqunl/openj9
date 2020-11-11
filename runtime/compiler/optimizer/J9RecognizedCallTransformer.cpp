@@ -352,8 +352,16 @@ void J9::RecognizedCallTransformer::processUnsafeAtomicCall(TR::TreeTop* treetop
 
 
 static TR::KnownObjectTable::Index
-getKnownObjectIndexFrom(TR::Compilation* comp, TR::Node* node, int32_t argIndex)
+getKnownObjectIndexFrom(TR::Compilation* comp, TR::Node* node)
    {
+   if (!node->getOpCode().hasSymbolReference())
+      return TR::KnownObjectTable::UNKNOWN;
+   auto symbol = node->getSymbolReference()->getSymbol();
+
+   if (!symbol->isParm())
+      return TR::KnownObjectTable::UNKNOWN;
+
+   int32_t argIndex = symbol->getParmSymbol()->getOrdinal();
    TR::KnownObjectTable::Index objIndex = TR::KnownObjectTable::UNKNOWN;
    if (node->getOpCode().hasSymbolReference() &&
        node->getSymbolReference()->hasKnownObjectIndex())
@@ -382,7 +390,7 @@ void J9::RecognizedCallTransformer::processInvokeBasic(TR::TreeTop* treetop, TR:
    TR_OpaqueMethodBlock* targetMethod = NULL;
    // If the first argument is known object, refine the call
    auto mhNode = node->getFirstArgument();
-   auto objIndex = getKnownObjectIndexFrom(comp(), mhNode, 0);
+   auto objIndex = getKnownObjectIndexFrom(comp(), mhNode);
    targetMethod = fej9->targetMethodFromMethodHandle(comp(), objIndex);
 
    if (!targetMethod) return;
