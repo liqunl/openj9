@@ -1304,7 +1304,7 @@ InterpreterEmulator::visitInvokeinterface()
 TR_PrexArgument*
 InterpreterEmulator::createPrexArgFromOperand(Operand* operand)
    {
-   if (operand->asKnownObject())
+   if (operand->asKnownObject() && !comp()->getKnownObjectTable()->isNull(operand->getKnownObjectIndex()))
       {
       return new (comp()->trHeapMemory()) TR_PrexArgument(operand->getKnownObjectIndex(), comp());
       }
