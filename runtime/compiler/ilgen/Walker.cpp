@@ -5104,6 +5104,25 @@ TR_J9ByteCodeIlGenerator::loadAuto(TR::DataType type, int32_t slot, bool isAdjun
       }
 
    TR::Node * load = TR::Node::createLoad(symRefTab()->findOrCreateAutoSymbol(_methodSymbol, slot, type, true, false, true, isAdjunct));
+
+        auto symbol = load->getSymbolReference()->getSymbol();
+        if (symbol->isParm())
+           {
+           TR_PrexArgInfo *argInfo = comp()->getCurrentInlinedCallArgInfo();
+           int32_t argIndex =  symbol->getParmSymbol()->getOrdinal();
+           if (argInfo &&
+               argIndex < argInfo->getNumArgs() &&
+               argInfo->get(argIndex) &&
+               argInfo->get(argIndex)->hasKnownObjectIndex())
+              {
+              TR::KnownObjectTable::Index koi = argInfo->get(argIndex)->getKnownObjectIndex();
+              if (comp()->getKnownObjectTable()->isNull(koi))
+                 load->setIsNull(true);
+              else
+                 load->setIsNonNull(true);
+              }
+           }
+
    // type may have been coerced
    type = load->getDataType();
 
@@ -5228,7 +5247,8 @@ TR_J9ByteCodeIlGenerator::loadInstance(TR::SymbolReference * symRef)
            {
            TR_PrexArgInfo *argInfo = comp()->getCurrentInlinedCallArgInfo();
            int32_t argIndex =  symbol->getParmSymbol()->getOrdinal();
-           if (argIndex < argInfo->getNumArgs() &&
+           if (argInfo &&
+               argIndex < argInfo->getNumArgs() &&
                argInfo->get(argIndex) &&
                argInfo->get(argIndex)->hasKnownObjectIndex())
               koi = argInfo->get(argIndex)->getKnownObjectIndex();
