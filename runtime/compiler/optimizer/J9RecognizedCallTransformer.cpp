@@ -371,9 +371,11 @@ defToAutoOrParm(TR::Compilation* comp, TR::TreeTop* treetop, TR::SymbolReference
    return NULL;
    }
 
+// Right now only works for call to invokeBasic
 static TR::KnownObjectTable::Index
-getKnownObjectIndexFrom(TR::Compilation* comp, TR::TreeTop* treetop, TR::Node* node)
+getKnownObjectIndexFrom(TR::Compilation* comp, TR::TreeTop* treetop, TR::Node* callNode)
    {
+   auto node = callNode->getFirstArgument();
    if (!node->getOpCode().hasSymbolReference())
       return TR::KnownObjectTable::UNKNOWN;
 
@@ -403,6 +405,11 @@ getKnownObjectIndexFrom(TR::Compilation* comp, TR::TreeTop* treetop, TR::Node* n
       // Find the store of auto
       TR::Node* valueNode = NULL;
       auto storeTree = defToAutoOrParm(comp, treetop->getPrevTreeTop(), symRef, &valueNode);
+      // Replace node with valueNode such that the known object index on valueNode can be propagated
+      // to callee
+      int32_t firstArgIndex = callNode->getFirstArgumentIndex();
+      callNode->setAndIncChild(firstArgIndex, valueNode);
+      node->decReferenceCount();
       if (valueNode && valueNode->getOpCode().hasSymbolReference())
          return valueNode->getSymbolReference()->getKnownObjectIndex();
       }
@@ -415,8 +422,7 @@ void J9::RecognizedCallTransformer::processInvokeBasic(TR::TreeTop* treetop, TR:
    TR_J9VMBase* fej9 = comp()->fej9();
    TR_OpaqueMethodBlock* targetMethod = NULL;
    // If the first argument is known object, refine the call
-   auto mhNode = node->getFirstArgument();
-   auto objIndex = getKnownObjectIndexFrom(comp(), treetop, mhNode);
+   auto objIndex = getKnownObjectIndexFrom(comp(), treetop, node);
    targetMethod = fej9->targetMethodFromMethodHandle(comp(), objIndex);
 
    if (!targetMethod) return;
