@@ -350,26 +350,43 @@ void J9::RecognizedCallTransformer::processUnsafeAtomicCall(TR::TreeTop* treetop
    unsafeCall->setSymbolReference(comp()->getSymRefTab()->findOrCreateCodeGenInlinedHelper(helper));
    }
 
+TR::TreeTop*
+defToAutoOrParm(TR::Compilation* comp, TR::TreeTop* treetop, TR::SymbolReference* symRef, TR::Node** valueNode = NULL)
+   {
+   while (treetop)
+      {
+      auto ttNode = treetop->getNode();
+      if (ttNode->getOpCodeValue() == TR::BBStart) return NULL;
+
+      if (ttNode->getOpCode().isStoreDirect() &&
+          ttNode->getSymbolReference() == symRef)
+         {
+         if (valueNode)
+            *valueNode = ttNode->getFirstChild();
+         return treetop;
+         }
+      treetop = treetop->getPrevTreeTop();
+      }
+
+   return NULL;
+   }
 
 static TR::KnownObjectTable::Index
-getKnownObjectIndexFrom(TR::Compilation* comp, TR::Node* node)
+getKnownObjectIndexFrom(TR::Compilation* comp, TR::TreeTop* treetop, TR::Node* node)
    {
    if (!node->getOpCode().hasSymbolReference())
       return TR::KnownObjectTable::UNKNOWN;
-   auto symbol = node->getSymbolReference()->getSymbol();
 
-   if (!symbol->isParm())
-      return TR::KnownObjectTable::UNKNOWN;
+   auto symRef = node->getSymbolReference();
 
-   int32_t argIndex = symbol->getParmSymbol()->getOrdinal();
-   TR::KnownObjectTable::Index objIndex = TR::KnownObjectTable::UNKNOWN;
-   if (node->getOpCode().hasSymbolReference() &&
-       node->getSymbolReference()->hasKnownObjectIndex())
+   if (symRef->hasKnownObjectIndex())
+      return symRef->getKnownObjectIndex();
+
+   auto symbol = symRef->getSymbol();
+
+   if (symbol->isParm())
       {
-      objIndex = node->getSymbolReference()->getKnownObjectIndex();
-      }
-   else
-      {
+      int32_t argIndex = symbol->getParmSymbol()->getOrdinal();
       // Look for known object from prex arginfo
       TR_PrexArgInfo *argInfo = comp->getCurrentInlinedCallArgInfo();
       if (argInfo && argInfo->getNumArgs() > argIndex)
@@ -377,11 +394,20 @@ getKnownObjectIndexFrom(TR::Compilation* comp, TR::Node* node)
          TR_PrexArgument *arg = argInfo->get(argIndex);
          if (arg && arg->getKnownObjectIndex() != TR::KnownObjectTable::UNKNOWN)
             {
-            objIndex = arg->getKnownObjectIndex();
+            return arg->getKnownObjectIndex();
             }
          }
       }
-   return objIndex;
+   else if (symbol->isAuto())
+      {
+      // Find the store of auto
+      TR::Node* valueNode = NULL;
+      auto storeTree = defToAutoOrParm(comp, treetop->getPrevTreeTop(), symRef, &valueNode);
+      if (valueNode && valueNode->getOpCode().hasSymbolReference())
+         return valueNode->getSymbolReference()->getKnownObjectIndex();
+      }
+
+   return TR::KnownObjectTable::UNKNOWN;
    }
 
 void J9::RecognizedCallTransformer::processInvokeBasic(TR::TreeTop* treetop, TR::Node* node)
@@ -390,7 +416,7 @@ void J9::RecognizedCallTransformer::processInvokeBasic(TR::TreeTop* treetop, TR:
    TR_OpaqueMethodBlock* targetMethod = NULL;
    // If the first argument is known object, refine the call
    auto mhNode = node->getFirstArgument();
-   auto objIndex = getKnownObjectIndexFrom(comp(), mhNode);
+   auto objIndex = getKnownObjectIndexFrom(comp(), treetop, mhNode);
    targetMethod = fej9->targetMethodFromMethodHandle(comp(), objIndex);
 
    if (!targetMethod) return;
@@ -478,28 +504,6 @@ TR::TreeTop* findInternalMemberNameCall(TR::TreeTop* treetop)
 
    return NULL;
    }
-
-TR::TreeTop*
-defToAutoOrParm(TR::Compilation* comp, TR::TreeTop* treetop, TR::SymbolReference* symRef, TR::Node** valueNode = NULL)
-   {
-   while (treetop)
-      {
-      auto ttNode = treetop->getNode();
-      if (ttNode->getOpCodeValue() == TR::BBStart) return NULL;
-
-      if (ttNode->getOpCode().isStoreDirect() &&
-          ttNode->getSymbolReference() == symRef)
-         {
-         if (valueNode)
-            *valueNode = ttNode->getFirstChild();
-         return treetop;
-         }
-      treetop = treetop->getPrevTreeTop();
-      }
-
-   return NULL;
-   }
-
 
 TR::Node* getMethodHandleFromCall(TR::Compilation* comp, TR::Node* callNode)
    {
@@ -628,6 +632,7 @@ getKnownMemberNameForLinkTo(TR::Compilation* comp, TR::TreeTop* treetop, TR::Nod
    auto mhNode = getMethodHandleFromCall(comp, memberNameValueNode);
    if (!mhNode)
       {
+      traceMsg(comp, "Can't find MH node\n");
       return TR::KnownObjectTable::UNKNOWN;
       }
 
@@ -638,6 +643,7 @@ getKnownMemberNameForLinkTo(TR::Compilation* comp, TR::TreeTop* treetop, TR::Nod
 
    if (mhIndex == TR::KnownObjectTable::UNKNOWN)
       {
+      traceMsg(comp, "Trying to find KOI of MethodHandle n%dn %p%p\n", mhNode->getGlobalIndex(), mhNode);
       if (mhSymRef->getSymbol()->isParm() &&
           !callerMethodSymbol->isParmVariant(mhSymRef->getSymbol()->getParmSymbol()))
          {
@@ -664,12 +670,14 @@ getKnownMemberNameForLinkTo(TR::Compilation* comp, TR::TreeTop* treetop, TR::Nod
          }
       }
 
+   traceMsg(comp, "MethodHandle KOI %d\n", mhIndex);
    // get DirectMethodHandle.member
    if (mhIndex != TR::KnownObjectTable::UNKNOWN)
       {
       objIndex = getValueOfMethodHandleCall(comp, memberNameValueNode, mhIndex);
       }
 
+   traceMsg(comp, "MemberName KOI %d\n", objIndex);
    return objIndex;
    }
 
