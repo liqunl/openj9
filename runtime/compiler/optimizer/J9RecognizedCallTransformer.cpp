@@ -433,7 +433,8 @@ void J9::RecognizedCallTransformer::processInvokeBasic(TR::TreeTop* treetop, TR:
    if (trace())
       traceMsg(comp(), "%sspecialize and devirtualize invokeBasic [%p] with known MH object\n", optDetailString(), node);
 
-   refinedMethod->convertToMethod()->setAdapterOrLambdaForm();
+   //refinedMethod->convertToMethod()->setAdapterOrLambdaForm();
+   static_cast<TR_ResolvedJ9Method*>(refinedMethod)->setAdapterOrLambdaForm();
    // Preserve NULLCHK
    TR::TransformUtil::separateNullCheck(comp(), treetop, trace());
 
