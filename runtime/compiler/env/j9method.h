@@ -185,7 +185,7 @@ protected:
    enum Flags
       {
       ArchetypeSpecimen   = 0x00000001, // An "instance" of an archetype method, where the varargs portion of the signature has been expanded into zero or more args
-      AdapterOrLambdaForm = 0x00000010, // An "instance" of an archetype method, where the varargs portion of the signature has been expanded into zero or more args
+      AdapterOrLambdaForm = 0x00000010, // Adapter method of invokehandle/invokedynamic, or LambdaForm method
 
       dummyLastEnum
       };
