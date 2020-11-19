@@ -903,7 +903,7 @@ InterpreterEmulator::visitInvokedynamic()
       targetMethodObj = fej9->targetMethodFromMemberName((uintptr_t) *((uintptr_t *)owningMethod->memberNameAddressFromInvokeDynamicSideTable(callSiteIndex)));
       }
    TR_ResolvedMethod * targetMethod = fej9->createResolvedMethod(this->trMemory(), targetMethodObj, owningMethod);
-   targetMethod->convertToMethod()->setAdapterOrLambdaForm();
+   static_cast<TR_ResolvedJ9Method*>(targetMethod)->setAdapterOrLambdaForm();
 
    bool allconsts = false;
    isIndirectCall = true;
@@ -970,7 +970,7 @@ InterpreterEmulator::visitInvokehandle()
       targetMethodObj = fej9->targetMethodFromMemberName((uintptr_t) *((uintptr_t *)owningMethod->memberNameAddressFromInvokeHandleSideTable(cpIndex)));
       }
    TR_ResolvedMethod * targetMethod = fej9->createResolvedMethod(this->trMemory(), targetMethodObj, owningMethod);
-   targetMethod->convertToMethod()->setAdapterOrLambdaForm();
+   static_cast<TR_ResolvedJ9Method*>(targetMethod)->setAdapterOrLambdaForm();
 
    bool allconsts = false;
    if (targetMethod->numberOfExplicitParameters() > 0 && targetMethod->numberOfExplicitParameters() <= _pca.getNumPrevConstArgs(targetMethod->numberOfExplicitParameters()))
@@ -1034,7 +1034,7 @@ InterpreterEmulator::refineCall(TR_ResolvedMethod* resolvedMethod)
       if (!targetMethod) return NULL;
 
       auto refinedMethod = fej9->createResolvedMethod(comp()->trMemory(), targetMethod, _calltarget->_calleeMethod);
-      refinedMethod->convertToMethod()->setAdapterOrLambdaForm();
+      static_cast<TR_ResolvedJ9Method*>(refinedMethod)->setAdapterOrLambdaForm();
       heuristicTrace(tracer(), "Refined invokeBasic\n");
       return refinedMethod;
       }
