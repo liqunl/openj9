@@ -350,13 +350,19 @@ void J9::RecognizedCallTransformer::processUnsafeAtomicCall(TR::TreeTop* treetop
    unsafeCall->setSymbolReference(comp()->getSymRefTab()->findOrCreateCodeGenInlinedHelper(helper));
    }
 
+// Walk backwards to find definition to the auto/parm
 TR::TreeTop*
-defToAutoOrParm(TR::Compilation* comp, TR::TreeTop* treetop, TR::SymbolReference* symRef, TR::Node** valueNode = NULL)
+defToAutoOrParmInEBB(TR::Compilation* comp, TR::TreeTop* treetop, TR::SymbolReference* symRef, TR::Node** valueNode = NULL)
    {
    while (treetop)
       {
       auto ttNode = treetop->getNode();
-      if (ttNode->getOpCodeValue() == TR::BBStart) return NULL;
+      if (ttNode->getOpCodeValue() == TR::BBStart)
+         {
+         auto block = ttNode->getBlock();
+         if (!block->isExtensionOfPreviousBlock())
+            return NULL;
+         }
 
       if (ttNode->getOpCode().isStoreDirect() &&
           ttNode->getSymbolReference() == symRef)
@@ -367,15 +373,12 @@ defToAutoOrParm(TR::Compilation* comp, TR::TreeTop* treetop, TR::SymbolReference
          }
       treetop = treetop->getPrevTreeTop();
       }
-
    return NULL;
    }
 
-// Right now only works for call to invokeBasic
 static TR::KnownObjectTable::Index
-getKnownObjectIndexFrom(TR::Compilation* comp, TR::TreeTop* treetop, TR::Node* callNode)
+getKnownObjectIndexFromNode(TR::Compilation* comp, TR::Node* node)
    {
-   auto node = callNode->getFirstArgument();
    if (!node->getOpCode().hasSymbolReference())
       return TR::KnownObjectTable::UNKNOWN;
 
@@ -400,11 +403,24 @@ getKnownObjectIndexFrom(TR::Compilation* comp, TR::TreeTop* treetop, TR::Node* c
             }
          }
       }
-   else if (symbol->isAuto())
+
+   return TR::KnownObjectTable::UNKNOWN;
+   }
+
+// Right now only works for call to invokeBasic
+static TR::KnownObjectTable::Index
+getKnownObjectIndexFrom(TR::Compilation* comp, TR::TreeTop* treetop, TR::Node* callNode)
+   {
+   TR::KnownObjectTable::Index objIndex = getKnownObjectIndexFromNode(comp, node);
+   if (objIndex != TR::KnownObjectTable::UNKNOWN)
+      return objIndex;
+
+   if (node->getOpCode().hasSymbolReference() &&
+       node->getSymbol()->isAuto())
       {
       // Find the store of auto
       TR::Node* valueNode = NULL;
-      auto storeTree = defToAutoOrParm(comp, treetop->getPrevTreeTop(), symRef, &valueNode);
+      auto storeTree = defToAutoOrParmInEBB(comp, treetop->getPrevTreeTop(), symRef, &valueNode);
       // Replace node with valueNode such that the known object index on valueNode can be propagated
       // to callee
       int32_t firstArgIndex = callNode->getFirstArgumentIndex();
@@ -422,7 +438,8 @@ void J9::RecognizedCallTransformer::processInvokeBasic(TR::TreeTop* treetop, TR:
    TR_J9VMBase* fej9 = comp()->fej9();
    TR_OpaqueMethodBlock* targetMethod = NULL;
    // If the first argument is known object, refine the call
-   auto objIndex = getKnownObjectIndexFrom(comp(), treetop, node);
+   auto mhNode = node->getFirstArgument();
+   auto objIndex = getKnownObjectIndexFromNode(comp(), treetop, node);
    targetMethod = fej9->targetMethodFromMethodHandle(comp(), objIndex);
 
    if (!targetMethod) return;
@@ -433,7 +450,6 @@ void J9::RecognizedCallTransformer::processInvokeBasic(TR::TreeTop* treetop, TR:
    if (trace())
       traceMsg(comp(), "%sspecialize and devirtualize invokeBasic [%p] with known MH object\n", optDetailString(), node);
 
-   //refinedMethod->convertToMethod()->setAdapterOrLambdaForm();
    static_cast<TR_ResolvedJ9Method*>(refinedMethod)->setAdapterOrLambdaForm();
    // Preserve NULLCHK
    TR::TransformUtil::separateNullCheck(comp(), treetop, trace());
@@ -575,6 +591,44 @@ getValueOfMethodHandleCall(TR::Compilation* comp, TR::Node* callNode, TR::KnownO
    }
 
 TR::KnownObjectTable::Index
+getKnownMemberNameForLinkToNew(TR::Compilation* comp, TR::TreeTop* treetop, TR::Node* mnNode)
+   {
+   TR::KnownObjectTable::Index objIndex = TR::KnownObjectTable::UNKNOWN;
+
+   auto mnIndex = getKnownObjectIndexFromNode(comp, mnNode);
+   if (mnIndex != TR::KnownObjectTable::UNKNOWN)
+      return mnIndex;
+
+   if (mnNode->getOpCode().hasSymbolReference() &&
+       mnNode->getSymbol()->isAuto())
+      {
+      // Find the store of auto
+      TR::Node* valueNode = NULL;
+      auto storeTree = defToAutoOrParmInEBB(comp, treetop->getPrevTreeTop(), symRef, &valueNode);
+      if (valueNode &&
+          valueNode->getOpCode().hasSymbolReference() &&
+          valueNode->getSymbolReference()->hasKnownObjectIndex())
+         return valueNode->getSymbolReference()->getKnownObjectIndex();
+
+      // If valueNode is a call
+      if (valueNode &&
+          valueNode->getOpCode().isCall())
+         {
+         auto mhNode = getMethodHandleFromCall(comp, valueNode);
+         if (!mhNode)
+            {
+            traceMsg(comp, "Can't find MH node\n");
+            return TR::KnownObjectTable::UNKNOWN;
+            }
+
+         return  getValueOfMethodHandleCall(comp, memberNameValueNode, mhIndex);
+         }
+      }
+
+   return TR::KnownObjectTable::UNKNOWN;
+   }
+
+TR::KnownObjectTable::Index
 getKnownMemberNameForLinkTo(TR::Compilation* comp, TR::TreeTop* treetop, TR::Node* mnNode)
    {
    TR::KnownObjectTable::Index objIndex = TR::KnownObjectTable::UNKNOWN;
@@ -609,7 +663,7 @@ getKnownMemberNameForLinkTo(TR::Compilation* comp, TR::TreeTop* treetop, TR::Nod
 //      return TR::KnownObjectTable::UNKNOWN;
 
    TR::Node* memberNameValueNode = NULL;
-   auto defToMemberNameTree = defToAutoOrParm(comp, treetop->getPrevTreeTop(), symRef, &memberNameValueNode);
+   auto defToMemberNameTree = defToAutoOrParmInEBB(comp, treetop->getPrevTreeTop(), symRef, &memberNameValueNode);
    if (!defToMemberNameTree)
       {
       traceMsg(comp, "Can't find call that return MemberName\n");
@@ -670,7 +724,7 @@ getKnownMemberNameForLinkTo(TR::Compilation* comp, TR::TreeTop* treetop, TR::Nod
       else if (mhSymRef->getSymbol()->isAutoOrParm())
          {
          TR::Node* defNodeOfMH = NULL;
-         defToAutoOrParm(comp, defToMemberNameTree->getPrevTreeTop(), mhSymRef, &defNodeOfMH);
+         defToAutoOrParmInEBB(comp, defToMemberNameTree->getPrevTreeTop(), mhSymRef, &defNodeOfMH);
          traceMsg(comp, "Def to MethodHandle is %p\n", defNodeOfMH);
          if (defNodeOfMH && defNodeOfMH->getOpCode().hasSymbolReference())
             mhIndex = defNodeOfMH->getSymbolReference()->getKnownObjectIndex();

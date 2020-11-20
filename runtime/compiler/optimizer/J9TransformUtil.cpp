@@ -2353,3 +2353,74 @@ J9::TransformUtil::specializeInvokeExactSymbol(TR::Compilation *comp, TR::Node *
       }
       return false;
    }
+
+// Walk backwards to find definition to the auto/parm
+TR::TreeTop*
+J9::TransformUtil::defToAutoOrParmInEBB(TR::Compilation* comp, TR::TreeTop* treetop, TR::SymbolReference* symRef, TR::Node** valueNode)
+   {
+   while (treetop)
+      {
+      auto ttNode = treetop->getNode();
+      if (ttNode->getOpCodeValue() == TR::BBStart)
+         {
+         auto block = ttNode->getBlock();
+         if (!block->isExtensionOfPreviousBlock())
+            return NULL;
+         }
+
+      if (ttNode->getOpCode().isStoreDirect() &&
+          ttNode->getSymbolReference() == symRef)
+         {
+         if (valueNode)
+            *valueNode = ttNode->getFirstChild();
+         return treetop;
+         }
+      treetop = treetop->getPrevTreeTop();
+      }
+   return NULL;
+   }
+
+// Right now only works for call to invokeBasic
+static TR::KnownObjectTable::Index
+getKnownObjectIndexFrom(TR::Compilation* comp, TR::TreeTop* treetop, TR::Node* node, TR::Node** valueNode)
+   {
+   if (!node->getOpCode().hasSymbolReference())
+      return TR::KnownObjectTable::UNKNOWN;
+
+   auto symRef = node->getSymbolReference();
+
+   if (symRef->hasKnownObjectIndex())
+      return symRef->getKnownObjectIndex();
+
+   auto symbol = symRef->getSymbol();
+
+   if (symbol->isParm())
+      {
+      int32_t argIndex = symbol->getParmSymbol()->getOrdinal();
+      // Look for known object from prex arginfo
+      TR_PrexArgInfo *argInfo = comp->getCurrentInlinedCallArgInfo();
+      if (argInfo && argInfo->getNumArgs() > argIndex)
+         {
+         TR_PrexArgument *arg = argInfo->get(argIndex);
+         if (arg && arg->getKnownObjectIndex() != TR::KnownObjectTable::UNKNOWN)
+            {
+            return arg->getKnownObjectIndex();
+            }
+         }
+      }
+   else if (symbol->isAuto())
+      {
+      // Find the store of auto
+      TR::Node* valueNode = NULL;
+      auto storeTree = defToAutoOrParmInEBB(comp, treetop->getPrevTreeTop(), symRef, valueNode);
+      // Replace node with valueNode such that the known object index on valueNode can be propagated
+      // to callee
+      int32_t firstArgIndex = callNode->getFirstArgumentIndex();
+      callNode->setAndIncChild(firstArgIndex, valueNode);
+      node->decReferenceCount();
+      if (valueNode && valueNode->getOpCode().hasSymbolReference())
+         return valueNode->getSymbolReference()->getKnownObjectIndex();
+      }
+
+   return TR::KnownObjectTable::UNKNOWN;
+   }

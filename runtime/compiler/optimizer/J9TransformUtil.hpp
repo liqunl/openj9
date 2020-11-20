@@ -236,6 +236,14 @@ protected:
     *     Faslse if folding all static final fileds.
     */
    static bool attemptStaticFinalFieldFoldingImpl(TR::Optimization* opt, TR::TreeTop * currentTree, TR::Node *node, bool varHandleOnly);
+
+   /** \brief
+    *     Find the def to an auto or parm before treetop in a extended basic block
+    *
+    *  \return
+    *     The treetop containing the def (the store)
+    */
+   static TR::TreeTop* defToAutoOrParmInEBB(TR::Compilation* comp, TR::TreeTop* treetop, TR::SymbolReference* symRef, TR::Node** valueNode = NULL);
    };
 
 }
