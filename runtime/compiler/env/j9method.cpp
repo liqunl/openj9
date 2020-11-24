@@ -987,6 +987,12 @@ TR_J9MethodBase::setArchetypeSpecimen(bool b)
    _flags.set(ArchetypeSpecimen, b);
    }
 
+void
+TR_J9MethodBase::setAdapterOrLambdaForm(bool b)
+   {
+   _flags.set(AdapterOrLambdaForm, b);
+   }
+
 char *
 TR_ResolvedJ9Method::localName(U_32 slotNumber, U_32 bcIndex, TR_Memory *trMemory)
    {
@@ -5063,6 +5069,12 @@ uint16_t      TR_ResolvedJ9Method::signatureLength()              { return TR_J9
 char *        TR_ResolvedJ9Method::classNameChars()               { return TR_J9Method::classNameChars(); }
 char *        TR_ResolvedJ9Method::nameChars()                    { return TR_J9Method::nameChars(); }
 char *        TR_ResolvedJ9Method::signatureChars()               { return TR_J9Method::signatureChars(); }
+
+//bool  TR_ResolvedJ9Method::isAdapterOrLambdaForm() { return TR_J9Method::isAdapterOrLambdaForm(); }
+//void  TR_ResolvedJ9Method::setAdapterOrLambdaForm(bool b) { traceMsg(TR::comp(), "TR_ResolvedJ9Method::setAdapterOrLambdaForm\n"); TR_J9Method::setAdapterOrLambdaForm(b); }
+
+bool  TR_ResolvedJ9Method::isAdapterOrLambdaForm() { return _flags.testAny(AdapterOrLambdaForm); }
+void  TR_ResolvedJ9Method::setAdapterOrLambdaForm(bool b) { _flags.set(AdapterOrLambdaForm, b); }
 
 intptr_t
 TR_ResolvedJ9Method::getInvocationCount()
