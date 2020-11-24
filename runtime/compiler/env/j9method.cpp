@@ -5064,6 +5064,17 @@ char *        TR_ResolvedJ9Method::classNameChars()               { return TR_J9
 char *        TR_ResolvedJ9Method::nameChars()                    { return TR_J9Method::nameChars(); }
 char *        TR_ResolvedJ9Method::signatureChars()               { return TR_J9Method::signatureChars(); }
 
+bool  TR_ResolvedJ9Method::isAdapterOrLambdaForm(TR_ResolvedMethod * method)
+   {
+   TR_ResolvedJ9Method* j9method = static_cast<TR_ResolvedJ9Method*>(method);
+   return j9method->_flags.testAny(AdapterOrLambdaForm);
+   }
+void  TR_ResolvedJ9Method::setAdapterOrLambdaForm(TR_ResolvedMethod * method, bool b)
+   {
+   TR_ResolvedJ9Method* j9method = static_cast<TR_ResolvedJ9Method*>(method);
+   j9method->_flags.set(AdapterOrLambdaForm, b);
+   }
+
 intptr_t
 TR_ResolvedJ9Method::getInvocationCount()
    {
