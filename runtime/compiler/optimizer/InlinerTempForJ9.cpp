@@ -2374,6 +2374,9 @@ TR_J9InlinerPolicy::callMustBeInlined(TR_CallTarget *calltarget)
    if (method->convertToMethod()->isArchetypeSpecimen())
       return true;
 
+   if (static_cast<TR_ResolvedJ9Method*>(method)->isAdapterOrLambdaForm())
+      return true;
+
    if (insideIntPipelineForEach(method, comp()))
       {
       if (comp()->trace(OMR::inlining))
@@ -3839,7 +3842,8 @@ void TR_MultipleCallTargetInliner::weighCallSite( TR_CallStack * callStack , TR_
 
       int32_t weightBeforeLookingForBenefits = weight;
 
-      if (calltarget->_calleeMethod->convertToMethod()->isArchetypeSpecimen() && calltarget->_calleeMethod->getMethodHandleLocation())
+      bool isAdapterOrLambdaForm = static_cast<TR_ResolvedJ9Method*>(calltarget->_calleeMethod)->isAdapterOrLambdaForm();
+      if ((calltarget->_calleeMethod->convertToMethod()->isArchetypeSpecimen() && calltarget->_calleeMethod->getMethodHandleLocation()) || isAdapterOrLambdaForm)
          {
          static char *methodHandleThunkWeightFactorStr = feGetEnv("TR_methodHandleThunkWeightFactor");
          static int32_t methodHandleThunkWeightFactor = methodHandleThunkWeightFactorStr? atoi(methodHandleThunkWeightFactorStr) : 10;
@@ -4224,13 +4228,17 @@ TR_MultipleCallTargetInliner::exceedsSizeThreshold(TR_CallSite *callSite, int by
      // HACK: Get frequency from both sources, and use both.  You're
      // only cold if you're cold according to both.
 
+     bool isAdapterOrLambdaForm = static_cast<TR_ResolvedJ9Method*>(callerResolvedMethod)->isAdapterOrLambdaForm();
+     bool callerIsJSR292Method = callerResolvedMethod->convertToMethod()->isArchetypeSpecimen() || isAdapterOrLambdaForm;
+
      frequency1 = comp()->convertNonDeterministicInput(comp()->fej9()->getIProfilerCallCount(bcInfo, comp()), MAX_BLOCK_COUNT + MAX_COLD_BLOCK_COUNT, randomGenerator(), 0);
      frequency2 = comp()->convertNonDeterministicInput(block->getFrequency(), MAX_BLOCK_COUNT + MAX_COLD_BLOCK_COUNT, randomGenerator(), 0);
-     if (frequency1 > frequency2 && callerResolvedMethod->convertToMethod()->isArchetypeSpecimen())
-        frequency2 = frequency1;
+//     if (frequency1 > frequency2 && callerResolvedMethod->convertToMethod()->isArchetypeSpecimen())
+//        frequency2 = frequency1;
 
      if ((frequency1 <= 0) && ((0 <= frequency2) &&  (frequency2 <= MAX_COLD_BLOCK_COUNT)) &&
-        !alwaysWorthInlining(calleeResolvedMethod, callNode))
+        !alwaysWorthInlining(calleeResolvedMethod, callNode) &&
+        !callerIsJSR292Method)
         {
         isCold = true;
         }
@@ -4240,6 +4248,7 @@ TR_MultipleCallTargetInliner::exceedsSizeThreshold(TR_CallSite *callSite, int by
      if (allowBiggerMethods() &&
          !comp()->getMethodSymbol()->doJSR292PerfTweaks() &&
          calleeResolvedMethod &&
+         !callerIsJSR292Method &&
          !j9InlinerPolicy->isInlineableJNI(calleeResolvedMethod, callNode))
         {
         bytecodeSize = scaleSizeBasedOnBlockFrequency(bytecodeSize,frequency2,borderFrequency, calleeResolvedMethod,callNode,veryColdBorderFrequency);
@@ -5028,6 +5037,9 @@ bool TR_J9InlinerPolicy::isJSR292AlwaysWorthInlining(TR_ResolvedMethod *resolved
    if (resolvedMethod->convertToMethod()->isArchetypeSpecimen())
       return true;
 
+   if (static_cast<TR_ResolvedJ9Method*>(resolvedMethod)->isAdapterOrLambdaForm())
+      return true;
+
    return false;
    }
 
@@ -5139,6 +5151,37 @@ TR_J9InlinerUtil::computePrexInfo(TR_CallTarget *target, TR_PrexArgInfo *callerA
       }
 
    return computePrexInfo(target);
+   }
+
+/** \brief
+ *     Find the def to an auto or parm before treetop in a extended basic block
+ *
+ *  \return
+ *     The treetop containing the def (the store)
+ */
+static TR::TreeTop*
+defToAutoOrParmInEBB(TR::Compilation* comp, TR::TreeTop* treetop, TR::SymbolReference* symRef, TR::Node** valueNode)
+   {
+   while (treetop)
+      {
+      auto ttNode = treetop->getNode();
+      if (ttNode->getOpCodeValue() == TR::BBStart)
+         {
+         auto block = ttNode->getBlock();
+         if (!block->isExtensionOfPreviousBlock())
+            return NULL;
+         }
+
+      if (ttNode->getOpCode().isStoreDirect() &&
+          ttNode->getSymbolReference() == symRef)
+         {
+         if (valueNode)
+            *valueNode = ttNode->getFirstChild();
+         return treetop;
+         }
+      treetop = treetop->getPrevTreeTop();
+      }
+   return NULL;
    }
 
 TR_PrexArgInfo *
@@ -5275,6 +5318,20 @@ TR_J9InlinerUtil::computePrexInfo(TR_CallTarget *target)
                   if (tracePrex)
                      traceMsg(comp(), "PREX.inl:      %p: is preexistent\n", argInfo->get(argOrdinal));
                   }
+               }
+            }
+         else if (argument->getSymbol()->isAuto() && !argInfo->get(argOrdinal))
+            {
+            TR::Node* valueNode = NULL;
+            defToAutoOrParmInEBB(comp(), site->_callNodeTreeTop, argument->getSymbolReference(), &valueNode);
+            if (valueNode &&
+                valueNode->getOpCode().hasSymbolReference() &&
+                valueNode->getSymbolReference()->hasKnownObjectIndex() &&
+                priorKnowledge < KNOWN_OBJECT)
+               {
+               argInfo->set(argOrdinal, new (inliner()->trStackMemory()) TR_PrexArgument(valueNode->getSymbolReference()->getKnownObjectIndex(), comp()));
+               if (tracePrex)
+                  traceMsg(comp(), "PREX.inl:      %p: is known object obj%d\n", argInfo->get(argOrdinal), argument->getSymbolReference()->getKnownObjectIndex());
                }
             }
          }
