@@ -537,7 +537,7 @@ public:
     * \param callSiteIndex the call site index
     * \return void * the member name object address
     */
-   void * memberNameAddressFromInvokeDynamicSideTable(int32_t callSiteIndex);
+   void * memberNameElementRefFromInvokeDynamicSideTable(int32_t callSiteIndex);
 
    /**
     * \brief Get appendix object address from invokeDynamic side table
@@ -545,7 +545,7 @@ public:
     * \param callSiteIndex the call site index
     * \return void * the appendix object address
     */
-   void * appendixAddressFromInvokeDynamicSideTable(int32_t callSiteIndex);
+   void * appendixElementRefFromInvokeDynamicSideTable(int32_t callSiteIndex);
 
    /**
     * \brief Get member name object address from invokeHandle side table
@@ -553,7 +553,7 @@ public:
     * \param cpIndex the CP index
     * \return void * the member name object address
     */
-   void * memberNameAddressFromInvokeHandleSideTable(int32_t cpIndex);
+   void * memberNameElementRefFromInvokeHandleSideTable(int32_t cpIndex);
 
    /**
     * \brief Get appendix object address from invokeHandle side table
@@ -561,7 +561,7 @@ public:
     * \param cpIndex the CP index
     * \return void * the appendix object address
     */
-   void * appendixAddressFromInvokeHandleSideTable(int32_t cpIndex);
+   void * appendixElementRefFromInvokeHandleSideTable(int32_t cpIndex);
 #endif
 
 protected:

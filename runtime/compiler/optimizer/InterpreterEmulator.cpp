@@ -614,14 +614,14 @@ InterpreterEmulator::visitInvokedynamic()
    if (owningMethod->isUnresolvedCallSiteTableEntry(callSiteIndex)) return;
 
    // add appendix object to knot and push to stack
-   if (knot) push(new (trStackMemory()) KnownObjOperand(knot->getOrCreateIndexAt((uintptr_t *)owningMethod->appendixAddressFromInvokeDynamicSideTable(callSiteIndex))));
+   if (knot) push(new (trStackMemory()) KnownObjOperand(knot->getOrCreateIndex((uintptr_t )owningMethod->appendixElementRefFromInvokeDynamicSideTable(callSiteIndex), true)));
    else pushUnknownOperand();
 
    TR_J9VMBase *fej9 = comp()->fej9();
    TR_OpaqueMethodBlock* targetMethodObj = 0;
       {
       TR::VMAccessCriticalSection vmAccess(fej9);
-      targetMethodObj = fej9->targetMethodFromMemberName((uintptr_t) *((uintptr_t *)owningMethod->memberNameAddressFromInvokeDynamicSideTable(callSiteIndex)));
+      targetMethodObj = fej9->targetMethodFromMemberName((uintptr_t) owningMethod->memberNameElementRefFromInvokeDynamicSideTable(callSiteIndex));
       }
    TR_ResolvedMethod * targetMethod = fej9->createResolvedMethod(this->trMemory(), targetMethodObj, owningMethod);
 
@@ -680,14 +680,14 @@ InterpreterEmulator::visitInvokehandle()
 
    // add appendix object to knot and push to stack
    TR::KnownObjectTable *knot = comp()->getOrCreateKnownObjectTable();
-   if (knot) push(new (trStackMemory()) KnownObjOperand(knot->getOrCreateIndexAt((uintptr_t *)owningMethod->appendixAddressFromInvokeHandleSideTable(cpIndex))));
+   if (knot) push(new (trStackMemory()) KnownObjOperand(knot->getOrCreateIndex((uintptr_t) owningMethod->appendixElementRefFromInvokeHandleSideTable(cpIndex), true)));
    else pushUnknownOperand();
 
    TR_J9VMBase *fej9 = comp()->fej9();
    TR_OpaqueMethodBlock * targetMethodObj = 0;
       {
       TR::VMAccessCriticalSection vmAccess(fej9);
-      targetMethodObj = fej9->targetMethodFromMemberName((uintptr_t) *((uintptr_t *)owningMethod->memberNameAddressFromInvokeHandleSideTable(cpIndex)));
+      targetMethodObj = fej9->targetMethodFromMemberName((uintptr_t) owningMethod->memberNameElementRefFromInvokeHandleSideTable(cpIndex));
       }
    TR_ResolvedMethod * targetMethod = fej9->createResolvedMethod(this->trMemory(), targetMethodObj, owningMethod);
 
