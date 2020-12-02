@@ -696,6 +696,7 @@ public:
    virtual bool               startAsyncCompile(TR_OpaqueMethodBlock *methodInfo, void *oldStartPC, bool *queued, TR_OptimizationPlan *optimizationPlan  = NULL);
    virtual bool               isBeingCompiled(TR_OpaqueMethodBlock *methodInfo, void *startPC);
    virtual uint32_t           virtualCallOffsetToVTableSlot(uint32_t offset);
+   virtual uint32_t           vTableSlotToVirtualCallOffset(uint32_t vTableSlot);
    virtual void *             addressOfFirstClassStatic(TR_OpaqueClassBlock *);
 
    virtual TR_ResolvedMethod * getDefaultConstructor(TR_Memory *, TR_OpaqueClassBlock *);
@@ -753,7 +754,7 @@ public:
    bool hasMethodTypesSideTable();
 
    // Openjdk implementation
-#if defined(J9VM_OPT_OPENJDK_METHODHANDLE)
+
    /*
     * \brief
     *    Return MemberName.vmtarget, a J9method pointer for method represented by `memberName`
@@ -780,7 +781,32 @@ public:
     *    VM access is not required
     */
    TR_OpaqueMethodBlock* targetMethodFromMethodHandle(TR::Compilation* comp, TR::KnownObjectTable::Index objIndex);
+   /*
+    * \brief
+    *    Return MemberName.vmindex, a J9JNIMethodID pointer containing vtable/itable offset for the MemberName method
+    *    Caller must acquire VM access
+    */
+   J9JNIMethodID* jniMethodIdFromMemberName(uintptr_t memberName);
+   /*
+    * \brief
+    *    Return MemberName.vmindex, a J9JNIMethodID pointer containing vtable/itable offset for the MemberName method
+    *    VM access is not required
+    */
+   J9JNIMethodID* jniMethodIdFromMemberName(TR::Compilation* comp, TR::KnownObjectTable::Index objIndex);
+   /*
+    * \brief
+    *    Return vtable or itable index of a method represented by MemberName
+    *    Caller must acquire VM access
+    */
+   int32_t vTableOrITableIndexFromMemberName(uintptr_t memberName);
+   /*
+    * \brief
+    *    Return vtable or itable index of a method represented by MemberName
+    *    VM access is not required
+    */
+   int32_t vTableOrITableIndexFromMemberName(TR::Compilation* comp, TR::KnownObjectTable::Index objIndex);
 
+#if defined(J9VM_OPT_OPENJDK_METHODHANDLE)
    /**
     * \brief
     *    Get the signature For MethodHandle.linkToStatic call.
