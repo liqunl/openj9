@@ -4817,7 +4817,7 @@ TR_OpaqueMethodBlock*
 TR_J9VMBase::targetMethodFromMemberName(uintptr_t memberName)
    {
    TR_ASSERT(haveAccess(), "targetFromMemberName requires VM access");
-   return (TR_OpaqueMethodBlock*)getInt64FieldAt(memberName, vmThread()->javaVM->vmtargetOffset);
+   return (TR_OpaqueMethodBlock*)J9OBJECT_U64_LOAD(memberName, vmThread()->javaVM->vmtargetOffset);
    }
 
 TR_OpaqueMethodBlock*
@@ -4852,7 +4852,7 @@ J9JNIMethodID*
 TR_J9VMBase::jniMethodIdFromMemberName(uintptr_t memberName)
    {
    TR_ASSERT(haveAccess(), "jniMethodIdFromMemberName requires VM access");
-   return (J9JNIMethodID *)getInt64FieldAt(memberName, vmThread()->javaVM->vmindexOffset);
+   return (J9JNIMethodID *)J9OBJECT_U64_LOAD(memberName, vmThread()->javaVM->vmindexOffset);
    }
 
 J9JNIMethodID*
