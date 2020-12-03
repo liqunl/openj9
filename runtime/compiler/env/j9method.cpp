@@ -205,7 +205,7 @@ TR_J9VMBase::createResolvedMethod(TR_Memory * trMemory, TR_OpaqueMethodBlock * a
    }
 
 TR_ResolvedMethod *
-TR_J9VMBase::createResolvedMethod(TR_Memory * trMemory, uint32_t vTableSlot, TR_OpaqueMethodBlock * aMethod,
+TR_J9VMBase::createResolvedMethodWithVTableSlot(TR_Memory * trMemory, uint32_t vTableSlot, TR_OpaqueMethodBlock * aMethod,
                                   TR_ResolvedMethod * owningMethod, TR_OpaqueClassBlock *classForNewInstance)
    {
    return createResolvedMethodWithSignature(trMemory, aMethod, classForNewInstance, NULL, -1, owningMethod, vTableSlot);

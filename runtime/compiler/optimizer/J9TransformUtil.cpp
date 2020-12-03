@@ -2466,14 +2466,14 @@ J9::TransformUtil::refineMethodHandleLinkTo(TR::Compilation* comp, TR::TreeTop* 
    if (rm == TR::java_lang_invoke_MethodHandle_linkToVirtual)
       {
       uint32_t vTableSlot = fej9->vTableOrITableIndexFromMemberName(comp, mnIndex);
-      auto resolvedMethod = fej9->createResolvedMethod(comp->trMemory(), vTableSlot, targetMethod, symRef->getOwningMethod(comp));
+      auto resolvedMethod = fej9->createResolvedMethodWithVTableSlot(comp->trMemory(), vTableSlot, targetMethod, symRef->getOwningMethod(comp));
       newSymRef = comp->getSymRefTab()->findOrCreateMethodSymbol(symRef->getOwningMethodIndex(), -1, resolvedMethod, callKind);
       newSymRef->setOffset(fej9->vTableSlotToVirtualCallOffset(vTableSlot));
       }
    else
       {
       uint32_t vTableSlot = 0;
-      auto resolvedMethod = fej9->createResolvedMethod(comp->trMemory(), vTableSlot, targetMethod, symRef->getOwningMethod(comp));
+      auto resolvedMethod = fej9->createResolvedMethodWithVTableSlot(comp->trMemory(), vTableSlot, targetMethod, symRef->getOwningMethod(comp));
       newSymRef = comp->getSymRefTab()->findOrCreateMethodSymbol(symRef->getOwningMethodIndex(), -1, resolvedMethod, callKind);
       }
 
