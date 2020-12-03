@@ -610,6 +610,8 @@ InterpreterEmulator::visitInvokedynamic()
    TR::KnownObjectTable *knot = comp()->getOrCreateKnownObjectTable();
    TR_ResolvedJ9Method * owningMethod = static_cast<TR_ResolvedJ9Method*>(_methodSymbol->getResolvedMethod());
 
+   if (comp()->compileRelocatableCode()) return;
+
 #if defined(J9VM_OPT_OPENJDK_METHODHANDLE)
    if (owningMethod->isUnresolvedCallSiteTableEntry(callSiteIndex)) return;
 
@@ -618,7 +620,7 @@ InterpreterEmulator::visitInvokedynamic()
       // add appendix object to knot and push to stack
       if (knot) push(new (trStackMemory()) KnownObjOperand(knot->getOrCreateIndex((uintptr_t )owningMethod->appendixElementRefFromInvokeDynamicSideTable(callSiteIndex), true)));
       else pushUnknownOperand();
-   }
+      }
 
    TR_J9VMBase *fej9 = comp()->fej9();
    TR_OpaqueMethodBlock* targetMethodObj = 0;
@@ -678,6 +680,8 @@ InterpreterEmulator::visitInvokehandle()
    Operand *result = NULL;
    int32_t cpIndex = next2Bytes();
    TR_ResolvedJ9Method * owningMethod = static_cast<TR_ResolvedJ9Method*>(_methodSymbol->getResolvedMethod());
+
+   if (comp()->compileRelocatableCode()) return;
 
    if (owningMethod->isUnresolvedMethodTypeTableEntry(cpIndex)) return; // unresolved
 
