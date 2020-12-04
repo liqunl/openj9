@@ -3153,7 +3153,7 @@ TR_IPBCDataCallGraph::loadFromPersistentCopy(TR_IPBCDataStorageHeader * storage,
          if (comp->fej9()->sharedCache()->isROMClassOffsetInSharedCache(csInfoClazzOffset, &romClass))
             ramClass = ((TR_J9VM *)comp->fej9())->matchRAMclassFromROMclass((J9ROMClass *)romClass, comp);
 
-         if (ramClass)
+         if (ramClass && comp->fej9()->isClassInitialized((TR_OpaqueClassBlock*)ramClass))
             {
             _csInfo.setClazz(i, (uintptr_t)ramClass);
             _csInfo._weight[i] = store->_csInfo._weight[i];
