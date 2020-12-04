@@ -874,6 +874,12 @@ void TR_ProfileableCallSite::findSingleProfiledReceiver(ListIterator<TR_ExtraAdd
          int32_t len = 1;
          const char *className = TR::Compiler->cls.classNameChars(comp(), tempreceiverClass, len);
 
+         if (comp()->fej9()->isClassInitialized(tempreceiverClass) && !comp()->fej9()->isInterfaceClass(tempreceiverClass))
+            {
+            heuristicTrace(inliner->tracer(), "Instantiable class %.*s is not initialized, can't trust profiling info\n", len, className);
+            return;
+            }
+
          if (!strncmp(className, "java/lang/ThreadLocal", 21) && !isInterface())
             {
             preferMethodTest = true;
