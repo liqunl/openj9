@@ -2272,6 +2272,13 @@ TR_RelocationRecordInlinedMethod::inlinedSiteCanBeActivated(TR_RelocationRuntime
       return false;
       }
 
+   TR_OpaqueClassBlock *classOfMethod = (TR_OpaqueClassBlock*)J9_CLASS_FROM_METHOD(currentMethod);
+   if (!reloRuntime->fej9()->isInterfaceClass(classOfMethod) && !reloRuntime->fej9()->isClassInitialized(classOfMethod))
+      {
+      RELO_LOG(reloRuntime->reloLogger(), 6, "\tinlinedSiteCanBeActivated: class of target is not initialized so disabling inline site\n");
+      return false;
+      }
+
    return true;
    }
 
