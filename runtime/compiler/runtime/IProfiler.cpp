@@ -3153,6 +3153,15 @@ TR_IPBCDataCallGraph::loadFromPersistentCopy(TR_IPBCDataStorageHeader * storage,
          if (comp->fej9()->sharedCache()->isROMClassOffsetInSharedCache(csInfoClazzOffset, &romClass))
             ramClass = ((TR_J9VM *)comp->fej9())->matchRAMclassFromROMclass((J9ROMClass *)romClass, comp);
 
+         if (ramClass &&
+             !comp->fej9()->isClassInitialized((TR_OpaqueClassBlock*)ramClass) &&
+             TR::Options::getCmdLineOptions()->getOption(TR_VerboseInterpreterProfiling))
+            {
+            int32_t length;
+            char *name = comp->fej9()->getClassNameChars((TR_OpaqueClassBlock*)ramClass, length);
+            TR_VerboseLog::writeLineLocked(TR_Vlog_IPROFILER, "Unitialized class %.*s, exclude from iprofiling data", length, name);
+            }
+
          if (ramClass && comp->fej9()->isClassInitialized((TR_OpaqueClassBlock*)ramClass))
             {
             _csInfo.setClazz(i, (uintptr_t)ramClass);
