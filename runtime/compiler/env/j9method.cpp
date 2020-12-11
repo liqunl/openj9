@@ -6903,6 +6903,7 @@ TR_ResolvedJ9Method::getResolvedDynamicMethod(TR::Compilation * comp, I_32 callS
          targetJ9MethodBlock = fej9()->targetMethodFromMemberName((uintptr_t) memberNameElementRefFromInvokeDynamicSideTable(callSiteIndex));
          }
       result = fej9()->createResolvedMethod(comp->trMemory(), targetJ9MethodBlock, this);
+      static_cast<TR_ResolvedJ9Method*>(result)->setAdapterOrLambdaForm();
       return result;
       }
 #endif
@@ -6959,6 +6960,7 @@ TR_ResolvedJ9Method::getResolvedHandleMethod(TR::Compilation * comp, I_32 cpInde
          targetJ9MethodBlock = fej9()->targetMethodFromMemberName((uintptr_t) memberNameElementRefFromInvokeHandleSideTable(cpIndex));
          }
       result = fej9()->createResolvedMethod(comp->trMemory(), targetJ9MethodBlock, this);
+      static_cast<TR_ResolvedJ9Method*>(result)->setAdapterOrLambdaForm();
       return result;
       }
    TR_OpaqueMethodBlock *dummyInvoke = _fe->getMethodFromName("java/lang/invoke/MethodHandle", "linkToStatic", "([Ljava/lang/Object;)Ljava/lang/Object;");
