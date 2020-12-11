@@ -49,6 +49,7 @@
 #include "ilgen/J9ByteCodeIlGenerator.hpp"
 #include "infra/Bit.hpp"               //for trailingZeroes
 #include "env/JSR292Methods.h"
+#include "optimizer/PreExistence.hpp"
 
 #if defined(J9VM_OPT_JITSERVER)
 #include "env/j9methodServer.hpp"
@@ -5300,14 +5301,42 @@ TR_J9ByteCodeIlGenerator::loadInstance(TR::SymbolReference * symRef)
    static char *disableInstanceFinalFieldFoldingInILGen = feGetEnv("TR_DisableInstanceFinalFieldFoldingInILGen");
    if (!disableFinalFieldFoldingInILGen &&
        !disableInstanceFinalFieldFoldingInILGen &&
-       address->getOpCode().hasSymbolReference() &&
-       address->getSymbolReference()->hasKnownObjectIndex() &&
-       address->isNonNull())
+       address->getOpCode().hasSymbolReference())
       {
-      TR::Node* nodeToRemove = NULL;
-      if (TR::TransformUtil::transformIndirectLoadChain(comp(), dummyLoad, address, address->getSymbolReference()->getKnownObjectIndex(), &nodeToRemove) && nodeToRemove)
+      bool canFoldIndirectLoad = false;
+      TR::KnownObjectTable::Index index = TR::KnownObjectTable::UNKNOWN;
+      if (address->getSymbolReference()->hasKnownObjectIndex() &&
+          address->isNonNull())
          {
-         nodeToRemove->recursivelyDecReferenceCount();
+         canFoldIndirectLoad = true;
+         index = address->getSymbolReference()->getKnownObjectIndex();
+         }
+      else if (address->getSymbol()->isParm() &&
+               comp()->getCurrentInlinedCallArgInfo() &&
+               static_cast<TR_ResolvedJ9Method*>(comp()->getCurrentMethod())->isAdapterOrLambdaForm())
+         {
+         TR::ParameterSymbol *p = address->getSymbol()->getParmSymbol();
+         TR_PrexArgInfo *argInfo = comp()->getCurrentInlinedCallArgInfo();
+         int32_t ordinal = p->getOrdinal();
+         TR_PrexArgument *arg = argInfo->get(ordinal);
+         if (arg && arg->getKnownObjectIndex() != TR::KnownObjectTable::UNKNOWN)
+            {
+            auto knot = comp()->getKnownObjectTable();
+            index = arg->getKnownObjectIndex();
+            if (!knot->isNull(index))
+               canFoldIndirectLoad = true;
+            }
+         }
+
+      if (canFoldIndirectLoad)
+         {
+         TR::Node* nodeToRemove = NULL;
+         if (TR::TransformUtil::transformIndirectLoadChain(comp(), dummyLoad, address, index, &nodeToRemove) && nodeToRemove)
+            {
+            nodeToRemove->recursivelyDecReferenceCount();
+            if (treeTopNode && treeTopNode->getOpCode().isNullCheck())
+               TR::Node::recreate(treeTopNode, TR::treetop);
+            }
          }
       }
 
