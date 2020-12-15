@@ -46,6 +46,7 @@
 #include "optimizer/Optimization_inlines.hpp"
 #include "optimizer/PreExistence.hpp"
 #include "il/ParameterSymbol.hpp"
+#include "infra/BitVector.hpp"
 
 void J9::RecognizedCallTransformer::processIntrinsicFunction(TR::TreeTop* treetop, TR::Node* node, TR::ILOpCodes opcode)
    {
@@ -422,13 +423,142 @@ J9::RecognizedCallTransformer::getObjectInfoFromNode(TR::Node* node)
    return TR::KnownObjectTable::UNKNOWN;
    }
 
+void J9::RecognizedCallTransformer::assignIndexToLocals(TR_Array<List<TR::SymbolReference>> *autosListArray)
+   {
+   for (int i = 0; autosListArray && i < autosListArray->size(); i++)
+      {
+      List<TR::SymbolReference> autosList = (*autosListArray)[i];
+      ListIterator<TR::SymbolReference> autosIt(&autosList);
+      for (TR::SymbolReference* symRef = autosIt.getFirst(); symRef; symRef = autosIt.getNext())
+         {
+         TR::AutomaticSymbol *p = symRef->getSymbol()->getAutoSymbol();
+         if (p && p->getDataType() == TR::Address)
+            {
+            if (trace())
+               traceMsg(comp(), "Local #%2d is symbol %p [#n%dn]\n", _numLocals, p, symRef->getReferenceNumber());
+            p->setLocalIndex(_numLocals++);
+            }
+         }
+      }
+   }
+
+void
+J9::RecognizedCallTransformer::collectLocalVariablesWithSingleValue()
+   {
+   // Assign local index to local variable symrefs
+   ListIterator<TR::ParameterSymbol> parms(&comp()->getMethodSymbol()->getParameterList());
+   for (TR::ParameterSymbol * p = parms.getFirst(); p; p = parms.getNext())
+      {
+      if (p->getDataType() == TR::Address)
+         {
+         if (comp()->getOption(TR_TraceILGen))
+            traceMsg(comp(), "Local #%2d is symbol %p <parm %d>\n", _numLocals, p, p->getSlot());
+         p->setLocalIndex(_numLocals++);
+         }
+      }
+   assignIndexToLocals(comp()->getMethodSymbol()->getAutoSymRefs());
+   // liqun: do we need to consider pending pushes?
+   //assignIndexToLocals(comp()->getMethodSymbol()->getPendingPushSymRefs());
+
+   // Allocate a bit vector for all locals
+   _localVariablesWithSingleValue = new (trStackMemory()) TR_BitVector(_numLocals, trStackMemory());
+   // initialize to true
+   _localVariablesWithSingleValue->setAll(_numLocals);
+
+   TR_BitVector *hasSeenStoreToLocalVariable = new (trStackMemory()) TR_BitVector(_numLocals, trStackMemory());
+   // initialize to false
+   hasSeenStoreToLocalVariable->empty();
+
+   _localVariableObjectInfo = new (trStackMemory()) TR::KnownObjectTable::Index[_numLocals];
+   for (int32_t i = 0; i++; i < _numLocals)
+      _localVariableObjectInfo[i] = TR::KnownObjectTable::UNKNOWN;
+
+   // Initial parm value will be from prex arg
+   TR_PrexArgInfo *argInfo = comp()->getCurrentInlinedCallArgInfo();
+   if (argInfo)
+      {
+      int32_t numArgs = comp()->getCurrentMethod()->numberOfParameters();
+
+      TR_ASSERT(argInfo->getNumArgs() == numArgs, "Number of prex arginfo %d doesn't match method parm number %d", argInfo->getNumArgs(), numArgs);
+
+      ListIterator<TR::ParameterSymbol> parms(&comp()->getMethodSymbol()->getParameterList());
+      for (TR::ParameterSymbol *p = parms.getFirst(); p != NULL; p = parms.getNext())
+         {
+         TR_PrexArgument *arg = argInfo->get(ordinal);
+         if (arg && arg->getKnownObjectIndex() != TR::KnownObjectTable::UNKNOWN)
+            {
+            _localVariableObjectInfo[p->getLocalIndex()] = arg->getKnownObjectIndex();
+            }
+         }
+      }
+
+   // Scan the trees to collect local variables that are likely to store only one value
+   // Either the local variable is an auto, and has only one store
+   // Or the local variable is a parm, and has stores that don't change its value
+   // Or the local variable is a parm, has a store before its first use
+   for (auto treetop = comp()->getMethodSymbol()->getFirstTreeTop(); treetop != NULL; treetop = treetop->getNextTreeTop())
+      {
+      auto ttNode = treetop->getNode();
+      if (ttNode->getOpCode().isStore() &&
+          ttNode->getSymbol()->isAutoOrParm() &&
+          ttNode->getType() == TR::Address)
+         {
+         auto symbol = ttNode->getSymbol();
+         int32_t localIndex = symbol->getLocalIndex();
+         if (symbol->isAuto())
+            {
+            if (hasSeenStoreToLocalVariable->isSet(localIndex))
+               _localVariablesWithSingleValue->reset(localIndex);
+            else
+               hasSeenStoreToLocalVariable->set(localIndex);
+            }
+         else if (symbol->isParm())
+            {
+            int32_t ordinal = symbol->getParmSymbol()->getOrdinal();
+            if (comp()->getCurrentMethod()->isAdapterOrLambdaForm())
+               {
+               if (trace())
+                  traceMsg(comp(), "Store n%dn %p to parm %d in adapter or LambdaForm method doesn't change the value\n", ttNode->getGlobalIndex(), ttNode, ordinal);
+               }
+            else
+               {
+               auto valueNode = ttNode->getFirstChild();
+               TR::SymbolReference* valueSymRef = valueNode->getOpCode().hasSymbolReference() ? valueNode->getSymbolReference() : NULL;
+               if (valueSymRef &&
+                   valueSymRef->hasKnownObjectIndex() &&
+                   valueSymRef->getKnownObjectIndex() == _localVariableObjectInfo[valueSymRef->getSymbol()->getLocalIndex()])
+                  {
+                  if (trace())
+                     traceMsg(comp(), "Store n%dn %p to parm %d doesn't change the value\n", ttNode->getGlobalIndex(), ttNode, ordinal);
+                  }
+               else
+                  {
+                  _localVariablesWithSingleValue->reset(localIndex);
+                  if (trace())
+                     traceMsg(comp(), "Store n%dn %p to parm %d change the value\n", ttNode->getGlobalIndex(), ttNode, ordinal);
+                  }
+               }
+            }
+         }
+      }
+   }
+
+void
+J9::RecognizedCallTransformer::processTrees()
+   {
+   // Object infor for invariant autos, but some auto will
+   for (auto treetop = comp()->getMethodSymbol()->getFirstTreeTop(); treetop != NULL; treetop = treetop->getNextTreeTop())
+      {
+      }
+   }
+
 // Propagate known object info in autos, this only works for autos that are invariant
 // in the method. If an auto is only invariant in a block, we still don't get any object info
 // for it. The adapter or LambdaForm methods are usually straight line code, so this approach
 // should suffice.
 //
 void
-J9::RecognizedCallTransformer::collectInfoForAdapterOrLambdaForm()
+J9::RecognizedCallTransformer::preprocessTreesForAdapterOrLambdaForm()
    {
    TR_ResolvedMethod* currentMethod = comp()->getCurrentMethod();
    int32_t numParmSlots = currentMethod->numberOfParameterSlots();
@@ -525,9 +655,9 @@ void
 J9::RecognizedCallTransformer::preProcess()
    {
    if (comp()->getMethodSymbol()->hasMethodHandleInvokes() || static_cast<TR_ResolvedJ9Method*>(comp()->getCurrentMethod())->isAdapterOrLambdaForm())
-      collectInfoForAdapterOrLambdaForm();
+      preprocessTreesForAdapterOrLambdaForm();
    else if (trace())
-      traceMsg(comp(), "Didn't collect info because method is not adapter or lambda form\n");
+      traceMsg(comp(), "Didn't preprocess the trees because method is not adapter or lambda form\n");
    }
 
 void J9::RecognizedCallTransformer::processInvokeBasic(TR::TreeTop* treetop, TR::Node* node)

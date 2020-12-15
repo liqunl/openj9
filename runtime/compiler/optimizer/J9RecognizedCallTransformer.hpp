@@ -26,6 +26,8 @@
 #include "optimizer/OMRRecognizedCallTransformer.hpp"
 #include "compile/SymbolReferenceTable.hpp"
 
+class TR_BitVector;
+
 namespace J9
 {
 
@@ -33,7 +35,11 @@ class RecognizedCallTransformer : public OMR::RecognizedCallTransformer
    {
    public:
    RecognizedCallTransformer(TR::OptimizationManager* manager)
-      : OMR::RecognizedCallTransformer(manager),  _knownObjectInAutoOrParmSlot(NULL)
+      : OMR::RecognizedCallTransformer(manager),
+      _knownObjectInAutoOrParmSlot(NULL),
+      _localVariablesWithSingleValue(NULL),
+      _localVariableObjectInfo(NULL),
+      _numLocals(0)
       {}
 
    protected:
@@ -117,14 +123,13 @@ class RecognizedCallTransformer : public OMR::RecognizedCallTransformer
    void processInvokeBasic(TR::TreeTop* treetop, TR::Node* node);
    /** \brief
     *     Transforms MethodHandle.linkTo methods to direct/indirect calls to MemberName method with known object info
-    *
     */
    void processLinkTo(TR::TreeTop* treetop, TR::Node* node);
    /** \brief
-    *     Collect known object info needed by MethodHandle call transformation
-    *
+    *     Preprocess the trees, collect known object info needed by MethodHandle call transformation,
+    *     will fold final field as well to discover more known objects.
     */
-   void collectInfoForAdapterOrLambdaForm();
+   void preprocessTreesForAdapterOrLambdaForm();
    /** \brief
     *     Given a reference type node, try to find its object info. Used in MethodHandle call transformation
     *
@@ -134,6 +139,10 @@ class RecognizedCallTransformer : public OMR::RecognizedCallTransformer
 private:
    // Object info stored in auto or parm slot after they initialized, used in MethodHandle call transformation
    TR_Array<TR::KnownObjectTable::Index>* _knownObjectInAutoOrParmSlot;
+   // Number of auto and parm symbols
+   int32_t _numLocals;
+   TR_BitVector* _localVariablesWithSingleValue;
+   TR::KnownObjectTable::Index* _localVariableObjectInfo;
    };
 
 }
