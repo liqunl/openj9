@@ -621,10 +621,10 @@ bool J9::RecognizedCallTransformer::isInlineable(TR::TreeTop* treetop)
       case TR::java_lang_invoke_MethodHandle_linkToSpecial:
       case TR::java_lang_invoke_MethodHandle_linkToVirtual:
          // Transformation rely on KOT, it doesn't work in AOT
-         return !comp()->compileRelocatableCode();
+         return false && !comp()->compileRelocatableCode();
       case TR::java_lang_invoke_MethodHandle_linkToStatic:
          // Last child is MemberName, we can't do anything if it's unresolved
-         return !node->getLastChild()->getSymbolReference()->isUnresolved() && !comp()->compileRelocatableCode();
+         return false && !node->getLastChild()->getSymbolReference()->isUnresolved() && !comp()->compileRelocatableCode();
       default:
          return false;
       }
