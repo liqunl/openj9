@@ -160,6 +160,7 @@ public:
       Java_math_BigInteger_ZERO,
       Java_math_BigInteger_useLongRepresentation,
       Java_lang_invoke_VarHandle_handleTable,
+      Java_lang_invoke_MethodHandleImpl_LoopClauses_clauses,
       Java_lang_Integer_value,
       Java_lang_Long_value,
       Java_lang_Float_value,
