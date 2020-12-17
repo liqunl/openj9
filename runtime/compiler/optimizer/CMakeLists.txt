@@ -73,5 +73,6 @@ j9jit_files(
 	optimizer/StringPeepholes.cpp
 	optimizer/UnsafeFastPath.cpp
 	optimizer/VarHandleTransformer.cpp
+	optimizer/MethodHandleTransformer.cpp
 	optimizer/VPBCDConstraint.cpp
 )
