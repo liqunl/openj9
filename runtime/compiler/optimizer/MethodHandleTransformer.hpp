@@ -36,8 +36,10 @@ class TR_MethodHandleTransformer : public TR::Optimization
    {
    public:
    TR_MethodHandleTransformer(TR::OptimizationManager *manager)
-      : TR::Optimization(manager)
-      {_numLocals = 0;}
+      : TR::Optimization(manager),
+      _numLocals(0),
+      _currentObjectInfo(NULL)
+      {}
 
    static TR::Optimization *create(TR::OptimizationManager *manager)
       {
@@ -58,15 +60,16 @@ class TR_MethodHandleTransformer : public TR::Optimization
    ObjectInfo * processBlock(TR::Block *block, ObjectInfo *objectInfo);
    void mergeObjectInfo(ObjectInfo *first, ObjectInfo *second);
    void collectLocals(TR_Array<List<TR::SymbolReference>> *autosListArray);
-   TR::KnownObjectTable::Index getObjectInfoOfNode(TR::Node* node, ObjectInfo *objectInfo);
+   TR::KnownObjectTable::Index getObjectInfoOfNode(TR::Node* node);
 
-   void visitIndirectLoad(TR::TreeTop* tt, TR::Node* node, ObjectInfo *currentObjectInfo);
-   ObjectInfo * visitStoreToLocalVariable(TR::TreeTop* tt, TR::Node* node, ObjectInfo *currentObjectInfo);
-   void visitCall(TR::TreeTop* tt, TR::Node* node, ObjectInfo *currentObjectInfo);
-   ObjectInfo* visitNode(TR::TreeTop* tt, TR::Node* node, TR::NodeChecklist &visitedNodes, ObjectInfo *currentObjectInfo);
+   void visitIndirectLoad(TR::TreeTop* tt, TR::Node* node);
+   void visitStoreToLocalVariable(TR::TreeTop* tt, TR::Node* node);
+   void visitCall(TR::TreeTop* tt, TR::Node* node);
+   void visitNode(TR::TreeTop* tt, TR::Node* node, TR::NodeChecklist &visitedNodes);
 
    private:
    uint32_t _numLocals;
+   ObjectInfo * _currentObjectInfo;
    };
 
 #endif
