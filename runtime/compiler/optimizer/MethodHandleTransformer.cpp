@@ -69,6 +69,14 @@ static void printObjectInfo(TR_MethodHandleTransformer::ObjectInfo *objectInfo, 
       }
    }
 
+static bool isKnownObject(TR_MethodHandleTransformer::LocalObjectInfo objectInfo)
+   {
+   if (objectInfo != TR_MethodHandleTransformer::UNUSED &&
+       objectInfo != TR_MethodHandleTransformer::UNKNOWN)
+      return true;
+   return false;
+   }
+
 void TR_MethodHandleTransformer::collectLocals(TR_Array<List<TR::SymbolReference>> *autosListArray)
    {
    for (int i = 0; autosListArray && i < autosListArray->size(); i++)
@@ -81,7 +89,7 @@ void TR_MethodHandleTransformer::collectLocals(TR_Array<List<TR::SymbolReference
          if (p && p->getDataType() == TR::Address)
             {
             if (comp()->getOption(TR_TraceILGen))
-               traceMsg(comp(), "Local #%2d is symbol %p [#n%dn]\n", _numLocals, p, symRef->getReferenceNumber());
+               traceMsg(comp(), "Local #%2d is symbol %p [#%d]\n", _numLocals, p, symRef->getReferenceNumber());
             p->setLocalIndex(_numLocals++);
             }
          }
@@ -141,9 +149,11 @@ int32_t TR_MethodHandleTransformer::perform()
             if (arg && arg->getKnownObjectIndex() != TR::KnownObjectTable::UNKNOWN)
                {
                if (!objectInfo)
-                  objectInfo = new (comp()->trMemory()->currentStackRegion()) ObjectInfo(_numLocals, TR::KnownObjectTable::UNKNOWN, comp()->trMemory()->currentStackRegion());
+                  objectInfo = new (comp()->trMemory()->currentStackRegion()) ObjectInfo(_numLocals, TR_MethodHandleTransformer::UNUSED, comp()->trMemory()->currentStackRegion());
 
                (*objectInfo)[p->getLocalIndex()] = arg->getKnownObjectIndex();
+               if (trace())
+                  traceMsg(comp(), "Local #%2d is parm %d is obj%d\n", p->getLocalIndex(), ordinal, arg->getKnownObjectIndex());
                }
             }
          }
@@ -205,7 +215,10 @@ int32_t TR_MethodHandleTransformer::perform()
                mergeObjectInfo(blockStartObjectInfos[nextBlockNum], blockEndObjectInfo);
                }
             else
+               {
+               // Copy current block's end object info to successor block
                blockStartObjectInfos[nextBlockNum] = new (currentRegion) ObjectInfo(*blockEndObjectInfo);
+               }
             }
          }
       ++blockIt;
@@ -228,13 +241,20 @@ void TR_MethodHandleTransformer::mergeObjectInfo(ObjectInfo *first, ObjectInfo *
    bool changed = false;
    for (int i = 0; i < _numLocals; i++)
       {
-      TR::KnownObjectTable::Index firstObj = (*first)[i];
-      TR::KnownObjectTable::Index secondObj = (*second)[i];
-      if (firstObj != secondObj)
+      LocalObjectInfo firstObj = (*first)[i];
+      LocalObjectInfo secondObj = (*second)[i];
+
+      if (firstObj == UNUSED)
          {
-         (*first)[i] = TR::KnownObjectTable::UNKNOWN;
-         changed = true;
+         (*first)[i] = secondObj;
          }
+      else if (secondObj != UNUSED && firstObj != secondObj)
+         {
+         (*first)[i] = UNKNOWN;
+         }
+
+      if (firstObj != (*first)[i])
+         changed = true;
       }
 
    if (changed && trace())
@@ -247,7 +267,7 @@ void TR_MethodHandleTransformer::mergeObjectInfo(ObjectInfo *first, ObjectInfo *
 
 // Given a address type node, try to retrieve or compute its value
 //
-TR::KnownObjectTable::Index TR_MethodHandleTransformer::getObjectInfoOfNode(TR::Node* node)
+TR_MethodHandleTransformer::LocalObjectInfo TR_MethodHandleTransformer::getObjectInfoOfNode(TR::Node* node)
    {
    TR_ASSERT(node->getType() == TR::Address, "Can't have object info on non-address type node n%dn %p", node->getGlobalIndex(), node);
 
@@ -256,19 +276,20 @@ TR::KnownObjectTable::Index TR_MethodHandleTransformer::getObjectInfoOfNode(TR::
       traceMsg(comp(), "getObjectInfoOfNode from n%dn\n", node->getGlobalIndex());
       if (_currentObjectInfo)
          printObjectInfo(_currentObjectInfo, comp());
+      traceMsg(comp(), "\n");
       }
 
    if (_currentObjectInfo && trace())
       printObjectInfo(_currentObjectInfo, comp());
 
    if (!node->getOpCode().hasSymbolReference())
-      return TR::KnownObjectTable::UNKNOWN;
+      return UNKNOWN;
 
    auto symRef = node->getSymbolReference();
    auto symbol = symRef->getSymbol();
 
    if (symRef->isUnresolved())
-      return TR::KnownObjectTable::UNKNOWN;
+      return UNKNOWN;
 
    if (symRef->hasKnownObjectIndex())
       return symRef->getKnownObjectIndex();
@@ -279,7 +300,7 @@ TR::KnownObjectTable::Index TR_MethodHandleTransformer::getObjectInfoOfNode(TR::
        symbol->isAutoOrParm())
       {
       traceMsg(comp(), "getObjectInfoOfNode n%dn is load from auto or parm, local #%d\n", node->getGlobalIndex(), symbol->getLocalIndex());
-      return _currentObjectInfo ? (*_currentObjectInfo)[symbol->getLocalIndex()] : TR::KnownObjectTable::UNKNOWN;
+      return _currentObjectInfo ? (*_currentObjectInfo)[symbol->getLocalIndex()] : UNKNOWN;
       }
 
    if (knot &&
@@ -293,7 +314,7 @@ TR::KnownObjectTable::Index TR_MethodHandleTransformer::getObjectInfoOfNode(TR::
         case TR::java_lang_invoke_DirectMethodHandle_internalMemberNameEnsureInit:
            {
            auto mhIndex = getObjectInfoOfNode(node->getFirstArgument());
-           if (mhIndex != TR::KnownObjectTable::UNKNOWN && !knot->isNull(mhIndex))
+           if (isKnownObject(mhIndex) && !knot->isNull(mhIndex))
               {
               TR::VMAccessCriticalSection dereferenceKnownObjectField(comp()->fej9());
               uintptr_t mhObject = knot->getPointer(mhIndex);
@@ -307,7 +328,7 @@ TR::KnownObjectTable::Index TR_MethodHandleTransformer::getObjectInfoOfNode(TR::
         case TR::java_lang_invoke_DirectMethodHandle_constructorMethod:
            {
            auto mhIndex = getObjectInfoOfNode(node->getFirstArgument());
-           if (mhIndex != TR::KnownObjectTable::UNKNOWN && !knot->isNull(mhIndex))
+           if (isKnownObject(mhIndex) && !knot->isNull(mhIndex))
               {
               TR::VMAccessCriticalSection dereferenceKnownObjectField(comp()->fej9());
               uintptr_t mhObject = knot->getPointer(mhIndex);
@@ -321,7 +342,7 @@ TR::KnownObjectTable::Index TR_MethodHandleTransformer::getObjectInfoOfNode(TR::
         }
       }
 
-   return TR::KnownObjectTable::UNKNOWN;
+   return UNKNOWN;
    }
 
 // Store to local variable will change object info
@@ -334,17 +355,17 @@ TR_MethodHandleTransformer::visitStoreToLocalVariable(TR::TreeTop* tt, TR::Node*
    if (rhs->getDataType().isAddress())
       {
       // Get object info of the rhs
-      TR::KnownObjectTable::Index newObject = getObjectInfoOfNode(rhs);
+      LocalObjectInfo newObject = getObjectInfoOfNode(rhs);
       if (trace())
          traceMsg(comp(), "rhs of store n%dn is obj%d\n", node->getGlobalIndex(), newObject);
 
-      if (newObject != TR::KnownObjectTable::UNKNOWN || _currentObjectInfo)
+      if (isKnownObject(newObject) || _currentObjectInfo)
          {
          if (!_currentObjectInfo)
-            _currentObjectInfo = new (comp()->trMemory()->currentStackRegion()) ObjectInfo(_numLocals, TR::KnownObjectTable::UNKNOWN, comp()->trMemory()->currentStackRegion());
+            _currentObjectInfo = new (comp()->trMemory()->currentStackRegion()) ObjectInfo(_numLocals, UNUSED, comp()->trMemory()->currentStackRegion());
          if (trace())
             {
-            TR::KnownObjectTable::Index oldObject = (*_currentObjectInfo)[local->getLocalIndex()];
+            LocalObjectInfo oldObject = (*_currentObjectInfo)[local->getLocalIndex()];
             traceMsg(comp(), "Local #%2d obj%d -> obj%d at node n%dn\n", local->getLocalIndex(), oldObject, newObject,  node->getGlobalIndex());
             }
          (*_currentObjectInfo)[local->getLocalIndex()] = newObject;
@@ -355,6 +376,13 @@ TR_MethodHandleTransformer::visitStoreToLocalVariable(TR::TreeTop* tt, TR::Node*
 void TR_MethodHandleTransformer::visitIndirectLoad(TR::TreeTop* tt, TR::Node* node)
    {
    auto symRef = node->getSymbolReference();
+   if (symRef->hasKnownObjectIndex())
+      {
+      if (trace())
+         traceMsg(comp(), "Indirect load n%dn is obj%d\n", node->getGlobalIndex(), symRef->getKnownObjectIndex());
+      return;
+      }
+
    auto symbol = node->getSymbol();
    if (!symRef->isUnresolved() && symbol && (symbol->isFinal() ||
        symbol->isArrayShadowSymbol()))
@@ -365,7 +393,7 @@ void TR_MethodHandleTransformer::visitIndirectLoad(TR::TreeTop* tt, TR::Node* no
          return;
 
       auto baseSymRef = baseNode->getSymbolReference();
-      TR::KnownObjectTable::Index baseObj = baseSymRef->getKnownObjectIndex();
+      LocalObjectInfo baseObj = baseSymRef->getKnownObjectIndex();
       if (baseObj == TR::KnownObjectTable::UNKNOWN && baseNode->getSymbol()->isAutoOrParm())
          {
          // Get object info for the auto or parm
@@ -405,12 +433,12 @@ void TR_MethodHandleTransformer::visitCall(TR::TreeTop* tt, TR::Node* node)
       case TR::java_lang_invoke_MethodHandle_invokeBasic:
          {
          auto mhNode = node->getFirstArgument();
-         TR::KnownObjectTable::Index objIndex = getObjectInfoOfNode(mhNode);
+         LocalObjectInfo objIndex = getObjectInfoOfNode(mhNode);
          if (trace())
             traceMsg(comp(), "MethodHandle is obj%d\n", objIndex);
 
          bool transformed = false;
-         if (knot && objIndex != TR::KnownObjectTable::UNKNOWN && !knot->isNull(objIndex))
+         if (isKnownObject(objIndex) && knot && !knot->isNull(objIndex))
             transformed = TR::TransformUtil::refineMethodHandleInvokeBasic(comp(), tt, node, objIndex, trace());
 
          if (!transformed)
@@ -429,7 +457,7 @@ void TR_MethodHandleTransformer::visitCall(TR::TreeTop* tt, TR::Node* node)
       case TR::java_lang_invoke_MethodHandle_linkToStatic:
          {
          auto mnNode = node->getLastChild();
-         TR::KnownObjectTable::Index objIndex = getObjectInfoOfNode(mnNode);
+         LocalObjectInfo objIndex = getObjectInfoOfNode(mnNode);
          if (trace())
             traceMsg(comp(), "MemberName is obj%d\n", objIndex);
 

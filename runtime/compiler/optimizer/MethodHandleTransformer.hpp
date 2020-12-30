@@ -54,13 +54,19 @@ class TR_MethodHandleTransformer : public TR::Optimization
    typedef std::set<TR::Node*, std::less<TR::Node*>, NodeAllocator> NodeSet;
 
 
-   typedef TR::typed_allocator<TR::KnownObjectTable::Index, TR::Region &> ObjectInfoAllocator;
-   typedef std::vector<TR::KnownObjectTable::Index, ObjectInfoAllocator> ObjectInfo;
+   // LocalObjectInfo is a super set of TR::KnownObjectTable::Index, with -2
+   // added to represent UNUSED status
+   typedef int32_t LocalObjectInfo;
+   static const LocalObjectInfo UNUSED = -2;
+   static const LocalObjectInfo UNKNOWN = TR::KnownObjectTable::UNKNOWN;
+
+   typedef TR::typed_allocator<LocalObjectInfo, TR::Region &> ObjectInfoAllocator;
+   typedef std::vector<LocalObjectInfo, ObjectInfoAllocator> ObjectInfo;
 
    ObjectInfo * processBlock(TR::Block *block, ObjectInfo *objectInfo);
    void mergeObjectInfo(ObjectInfo *first, ObjectInfo *second);
    void collectLocals(TR_Array<List<TR::SymbolReference>> *autosListArray);
-   TR::KnownObjectTable::Index getObjectInfoOfNode(TR::Node* node);
+   LocalObjectInfo getObjectInfoOfNode(TR::Node* node);
 
    void visitIndirectLoad(TR::TreeTop* tt, TR::Node* node);
    void visitStoreToLocalVariable(TR::TreeTop* tt, TR::Node* node);
