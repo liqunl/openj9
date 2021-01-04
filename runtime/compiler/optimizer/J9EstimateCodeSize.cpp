@@ -236,6 +236,22 @@ class NeedsPeekingHeuristic
 };
 #undef heuristicTraceIfTracerIsNotNull
 
+static bool hasMethodHandleInvokes(TR_J9ByteCodeIterator& bci)
+   {
+   TR_J9ByteCode bc = bci.first();
+   while (bc != J9BCunknown)
+      {
+      switch (bc)
+         {
+         case J9BCinvokedynamic:
+         case J9BCinvokehandle:
+            return true;
+         }
+      bc = bci.next();
+      }
+   return false;
+   }
+
 void
 TR_J9EstimateCodeSize::setupNode(TR::Node *node, uint32_t bcIndex,
                       TR_ResolvedMethod *feMethod, TR::Compilation *comp)
@@ -1151,9 +1167,13 @@ TR_J9EstimateCodeSize::realEstimateCodeSize(TR_CallTarget *calltarget, TR_CallSt
 
    const static bool debugMHInlineWithOutPeeking = feGetEnv("TR_DebugMHInlineWithOutPeeking") ? true: false;
    bool mhInlineWithPeeking =  comp()->getOption(TR_DisableMHInlineWithoutPeeking);
-   bool isCalleeMethodHandleThunkInFirstPass = calltarget->_calleeMethod->convertToMethod()->isArchetypeSpecimen() && _inliner->firstPass();
-   if (nph.doPeeking() && recurseDown ||
-       isCalleeMethodHandleThunkInFirstPass && mhInlineWithPeeking)
+   bool isCalleeMethodHandleThunkInFirstPass = _inliner->firstPass() && calltarget->_calleeMethod->convertToMethod()->isArchetypeSpecimen();
+   bool isAdapterOrLambdaForm = TR_ResolvedJ9Method::isAdapterOrLambdaForm(calltarget->_calleeMethod);
+
+   // Don't peek adapter or LF methods, because peeking can't propagate object info in autos
+   if (!isAdapterOrLambdaForm &&
+       (nph.doPeeking() && recurseDown ||
+       isCalleeMethodHandleThunkInFirstPass && mhInlineWithPeeking))
       {
 
       heuristicTrace(tracer(), "*** Depth %d: ECS CSI -- needsPeeking is true for calltarget %p",
@@ -1288,7 +1308,10 @@ TR_J9EstimateCodeSize::realEstimateCodeSize(TR_CallTarget *calltarget, TR_CallSt
    if (!callsitesAreCreatedFromTrees)
       {
       bci.prepareToFindAndCreateCallsites(blocks, flags, callSites, &cfg, &newBCInfo, _recursionDepth, &callStack);
-      bool iteratorWithState = isCalleeMethodHandleThunkInFirstPass && !mhInlineWithPeeking;
+      bool hasMethodHandleInvoke = false; // Can't iterate with state for any method because InterpreterEmulator can't handle all bytecodes. hasMethodHandleInvokes(bci);
+      bool iteratorWithState = (isCalleeMethodHandleThunkInFirstPass && !mhInlineWithPeeking) || isAdapterOrLambdaForm || hasMethodHandleInvoke;
+      heuristicTrace(tracer(), "*** Depth %d: isAdapterOrLambdaForm %d hasMethodHandleInvoke %d iteratorWithState %d\n", _recursionDepth, isAdapterOrLambdaForm, hasMethodHandleInvoke, iteratorWithState);
+
       if (!bci.findAndCreateCallsitesFromBytecodes(wasPeekingSuccessfull, iteratorWithState))
          {
          heuristicTrace(tracer(), "*** Depth %d: ECS end for target %p signature %s. bci.findAndCreateCallsitesFromBytecode failed", _recursionDepth, calltarget, callerName);
