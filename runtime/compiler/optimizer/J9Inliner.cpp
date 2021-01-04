@@ -451,8 +451,9 @@ bool TR_InlinerBase::inlineCallTarget(TR_CallStack *callStack, TR_CallTarget *ca
 
    // Last chance to improve our prex info
    //
-   calltarget->_prexArgInfo = TR_PrexArgInfo::enhance(calltarget->_prexArgInfo, argInfo, comp());
-   argInfo = getUtil()->computePrexInfo(calltarget);
+   auto targetArgInfo = getUtil()->computePrexInfo(calltarget);
+   argInfo = TR_PrexArgInfo::enhance(targetArgInfo, argInfo, comp());
+   calltarget->_prexArgInfo = argInfo;
 
    if (!comp()->incInlineDepth(calltarget->_calleeSymbol, calltarget->_myCallSite->_callNode->getByteCodeInfo(), calltarget->_myCallSite->_callNode->getSymbolReference()->getCPIndex(), calltarget->_myCallSite->_callNode->getSymbolReference(), !calltarget->_myCallSite->_isIndirectCall, argInfo))
 		{

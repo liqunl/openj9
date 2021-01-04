@@ -1183,7 +1183,7 @@ TR_J9EstimateCodeSize::realEstimateCodeSize(TR_CallTarget *calltarget, TR_CallSt
       if (ilgenSuccess)
          {
          heuristicTrace(tracer(), "*** Depth %d: ECS CSI -- peeking was successfull for calltarget %p", _recursionDepth, calltarget);
-         calltarget->_ecsPrexArgInfo->clearArgInfoForNonInvariantArguments(methodSymbol, tracer());
+         _inliner->getUtil()->clearArgInfoForNonInvariantArguments(calltarget->_ecsPrexArgInfo, methodSymbol, tracer());
          wasPeekingSuccessfull = true;
          }
       }
