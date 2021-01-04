@@ -93,6 +93,7 @@ class TR_EstimateCodeSize
 
    TR::Compilation *comp()              { return _inliner->comp(); }
    TR_InlinerTracer *tracer()          { return _tracer; }
+   TR_InlinerBase* getInliner()        { return _inliner; }
 
    protected:
 

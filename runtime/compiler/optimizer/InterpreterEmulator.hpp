@@ -60,6 +60,10 @@
 class IconstOperand;
 class KnownObjOperand;
 class MutableCallsiteTargetOperand;
+class FixedClassOperand;
+class PrexClassOperand;
+class ClassOperand;
+class TR_PrexArgument;
 
 /*
  * \class Operand
@@ -74,9 +78,14 @@ class Operand
       TR_ALLOC(TR_Memory::EstimateCodeSize);
       virtual IconstOperand *asIconst(){ return NULL;}
       virtual KnownObjOperand *asKnownObject(){ return NULL;}
+      virtual FixedClassOperand *asFixedClassOperand(){ return NULL;}
+      virtual PrexClassOperand *asPrexClassOperand(){ return NULL;}
+      virtual ClassOperand *asClassOperand(){ return NULL;}
       virtual MutableCallsiteTargetOperand* asMutableCallsiteTargetOperand(){ return NULL;}
       virtual bool isUnkownOperand(){ return true;}
       virtual TR::KnownObjectTable::Index getKnownObjectIndex(){ return TR::KnownObjectTable::UNKNOWN;}
+      //virtual TR_PrexArgument* asPrexArgument(){ return NULL;}
+      virtual char* getSignature(TR::Compilation *comp, TR_Memory *trMemory) {return NULL;}
       virtual void printToString( char *buffer)
          {
          sprintf(buffer, "(obj%d)", getKnownObjectIndex());
@@ -116,6 +125,37 @@ class KnownObjOperand : public KnownOperand
       virtual KnownObjOperand *asKnownObject(){ return this;}
       virtual TR::KnownObjectTable::Index getKnownObjectIndex(){ return knownObjIndex;}
       TR::KnownObjectTable::Index knownObjIndex;
+   };
+
+class ClassOperand : public Operand
+   {
+   public:
+      TR_ALLOC(TR_Memory::EstimateCodeSize);
+      virtual bool isUnkownOperand(){ return false;}
+      ClassOperand(TR_OpaqueClassBlock* clazz):_signature(NULL),_clazz(clazz){ }
+      TR_OpaqueClassBlock* _clazz;
+      // liqun: todo: to implement in cpp file
+      virtual char* getSignature(TR::Compilation *comp, TR_Memory *trMemory);
+      virtual ClassOperand *asClassOperand(){ return this;}
+      TR_OpaqueClassBlock* getClass() { return _clazz;}
+   private:
+      char* _signature;
+   };
+
+class PrexClassOperand : public ClassOperand
+   {
+   public:
+      TR_ALLOC(TR_Memory::EstimateCodeSize);
+      PrexClassOperand(TR_OpaqueClassBlock* clazz):ClassOperand(clazz){ }
+      virtual PrexClassOperand *asPrexClassOperand(){ return this;}
+   };
+
+class FixedClassOperand : public ClassOperand
+   {
+   public:
+      TR_ALLOC(TR_Memory::EstimateCodeSize);
+      FixedClassOperand(TR_OpaqueClassBlock* clazz):ClassOperand(clazz){ }
+      virtual FixedClassOperand *asFixedClassOperand(){ return this;}
    };
 
 /*
@@ -168,6 +208,9 @@ class InterpreterEmulator : public TR_ByteCodeIteratorWithState<TR_J9ByteCode, J
          TR_J9ByteCodeIterator::initialize(static_cast<TR_ResolvedJ9Method *>(methodSymbol->getResolvedMethod()), fe);
          _flags = NULL;
          _stacks = NULL;
+         _localVariables = NULL;
+         _maintainLocalState = false;
+         _maintainableSlot = NULL;
          }
       TR_LogTracer *tracer() { return _tracer; }
       /* \brief Initialize data needed for looking for callsites
@@ -206,6 +249,8 @@ class InterpreterEmulator : public TR_ByteCodeIteratorWithState<TR_J9ByteCode, J
       bool findAndCreateCallsitesFromBytecodes(bool wasPeekingSuccessfull, bool withState);
       void setBlocks(TR::Block **blocks) { _blocks = blocks; }
       TR_StackMemory trStackMemory()            { return _trMemory; }
+      TR_PrexArgument* createPrexArgFromOperand(Operand* operand);
+
       bool _nonColdCallExists;
       bool _inlineableCallExists;
 
@@ -246,14 +291,17 @@ class InterpreterEmulator : public TR_ByteCodeIteratorWithState<TR_J9ByteCode, J
        *    whether it's a direct call or indirect call
        */
       void maintainStackForCall(TR_ResolvedMethod *method, Operand *result, bool isDirect);
+      void maintainStackForCall(TR_ResolvedMethod *method, Operand *result, int32_t numArgs, TR::DataType returnType);
       void maintainStackForDirectCall(TR_ResolvedMethod *method, Operand *result = NULL) { maintainStackForCall(method, result, true /* isDirect */); }
       void maintainStackForIndirectCall(TR_ResolvedMethod *method, Operand *result = NULL) { maintainStackForCall(method, result, false/* isDirect */); }
       /*
        * \brief refine the callee method based on operands when possible
        */
       void refineResolvedCalleeForInvokestatic(TR_ResolvedMethod *&callee, TR::KnownObjectTable::Index & mcsIndex, TR::KnownObjectTable::Index & mhIndex, bool & isIndirectCall);
+      void refineCall(TR_ResolvedMethod*& resolvedMethod, bool &isIndirectCall);
       Operand *getReturnValueForInvokevirtual(TR_ResolvedMethod *callee);
       Operand *getReturnValueForInvokestatic(TR_ResolvedMethod *callee);
+      Operand *getReturnValue(TR_ResolvedMethod *callee);
       void dumpStack();
       void pushUnknownOperand() { Base::push(_unknownOperand); }
       // doesn't need to handle execeptions yet as they don't exist in method handle thunk archetypes
@@ -284,8 +332,14 @@ class InterpreterEmulator : public TR_ByteCodeIteratorWithState<TR_J9ByteCode, J
       void visitInvokestatic();
       void visitInvokeinterface();
       void findTargetAndUpdateInfoForCallsite(TR_CallSite *callsite);
+      TR_PrexArgInfo* computePrexInfo(TR_CallSite *callsite);
       bool isCurrentCallUnresolvedOrCold(TR_ResolvedMethod *resolvedMethod, bool isUnresolvedInCP);
       void debugUnresolvedOrCold(TR_ResolvedMethod *resolvedMethod);
+      int32_t numberOfBlocks();
+      void checkMaintainableSlot();
+      void maintainStackForStoreAuto(int slotIndex);
+      void maintainStackForldc(int32_t cpIndex);
+      bool hasByteCodeRequireState();
 
       TR_LogTracer *_tracer;
       TR_EstimateCodeSize *_ecs;
@@ -301,5 +355,8 @@ class InterpreterEmulator : public TR_ByteCodeIteratorWithState<TR_J9ByteCode, J
       bool _wasPeekingSuccessfull;
       TR::Block *_currentInlinedBlock;
       TR_prevArgs _pca;
+      TR_Array<Operand*> *_localVariables;
+      bool _maintainLocalState;
+      bool* _maintainableSlot;
    };
 #endif
