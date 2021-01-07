@@ -324,6 +324,15 @@ SymbolReference::getTypeSignature(int32_t & len, TR_AllocationKind allocKind, bo
             len = condySigLength;
             return returnType;
             }
+         if (_symbol->isNonSpecificConstObject())
+            {
+            TR::StaticSymbol * symbol = _symbol->castToStaticSymbol();
+            uintptr_t objectLocation = (uintptr_t)symbol->getStaticAddress();
+            TR_OpaqueClassBlock *clazz = comp->fej9()->getObjectClassAt(objectLocation);
+            char *type = comp->fej9()->getClassSignature(clazz, comp->trMemory());
+            len = strlen(type);
+            return type;
+            }
          if (_symbol->isConst())
             {
             len = 1;
