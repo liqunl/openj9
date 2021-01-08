@@ -1001,9 +1001,9 @@ InterpreterEmulator::visitInvokedynamic()
       TR::VMAccessCriticalSection vmAccess(fej9);
       targetMethodObj = fej9->targetMethodFromMemberName((uintptr_t) owningMethod->memberNameElementRefFromInvokeDynamicSideTable(callSiteIndex));
       }
-   TR_ASSERT_FATAL(comp()->compileRelocatableCode(), "targetMethodObj shouldn't be NULL\n");
+   TR_ASSERT_FATAL(targetMethodObj || comp()->compileRelocatableCode(), "targetMethodObj shouldn't be NULL\n");
    TR_ResolvedMethod * targetMethod = fej9->createResolvedMethod(this->trMemory(), targetMethodObj, owningMethod);
-   TR_ASSERT_FATAL(comp()->compileRelocatableCode(), "targetMethod shouldn't be NULL\n");
+   TR_ASSERT_FATAL(targetMethod || comp()->compileRelocatableCode(), "targetMethod shouldn't be NULL\n");
    if (!targetMethod) return;
 
    TR_ResolvedJ9Method::setAdapterOrLambdaForm(targetMethod);
@@ -1077,9 +1077,9 @@ InterpreterEmulator::visitInvokehandle()
       TR::VMAccessCriticalSection vmAccess(fej9);
       targetMethodObj = fej9->targetMethodFromMemberName((uintptr_t) owningMethod->memberNameElementRefFromInvokeHandleSideTable(cpIndex));
       }
-   TR_ASSERT_FATAL(comp()->compileRelocatableCode(), "targetMethodObj shouldn't be NULL\n");
+   TR_ASSERT_FATAL(targetMethodObj || comp()->compileRelocatableCode(), "targetMethodObj shouldn't be NULL\n");
    TR_ResolvedMethod * targetMethod = fej9->createResolvedMethod(this->trMemory(), targetMethodObj, owningMethod);
-   TR_ASSERT_FATAL(comp()->compileRelocatableCode(), "targetMethod shouldn't be NULL\n");
+   TR_ASSERT_FATAL(targetMethod || comp()->compileRelocatableCode(), "targetMethod shouldn't be NULL\n");
    if (!targetMethod) return;
 
    TR_ResolvedJ9Method::setAdapterOrLambdaForm(targetMethod);
