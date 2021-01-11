@@ -29,6 +29,7 @@
 #include "il/ParameterSymbol.hpp"
 #include "optimizer/PreExistence.hpp"
 #include "il/OMRNode_inlines.hpp"
+#include "optimizer/J9TransformUtil.hpp"
 #if defined(J9VM_OPT_JITSERVER)
 #include "control/CompilationRuntime.hpp"
 #include "env/j9methodServer.hpp"
@@ -336,6 +337,7 @@ InterpreterEmulator::maintainStack(TR_J9ByteCode bc)
       case J9BCiconst3:  push (new (trStackMemory()) IconstOperand(3)); break;
       case J9BCiconst4:  push (new (trStackMemory()) IconstOperand(4)); break;
       case J9BCiconst5:  push (new (trStackMemory()) IconstOperand(5)); break;
+      case J9BCaconstnull: pushUnknownOperand(); break;
       case J9BCifne:
          push (new (trStackMemory()) IconstOperand(0));
          maintainStackForIf(J9BCificmpne);
@@ -377,8 +379,10 @@ InterpreterEmulator::maintainStack(TR_J9ByteCode bc)
       case J9BCfload0: case J9BCfload1: case J9BCfload2: case J9BCfload3:
       case J9BCiloadw: case J9BClloadw: case J9BCfloadw: case J9BCdloadw:
       case J9BCiload:  case J9BClload:  case J9BCfload:  case J9BCdload:
-      case J9BCgetstatic:
          pushUnknownOperand();
+         break;
+      case J9BCgetstatic:
+         maintainStackForGetStatic();
          break;
       case J9BCgenericReturn:
       case J9BCi2l:
@@ -387,6 +391,8 @@ InterpreterEmulator::maintainStack(TR_J9ByteCode bc)
       case J9BCinvokevirtual:
       case J9BCinvokestatic:
       case J9BCinvokestaticsplit:
+      case J9BCinvokehandle:
+      case J9BCinvokedynamic:
          break;
       case J9BCcheckcast:
          break;
@@ -413,6 +419,87 @@ InterpreterEmulator::maintainStack(TR_J9ByteCode bc)
          return false;
       }
    return true;
+   }
+
+void
+InterpreterEmulator::maintainStackForGetStatic()
+   {
+   TR_ASSERT_FATAL(_iteratorWithState, "has to be called when the iterator has state!");
+   if (comp()->compileRelocatableCode())
+      {
+      pushUnknownOperand();
+      return;
+      }
+
+   int32_t cpIndex = next2Bytes();
+
+   debugTrace(tracer(), "getstatic cpIndex %d\n", cpIndex);
+
+   void * dataAddress;
+   bool isVolatile, isPrivate, isUnresolvedInCP, isFinal;
+   TR::DataType type = TR::NoType;
+   auto owningMethod = _calltarget->_calleeMethod;
+   bool resolved = owningMethod->staticAttributes(comp(), cpIndex, &dataAddress, &type, &isVolatile, &isFinal, &isPrivate, false, &isUnresolvedInCP);
+
+   TR::KnownObjectTable::Index knownObjectIndex = TR::KnownObjectTable::UNKNOWN;
+   TR::KnownObjectTable *knot = comp()->getOrCreateKnownObjectTable();
+   if (knot
+       && resolved
+       && isFinal
+       && type == TR::Address
+       && !comp()->compileRelocatableCode())
+      {
+      TR::VMAccessCriticalSection getObjectReferenceLocation(comp());
+      if (*((uintptr_t*)dataAddress) != 0)
+         {
+         TR_J9VMBase *fej9 = comp()->fej9();
+         TR_OpaqueClassBlock *declaringClass = owningMethod->getDeclaringClassFromFieldOrStatic(comp(), cpIndex);
+         if (declaringClass && fej9->isClassInitialized(declaringClass))
+            {
+            static const char *foldVarHandle = feGetEnv("TR_FoldVarHandleWithoutFear");
+            int32_t clazzNameLength = 0;
+            char *clazzName = fej9->getClassNameChars(declaringClass, clazzNameLength);
+            bool createKnownObject = false;
+
+            if (J9::TransformUtil::foldFinalFieldsIn(declaringClass, clazzName, clazzNameLength, true, comp()))
+               {
+               createKnownObject = true;
+               }
+            else if (foldVarHandle
+                     && (clazzNameLength != 16 || strncmp(clazzName, "java/lang/System", 16)))
+               {
+               TR_OpaqueClassBlock *varHandleClass =  fej9->getSystemClassFromClassName("java/lang/invoke/VarHandle", 26);
+               TR_OpaqueClassBlock *methodHandleClass =  fej9->getSystemClassFromClassName("java/lang/invoke/MethodHandle", 29);
+               TR_OpaqueClassBlock *objectClass = TR::Compiler->cls.objectClass(comp(), *((uintptr_t*)dataAddress));
+
+               debugTrace(tracer(), "vh %p mh %p objectClass %p\n", varHandleClass, methodHandleClass, objectClass);
+               if (varHandleClass != NULL
+                   && objectClass != NULL
+                   && fej9->isInstanceOf(objectClass, varHandleClass, true, true))
+                  {
+                  createKnownObject = true;
+                  }
+               else if (methodHandleClass != NULL
+                   && objectClass != NULL
+                   && fej9->isInstanceOf(objectClass, methodHandleClass, true, true))
+                  {
+                  createKnownObject = true;
+                  }
+               }
+
+            if (createKnownObject)
+               {
+               debugTrace(tracer(), "Fold static final field\n");
+               knownObjectIndex = knot->getOrCreateIndexAt((uintptr_t*)dataAddress);
+               }
+            }
+         }
+      }
+
+   if (knownObjectIndex != TR::KnownObjectTable::UNKNOWN)
+      push(new (trStackMemory()) KnownObjOperand(knownObjectIndex));
+   else
+      pushUnknownOperand();
    }
 
 void
@@ -884,7 +971,7 @@ InterpreterEmulator::findAndCreateCallsitesFromBytecodes(bool wasPeekingSuccessf
    {
    debugTrace(tracer(),"With state %d\n", withState);
    TR::Region findCallsitesRegion(comp()->region());
-   if (withState) // || hasByteCodeRequireState())
+   if (withState || hasByteCodeRequireState())
       initializeIteratorWithState();
    _wasPeekingSuccessfull = wasPeekingSuccessfull;
    _currentInlinedBlock = NULL;

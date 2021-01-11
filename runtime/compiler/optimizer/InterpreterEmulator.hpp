@@ -277,6 +277,7 @@ class InterpreterEmulator : public TR_ByteCodeIteratorWithState<TR_J9ByteCode, J
       bool maintainStack(TR_J9ByteCode bc);
       void maintainStackForIf(TR_J9ByteCode bc);
       void maintainStackForGetField();
+      void maintainStackForGetStatic();
       void maintainStackForAload(int slotIndex);
       /*
        * \brief helper to pop arguments from the stack and push the result for calls

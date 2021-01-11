@@ -1308,7 +1308,8 @@ TR_J9EstimateCodeSize::realEstimateCodeSize(TR_CallTarget *calltarget, TR_CallSt
    if (!callsitesAreCreatedFromTrees)
       {
       bci.prepareToFindAndCreateCallsites(blocks, flags, callSites, &cfg, &newBCInfo, _recursionDepth, &callStack);
-      bool hasMethodHandleInvoke = false; // Can't iterate with state for any method because InterpreterEmulator can't handle all bytecodes. hasMethodHandleInvokes(bci);
+      //bool hasMethodHandleInvoke = false; // Can't iterate with state for any method because InterpreterEmulator can't handle all bytecodes. hasMethodHandleInvokes(bci);
+      bool hasMethodHandleInvoke = hasMethodHandleInvokes(bci);
       bool iteratorWithState = (isCalleeMethodHandleThunkInFirstPass && !mhInlineWithPeeking) || isAdapterOrLambdaForm || hasMethodHandleInvoke;
       heuristicTrace(tracer(), "*** Depth %d: isAdapterOrLambdaForm %d hasMethodHandleInvoke %d iteratorWithState %d\n", _recursionDepth, isAdapterOrLambdaForm, hasMethodHandleInvoke, iteratorWithState);
 

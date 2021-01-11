@@ -1811,11 +1811,18 @@ J9::SymbolReferenceTable::findOrCreateStaticSymbol(TR::ResolvedMethodSymbol * ow
                         && (clazzNameLength != 16 || strncmp(clazzName, "java/lang/System", 16)))
                   {
                   TR_OpaqueClassBlock *varHandleClass =  fej9->getSystemClassFromClassName("java/lang/invoke/VarHandle", 26);
+                  TR_OpaqueClassBlock *methodHandleClass =  fej9->getSystemClassFromClassName("java/lang/invoke/MethodHandle", 29);
                   TR_OpaqueClassBlock *objectClass = TR::Compiler->cls.objectClass(comp(), *((uintptr_t*)dataAddress));
 
                   if (varHandleClass != NULL
                       && objectClass != NULL
                       && fej9->isInstanceOf(objectClass, varHandleClass, true, true))
+                     {
+                     createKnownObject = true;
+                     }
+                  else if (methodHandleClass != NULL
+                      && objectClass != NULL
+                      && fej9->isInstanceOf(objectClass, methodHandleClass, true, true))
                      {
                      createKnownObject = true;
                      }
