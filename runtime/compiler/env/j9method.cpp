@@ -3253,6 +3253,7 @@ void TR_ResolvedJ9Method::construct()
 
    static X UnsafeMethods[] =
       {
+      {x(TR::sun_misc_Unsafe_allocateInstance,              "allocateInstance",       "(Ljava/lang/Class;)Ljava/lang/Object;")},
       {x(TR::sun_misc_Unsafe_putBoolean_jlObjectJZ_V,       "putBoolean", "(Ljava/lang/Object;JZ)V")},
       {x(TR::sun_misc_Unsafe_putByte_jlObjectJB_V,          "putByte",    "(Ljava/lang/Object;JB)V")},
       {x(TR::sun_misc_Unsafe_putChar_jlObjectJC_V,          "putChar",    "(Ljava/lang/Object;JC)V")},
@@ -3941,8 +3942,17 @@ void TR_ResolvedJ9Method::construct()
       {x(TR::java_lang_invoke_DirectMethodHandle_internalMemberName,            "internalMemberName",                 "(Ljava/lang/Object;)Ljava/lang/Object;")},
       {x(TR::java_lang_invoke_DirectMethodHandle_internalMemberNameEnsureInit,  "internalMemberNameEnsureInit",       "(Ljava/lang/Object;)Ljava/lang/Object;")},
       {x(TR::java_lang_invoke_DirectMethodHandle_constructorMethod,             "constructorMethod",       "(Ljava/lang/Object;)Ljava/lang/Object;")},
+      {x(TR::java_lang_invoke_DirectMethodHandle_allocateInstance,             "allocateInstance",       "(Ljava/lang/Object;)Ljava/lang/Object;")},
       {  TR::unknownMethod}
       };
+
+   static X InvokersMethods[] =
+      {
+      {x(TR::java_lang_invoke_Invokers_checkExactType, "checkExactType", "(Ljava/lang/invoke/MethodHandle;Ljava/lang/invoke/MethodType;)V")},
+      {x(TR::java_lang_invoke_Invokers_checkCustomized, "checkCustomized", "(Ljava/lang/invoke/MethodHandle;)V")},
+      {  TR::unknownMethod}
+      };
+
 
    static X PrimitiveHandleMethods[] =
       {
@@ -4367,6 +4377,7 @@ void TR_ResolvedJ9Method::construct()
 
    static Y class25[] =
       {
+      { "java/lang/invoke/Invokers", InvokersMethods },
       { 0 }
       };
 

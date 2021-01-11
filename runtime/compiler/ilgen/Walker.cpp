@@ -3199,6 +3199,18 @@ TR_J9ByteCodeIlGenerator::genInvokeVirtual(int32_t cpIndex)
          (debug("omitVirtualGuard") && !method->virtualMethodIsOverridden());
       }
 
+      if (symRef->getSymbol()->castToMethodSymbol()->getRecognizedMethod() == TR::sun_misc_Unsafe_allocateInstance)
+         {
+         if (!comp()->compileRelocatableCode())
+            {
+            auto jlcNode = pop();
+            pop(); // pop Unsafe object
+            push(TR::Node::createWithSymRef(TR::aloadi, 1, 1, jlcNode, symRefTab()->findOrCreateClassFromJavaLangClassSymbolRef()));
+            genNew(TR::variableNew);
+            return;
+            }
+         }
+
    if (isDirectCall)
       {
       genInvokeDirect(symRef);

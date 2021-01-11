@@ -427,6 +427,13 @@ void TR_MethodHandleTransformer::visitIndirectLoad(TR::TreeTop* tt, TR::Node* no
       }
    }
 
+static void changeCallToNull(TR::Node* node)
+   {
+   node->removeAllChildren();
+   TR::Node::recreate(node, TR::iconst);
+   node->setInt(0);
+   }
+
 // Visit a call node, compute its result or transform the call node with current object info
 //
 void TR_MethodHandleTransformer::visitCall(TR::TreeTop* tt, TR::Node* node)
@@ -435,6 +442,62 @@ void TR_MethodHandleTransformer::visitCall(TR::TreeTop* tt, TR::Node* node)
    TR::RecognizedMethod rm = node->getSymbol()->castToMethodSymbol()->getMandatoryRecognizedMethod();
    switch (rm)
       {
+      case TR::java_lang_invoke_DirectMethodHandle_allocateInstance:
+         {
+         return;
+         auto mhNode = node->getFirstArgument();
+         auto mhObj = getObjectInfoOfNode(mhNode);
+         if (!isKnownObject(mhObj))
+            return;
+
+         TR_OpaqueClassBlock* clazz = NULL;
+         {
+         TR_J9VMBase *fej9 = comp()->fej9();
+         TR::VMAccessCriticalSection checkExactType(fej9);
+         auto jlClass = fej9->getReferenceField(knot->getPointer(mhObj), "instanceClass", "Ljava/lang/Class;");
+         clazz = fej9->getClassFromJavaLangClass(jlClass);
+         }
+
+         if (clazz)
+            {
+            //node->removeAllChildren();
+            //TR::Node::recreate
+            }
+
+         }
+      case TR::java_lang_invoke_Invokers_checkCustomized:
+         {
+         auto mhNode = node->getFirstArgument();
+         auto mhObj = getObjectInfoOfNode(mhNode);
+         if (isKnownObject(mhObj))
+            changeCallToNull(node);
+         return;
+         }
+      case TR::java_lang_invoke_Invokers_checkExactType:
+         {
+         auto mhNode = node->getFirstArgument();
+         auto mhObj = getObjectInfoOfNode(mhNode);
+         auto mtNode = node->getArgument(1);
+         auto mtObj = getObjectInfoOfNode(mtNode);
+         if (!isKnownObject(mhObj) || !isKnownObject(mtObj))
+            return;
+
+         bool checkWillSucceed = false;
+
+         {
+         TR_J9VMBase *fej9 = comp()->fej9();
+         TR::VMAccessCriticalSection checkExactType(fej9);
+         auto mtFromMh = fej9->methodHandle_type(knot->getPointer(mhObj));
+         if (mtFromMh == knot->getPointer(mtObj))
+            checkWillSucceed = true;
+         }
+
+         if (checkWillSucceed)
+            {
+            changeCallToNull(node);
+            }
+         return;
+         }
       case TR::java_lang_invoke_MethodHandle_invokeBasic:
          {
          auto mhNode = node->getFirstArgument();
