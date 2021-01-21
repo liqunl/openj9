@@ -748,6 +748,15 @@ Java_java_lang_invoke_MethodHandleNatives_resolve(JNIEnv *env, jclass clazz, job
 					if (J9_ARE_ANY_BITS_SET(romMethod->modifiers, J9AccMethodCallerSensitive)) {
 						new_flags |= MN_CALLER_SENSITIVE;
 					}
+
+					/* Tag Lambdaform generated class */
+					J9Class *methodClass = J9_CLASS_FROM_METHOD(method);
+					if (J9_ARE_ANY_BITS_SET(methodClass->classFlags, J9ClassIsAnonymous) || (J9ROMCLASS_IS_HIDDEN(methodClass->romClass))) {
+						J9Class *lambdaFormClass = J9VMJAVALANGINVOKELAMBDAFORM(vm);
+						if (methodClass->hostClass == lambdaFormClass) {
+							methodClass->classFlags |= J9ClassIsGeneratedForOJDKMethodHandle;
+						}
+					}
 				}
 			} if (J9_ARE_ANY_BITS_SET(flags, MN_IS_FIELD)) {
 				J9Class *declaringClass;
