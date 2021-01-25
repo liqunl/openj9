@@ -90,6 +90,7 @@ class Operand
          {
          sprintf(buffer, "(obj%d)", getKnownObjectIndex());
          }
+      virtual bool identicalTo(Operand* other) { return this == other; }
    };
 
 /*
@@ -115,6 +116,12 @@ class IconstOperand : public KnownOperand
          sprintf(buffer, "(iconst=%d)", intValue);
          }
       int32_t intValue;
+
+      virtual bool identicalTo(Operand* other)
+         {
+         IconstOperand* otherIconst = other->asIconst();
+         return otherIconst && this->intValue == otherIconst->intValue;
+         }
    };
 
 class KnownObjOperand : public KnownOperand
@@ -125,6 +132,12 @@ class KnownObjOperand : public KnownOperand
       virtual KnownObjOperand *asKnownObject(){ return this;}
       virtual TR::KnownObjectTable::Index getKnownObjectIndex(){ return knownObjIndex;}
       TR::KnownObjectTable::Index knownObjIndex;
+
+      virtual bool identicalTo(Operand* other)
+         {
+         KnownObjOperand* otherObj = other->asKnownObject();
+         return otherObj && this->knownObjIndex == otherObj->knownObjIndex;
+         }
    };
 
 class ClassOperand : public Operand
@@ -138,6 +151,11 @@ class ClassOperand : public Operand
       virtual char* getSignature(TR::Compilation *comp, TR_Memory *trMemory);
       virtual ClassOperand *asClassOperand(){ return this;}
       TR_OpaqueClassBlock* getClass() { return _clazz;}
+      virtual bool identicalTo(Operand* other)
+         {
+         ClassOperand* otherClass = other->asClassOperand();
+         return otherClass && this->_clazz == otherClass->_clazz;
+         }
    private:
       char* _signature;
    };
@@ -148,6 +166,11 @@ class PrexClassOperand : public ClassOperand
       TR_ALLOC(TR_Memory::EstimateCodeSize);
       PrexClassOperand(TR_OpaqueClassBlock* clazz):ClassOperand(clazz){ }
       virtual PrexClassOperand *asPrexClassOperand(){ return this;}
+      virtual bool identicalTo(Operand* other)
+         {
+         PrexClassOperand* otherPrexClass = other->asPrexClassOperand();
+         return otherPrexClass && this->_clazz == otherPrexClass->_clazz;
+         }
    };
 
 class FixedClassOperand : public ClassOperand
@@ -156,6 +179,11 @@ class FixedClassOperand : public ClassOperand
       TR_ALLOC(TR_Memory::EstimateCodeSize);
       FixedClassOperand(TR_OpaqueClassBlock* clazz):ClassOperand(clazz){ }
       virtual FixedClassOperand *asFixedClassOperand(){ return this;}
+      virtual bool identicalTo(Operand* other)
+         {
+         FixedClassOperand* otherFixedClass = other->asFixedClassOperand();
+         return otherFixedClass && this->_clazz == otherFixedClass->_clazz;
+         }
    };
 
 /*
@@ -208,9 +236,8 @@ class InterpreterEmulator : public TR_ByteCodeIteratorWithState<TR_J9ByteCode, J
          TR_J9ByteCodeIterator::initialize(static_cast<TR_ResolvedJ9Method *>(methodSymbol->getResolvedMethod()), fe);
          _flags = NULL;
          _stacks = NULL;
-         _localVariables = NULL;
-         _maintainLocalState = false;
-         _maintainableSlot = NULL;
+         _currentLocalObjectInfo = NULL;
+         _blockLocalObjectInfos = NULL;
          }
       TR_LogTracer *tracer() { return _tracer; }
       /* \brief Initialize data needed for looking for callsites
@@ -303,6 +330,7 @@ class InterpreterEmulator : public TR_ByteCodeIteratorWithState<TR_J9ByteCode, J
       Operand *getReturnValueForInvokestatic(TR_ResolvedMethod *callee);
       Operand *getReturnValue(TR_ResolvedMethod *callee);
       void dumpStack();
+      void printObjectInfo(ObjectInfo* objectInfo);
       void pushUnknownOperand() { Base::push(_unknownOperand); }
       // doesn't need to handle execeptions yet as they don't exist in method handle thunk archetypes
       virtual void findAndMarkExceptionRanges(){ }
@@ -323,6 +351,10 @@ class InterpreterEmulator : public TR_ByteCodeIteratorWithState<TR_J9ByteCode, J
        * \note This query is used to avoid regenerating bytecodes which shouldn't happen at stateless mode
        */
       bool isGenerated(int32_t bcIndex) { return _iteratorWithState ? Base::isGenerated(bcIndex): false; }
+      virtual int32_t setupBBStartContext(int32_t index);
+      void setupBBStartLocalObjectInfo(int32_t index);
+      void setupBBStartLocalObjectInfoFromPrexArg();
+
       void visitInvokedynamic();
       void visitInvokevirtual();
 #if defined(J9VM_OPT_OPENJDK_METHODHANDLE)
@@ -335,11 +367,11 @@ class InterpreterEmulator : public TR_ByteCodeIteratorWithState<TR_J9ByteCode, J
       TR_PrexArgInfo* computePrexInfo(TR_CallSite *callsite);
       bool isCurrentCallUnresolvedOrCold(TR_ResolvedMethod *resolvedMethod, bool isUnresolvedInCP);
       void debugUnresolvedOrCold(TR_ResolvedMethod *resolvedMethod);
-      int32_t numberOfBlocks();
-      void checkMaintainableSlot();
       void maintainStackForStoreAuto(int slotIndex);
       void maintainStackForldc(int32_t cpIndex);
       bool hasByteCodeRequireState();
+
+      bool trace();
 
       TR_LogTracer *_tracer;
       TR_EstimateCodeSize *_ecs;
@@ -355,8 +387,16 @@ class InterpreterEmulator : public TR_ByteCodeIteratorWithState<TR_J9ByteCode, J
       bool _wasPeekingSuccessfull;
       TR::Block *_currentInlinedBlock;
       TR_prevArgs _pca;
-      TR_Array<Operand*> *_localVariables;
-      bool _maintainLocalState;
-      bool* _maintainableSlot;
+
+      typedef TR::typed_allocator<Operand*, TR::Region &> ObjectInfoAllocator;
+      typedef std::vector<Operand*, ObjectInfoAllocator> ObjectInfo;
+
+      ObjectInfo* _currentLocalObjectInfo;
+
+      // For each block, compute an ObjectInfo array for all address typed parms or autos
+      typedef TR::typed_allocator<std::pair<const int32_t, ObjectInfo *>, TR::Region &> ResultAllocator;
+      typedef std::map<int32_t, ObjectInfo *, std::less<int32_t>, ResultAllocator> BlockResultMap;
+      BlockResultMap* _blockLocalObjectInfos;
+      int32_t _numSlots;
    };
 #endif
