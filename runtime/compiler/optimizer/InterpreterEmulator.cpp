@@ -43,6 +43,63 @@ ClassOperand::getSignature(TR::Compilation *comp, TR_Memory *trMemory)
    }
 
 void
+InterpreterEmulator::printObjectInfo(ObjectInfo* objectInfo)
+   {
+   int slotIndex = 0;
+   for (auto it = objectInfo->begin(); it != objectInfo->end(); it++)
+      {
+      if (*it)
+         {
+         char buffer[20];
+         (*it)->printToString(buffer);
+         traceMsg(comp(), "(slot #%2d: %s)  ", slotIndex, buffer);
+         }
+      slotIndex++;
+      }
+   if (slotIndex > 0)
+      traceMsg(comp(), "\n");
+   }
+
+// Merge second ObjectInfo into the first one
+// The merge does an intersect, only entries with the same value will be kept
+//
+void InterpreterEmulator::mergeObjectInfo(ObjectInfo *first, ObjectInfo *second)
+   {
+   if (trace())
+      {
+      traceMsg(comp(), "Object info before merging:\n");
+      printObjectInfo(first, comp());
+      }
+
+   bool changed = false;
+   for (int i = 0; i < _numLocals; i++)
+      {
+      Operand* firstObj = (*first)[i];
+      Operand* secondObj = (*second)[i];
+
+      // Currently only merge identical object info
+      if (!firstObj->identicalTo(secondObj))
+         {
+         (*first)[i] = _unknownOperand;
+         }
+
+      if (firstObj != (*first)[i])
+         changed = true;
+      }
+
+   if (trace())
+      {
+      if (changed)
+         {
+         traceMsg(comp(), "Object info after merging:\n");
+         printObjectInfo(first, comp());
+         }
+      else
+         traceMsg(comp(), "Object info is not changed after merging\n");
+      }
+   }
+
+void
 InterpreterEmulator::maintainStackForIf(TR_J9ByteCode bc)
    {
    TR_ASSERT_FATAL(_iteratorWithState, "has to be called when the iterator has state!");
@@ -171,72 +228,14 @@ InterpreterEmulator::saveStack(int32_t targetIndex)
    bool createTargetStack = (targetIndex >= 0 && !_stacks[targetIndex]);
    if (createTargetStack)
       _stacks[targetIndex] = new (trStackMemory()) ByteCodeStack(this->trMemory(), std::max<uint32_t>(20, _stack->size()));
-   }
 
-int32_t
-InterpreterEmulator::numberOfBlocks()
-   {
-   int32_t numBlocks = 0;
-   TR_J9ByteCode bc = first();
-   while (bc != J9BCunknown)
+   int32_t i;
+   int32_t tempIndex = 0;
+   for (i = 0; i < _stack->size(); ++i)
       {
-      if (_InterpreterEmulatorFlags[_bcIndex].testAny(InterpreterEmulator::BytecodePropertyFlag::bbStart))
-         numBlocks++;
-      bc = next();
-      }
-   return numBlocks;
-   }
-
-void
-InterpreterEmulator::checkMaintainableSlot()
-   {
-   int32_t numParmSlots = method()->numberOfParameterSlots();
-   int32_t numSlots = numParmSlots + method()->numberOfTemps();
-   if (numSlots == 0) return;
-
-   _localVariables = new (trStackMemory()) TR_Array<Operand*>(this->trMemory(), numSlots);
-   _maintainableSlot = new (trStackMemory()) bool[numSlots];
-   memset(_maintainableSlot, 1, numSlots * sizeof(bool));
-
-   for (uint32_t i = 0; i < numSlots; i++)
-      {
-      (*_localVariables)[i] = _unknownOperand;
-      }
-
-   // Slots of method without control flow are maintainable
-   if (numberOfBlocks() == 1)
-      return;
-
-   int32_t *numWritesToSlot = new (trStackMemory()) int32_t[numSlots];
-   memset(numWritesToSlot, 0, numSlots * sizeof(int32_t));
-
-   TR_J9ByteCode bc = first();
-   while (bc != J9BCunknown)
-      {
-      switch (bc)
-         {
-         case J9BCistore: case J9BClstore: case J9BCfstore: case J9BCdstore: case J9BCastore:
-            numWritesToSlot[nextByte()]++; break;
-         case J9BCistorew: case J9BClstorew: case J9BCfstorew: case J9BCdstorew: case J9BCastorew:
-            numWritesToSlot[next2Bytes()]++; break;
-         case J9BCistore0: case J9BClstore0: case J9BCfstore0: case J9BCdstore0: case J9BCastore0:
-            numWritesToSlot[0]++; break;
-         case J9BCistore1: case J9BClstore1: case J9BCfstore1: case J9BCdstore1: case J9BCastore1:
-            numWritesToSlot[1]++; break;
-         case J9BCistore2: case J9BClstore2: case J9BCfstore2: case J9BCdstore2: case J9BCastore2:
-            numWritesToSlot[2]++; break;
-         case J9BCistore3: case J9BClstore3: case J9BCfstore3: case J9BCdstore3: case J9BCastore3:
-            numWritesToSlot[3]++; break;
-         }
-      bc = next();
-      }
-
-   for (int32_t i = 0; i < numSlots; i++)
-      {
-      if (i < numParmSlots && numWritesToSlot[i] > 0)
-         _maintainableSlot[i] = false;
-      else if ( i>= numParmSlots && numWritesToSlot[i] > 1)
-         _maintainableSlot[i] = false;
+      if (_stackTemps.topIndex() < tempIndex || _stackTemps[tempIndex] != _stack->element(i))
+         handlePendingPushSaveSideEffects(_stack->element(i), tempIndex);
+      tempIndex++;
       }
    }
 
@@ -252,14 +251,23 @@ InterpreterEmulator::initializeIteratorWithState()
    memset(_stacks, 0, size * sizeof(ByteCodeStack *));
    _stack = new (trStackMemory()) TR_Stack<Operand *>(this->trMemory(), 20, false, stackAlloc);
 
-   // Get an array of bool for each slot, initialize it with parms
-   // Check if there is a write to parm slot
-   // check if there is two writes to auto slot
-   checkMaintainableSlot();
 
+   // Initialize local info
+   _blockLocalObjectInfos = new (trStackMemory()) BlockResultMap(std::less<int32_t>(), trStackMemory());
+
+   int32_t numParmSlots = method()->numberOfParameterSlots();
+   _numSlots = numParmSlots + method()->numberOfTemps();
+
+   genBBStart(0);
+   setupBBStartContext(0);
+   this->setIndex(0);
+   }
+
+void
+InterpreterEmulator::setupBBStartLocalObjectInfoFromPrexArg()
+   {
    TR_PrexArgInfo *argInfo = _calltarget->_ecsPrexArgInfo;
-
-   if (_maintainableSlot && argInfo)
+   if (argInfo)
       {
       TR_ASSERT_FATAL(argInfo->getNumArgs() == method()->numberOfParameters(), "Prex arg number should match parm number");
 
@@ -285,29 +293,85 @@ InterpreterEmulator::initializeIteratorWithState()
           if (TR_PrexArgument::knowledgeLevel(prexArgument) == KNOWN_OBJECT)
              {
              debugTrace(tracer(), "aload known obj%d from slot %d\n", prexArgument->getKnownObjectIndex(), slotIndex);
-             (*_localVariables)[slotIndex] = new (trStackMemory()) KnownObjOperand(prexArgument->getKnownObjectIndex());
+             (*_currentLocalObjectInfo)[slotIndex] = new (trStackMemory()) KnownObjOperand(prexArgument->getKnownObjectIndex());
              }
           else if (TR_PrexArgument::knowledgeLevel(prexArgument) == FIXED_CLASS)
              {
-             (*_localVariables)[slotIndex] = new (trStackMemory()) FixedClassOperand(prexArgument->getClass());
-             debugTrace(tracer(), "aload fixed class %s from slot %d\n", (*_localVariables)[slotIndex]->getSignature(comp(), this->trMemory()), slotIndex);
+             (*_currentLocalObjectInfo)[slotIndex] = new (trStackMemory()) FixedClassOperand(prexArgument->getClass());
+             debugTrace(tracer(), "aload fixed class %s from slot %d\n", (*_currentLocalObjectInfo)[slotIndex]->getSignature(comp(), this->trMemory()), slotIndex);
              }
           else if (TR_PrexArgument::knowledgeLevel(prexArgument) == PREEXISTENT)
              {
-             (*_localVariables)[slotIndex] = new (trStackMemory()) PrexClassOperand(prexArgument->getClass());
-             debugTrace(tracer(), "aload prex class %s from slot %d\n", (*_localVariables)[slotIndex]->getSignature(comp(), this->trMemory()), slotIndex);
+             (*_currentLocalObjectInfo)[slotIndex] = new (trStackMemory()) PrexClassOperand(prexArgument->getClass());
+             debugTrace(tracer(), "aload prex class %s from slot %d\n", (*_currentLocalObjectInfo)[slotIndex]->getSignature(comp(), this->trMemory()), slotIndex);
              }
           else if (prexArgument->getClass())
              {
-             (*_localVariables)[slotIndex] = new (trStackMemory()) ClassOperand(prexArgument->getClass());
-             debugTrace(tracer(), "aload class %s from slot %d\n", (*_localVariables)[slotIndex]->getSignature(comp(), this->trMemory()), slotIndex);
+             (*_currentLocalObjectInfo)[slotIndex] = new (trStackMemory()) ClassOperand(prexArgument->getClass());
+             debugTrace(tracer(), "aload class %s from slot %d\n", (*_currentLocalObjectInfo)[slotIndex]->getSignature(comp(), this->trMemory()), slotIndex);
              }
-          }
+         }
+      }
+   }
+
+void
+InterpreterEmulator::setupBBStartLocalObjectInfo(int32_t index)
+   {
+   if (_numSlots == 0) return;
+
+   // What if this block has been generated? No, it shouldn't, otherwise we don't need to visit it
+   if (index == 0)
+      {
+      _currentLocalObjectInfo = new (trStackMemory()) ObjectInfo(_numSlots, UNKNOWN, trStackMemory());
+      setupBBStartLocalObjectInfoFromPrexArg()
+      }
+   else
+      {
+      TR_PredecessorIterator pi(_block);
+      bool hasUnvisitedPred = false;
+      for (TR::CFGEdge *edge = pi.getFirst(); edge != NULL; edge = pi.getNext())
+         {
+         if (!_currentLocalObjectInfo)
+         TR::Block *fromBlock = toBlock(edge->getFrom());
+         auto fromBCIndex = fromBlock->getEntry()->getNode()->getByteCodeIndex();
+         if (!isGenerated(fromBCIndex))
+            {
+            // Has unvisited block, it is a back edge, do nothing
+            hasUnvisitedPred = true;
+            break;
+            }
+         }
+
+      if (hasUnvisitedPred)
+         {
+         _currentLocalObjectInfo = new (trStackMemory()) ObjectInfo(_numSlots, _unknownOperand, trStackMemory());
+         }
+      else
+         {
+         // Merge object info from predecessors
+         for (TR::CFGEdge *edge = pi.getFirst(); edge != NULL; edge = pi.getNext())
+            {
+            TR::Block *fromBlock = toBlock(edge->getFrom());
+            auto fromBCIndex = fromBlock->getEntry()->getNode()->getByteCodeIndex();
+            auto fromBlockNum = fromBlock->getNumber();
+            ObjectInfo* predObjectInfo = (*_blockLocalObjectInfos)[fromBlockNum];
+            if (!_currentLocalObjectInfo)
+               _currentLocalObjectInfo =  new (trStackMemory()) ObjectInfo(*predObjectInfo, trStackMemory());
+            else
+               mergeObjectInfo(_currentLocalObjectInfo, predObjectInfo);
+            }
+         }
       }
 
-   genBBStart(0);
-   setupBBStartContext(0);
-   this->setIndex(0);
+   auto blockNum = _block->getNumber();
+   (*_blockLocalObjectInfos)[blockNum] = _currentLocalObjectInfo;
+   }
+
+int32_t
+InterpreterEmulator::setupBBStartContext(int32_t index)
+   {
+   Base::setupBBStartContext(index);
+   setupBBStartLocalObjectInfo(index);
    }
 
 bool
@@ -448,37 +512,15 @@ void
 InterpreterEmulator::maintainStackForStoreAuto(int slotIndex)
    {
    TR_ASSERT_FATAL(_iteratorWithState, "has to be called when the iterator has state!");
-   if (_maintainableSlot[slotIndex])
-      {
-      (*_localVariables)[slotIndex] = pop();
-      }
-   else
-      pop();
+   (*_currentLocalObjectInfo)[slotIndex] = pop();
    }
 
 void
 InterpreterEmulator::maintainStackForAload(int slotIndex)
    {
    TR_ASSERT_FATAL(_iteratorWithState, "has to be called when the iterator has state!");
-   if (_maintainableSlot[slotIndex])
-      {
-      push((*_localVariables)[slotIndex]);
-      return;
-      }
 
-   TR_PrexArgInfo *argInfo = _calltarget->_ecsPrexArgInfo;
-   TR_ASSERT_FATAL(argInfo, "thunk archetype target doesn't have _ecsPrexArgInfo %p\n", _calltarget);
-   if (slotIndex < argInfo->getNumArgs())
-      {
-      TR_PrexArgument *prexArgument = argInfo->get(slotIndex);
-      if (prexArgument && TR_PrexArgument::knowledgeLevel(prexArgument) == KNOWN_OBJECT)
-         {
-         debugTrace(tracer(), "aload known obj%d from slot %d\n", prexArgument->getKnownObjectIndex(), slotIndex);
-         push(new (trStackMemory()) KnownObjOperand(prexArgument->getKnownObjectIndex()));
-         return;
-         }
-      }
-   pushUnknownOperand();
+   push((*_currentLocalObjectInfo)[slotIndex]);
    }
 
 void
@@ -512,6 +554,12 @@ InterpreterEmulator::maintainStackForCall(TR_ResolvedMethod *callerMethod, Opera
       push(result);
    else if (calleeMethod->returnType() != TR::NoType)
       pushUnknownOperand();
+   }
+
+bool
+InterpreterEmulator::trace()
+   {
+   return _tracer->debugTrace() || _ecs->getInliner()->trace();
    }
 
 void
