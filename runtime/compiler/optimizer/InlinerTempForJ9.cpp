@@ -5200,6 +5200,7 @@ defToAutoOrParmInEBB(TR::Compilation* comp, TR::TreeTop* treetop, TR::SymbolRefe
              !child->getSymbolReference()->hasKnownObjectIndex())
             {
             symRef = child->getSymbolReference();
+            continue;
             }
 
          if (valueNode)
