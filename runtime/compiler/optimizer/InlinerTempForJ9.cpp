@@ -2374,7 +2374,7 @@ TR_J9InlinerPolicy::callMustBeInlined(TR_CallTarget *calltarget)
    if (method->convertToMethod()->isArchetypeSpecimen())
       return true;
 
-   if (TR_ResolvedJ9Method::isMHGeneratedMethod(method))
+   if (comp()->fej9()->isLambdaFormGeneratedMethod(method))
       return true;
 
    if (insideIntPipelineForEach(method, comp()))
@@ -3842,8 +3842,8 @@ void TR_MultipleCallTargetInliner::weighCallSite( TR_CallStack * callStack , TR_
 
       int32_t weightBeforeLookingForBenefits = weight;
 
-      bool isMHGeneratedMethod = TR_ResolvedJ9Method::isMHGeneratedMethod(calltarget->_calleeMethod);
-      if ((calltarget->_calleeMethod->convertToMethod()->isArchetypeSpecimen() && calltarget->_calleeMethod->getMethodHandleLocation()) || isMHGeneratedMethod)
+      bool isLambdaFormGeneratedMethod = comp()->fej9()->isLambdaFormGeneratedMethod(calltarget->_calleeMethod);
+      if ((calltarget->_calleeMethod->convertToMethod()->isArchetypeSpecimen() && calltarget->_calleeMethod->getMethodHandleLocation()) || isLambdaFormGeneratedMethod)
          {
          static char *methodHandleThunkWeightFactorStr = feGetEnv("TR_methodHandleThunkWeightFactor");
          static int32_t methodHandleThunkWeightFactor = methodHandleThunkWeightFactorStr? atoi(methodHandleThunkWeightFactorStr) : 10;
@@ -4228,8 +4228,8 @@ TR_MultipleCallTargetInliner::exceedsSizeThreshold(TR_CallSite *callSite, int by
      // HACK: Get frequency from both sources, and use both.  You're
      // only cold if you're cold according to both.
 
-     bool isMHGeneratedMethod = TR_ResolvedJ9Method::isMHGeneratedMethod(callerResolvedMethod);
-     bool callerIsJSR292Method = callerResolvedMethod->convertToMethod()->isArchetypeSpecimen() || isMHGeneratedMethod;
+     bool isLambdaFormGeneratedMethod = comp()->fej9()->isLambdaFormGeneratedMethod(callerResolvedMethod);
+     bool callerIsJSR292Method = callerResolvedMethod->convertToMethod()->isArchetypeSpecimen() || isLambdaFormGeneratedMethod;
 
      frequency1 = comp()->convertNonDeterministicInput(comp()->fej9()->getIProfilerCallCount(bcInfo, comp()), MAX_BLOCK_COUNT + MAX_COLD_BLOCK_COUNT, randomGenerator(), 0);
      frequency2 = comp()->convertNonDeterministicInput(block->getFrequency(), MAX_BLOCK_COUNT + MAX_COLD_BLOCK_COUNT, randomGenerator(), 0);
@@ -5037,7 +5037,7 @@ bool TR_J9InlinerPolicy::isJSR292AlwaysWorthInlining(TR_ResolvedMethod *resolved
    if (resolvedMethod->convertToMethod()->isArchetypeSpecimen())
       return true;
 
-   if (TR_ResolvedJ9Method::isMHGeneratedMethod(resolvedMethod))
+   if (TR::comp()->fej9()->isLambdaFormGeneratedMethod(resolvedMethod))
       return true;
 
    return false;

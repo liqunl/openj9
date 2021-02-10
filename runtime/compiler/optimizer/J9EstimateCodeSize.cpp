@@ -1168,10 +1168,10 @@ TR_J9EstimateCodeSize::realEstimateCodeSize(TR_CallTarget *calltarget, TR_CallSt
    const static bool debugMHInlineWithOutPeeking = feGetEnv("TR_DebugMHInlineWithOutPeeking") ? true: false;
    bool mhInlineWithPeeking =  comp()->getOption(TR_DisableMHInlineWithoutPeeking);
    bool isCalleeMethodHandleThunkInFirstPass = _inliner->firstPass() && calltarget->_calleeMethod->convertToMethod()->isArchetypeSpecimen();
-   bool isMHGeneratedMethod = TR_ResolvedJ9Method::isMHGeneratedMethod(calltarget->_calleeMethod);
+   bool isLambdaFormGeneratedMethod = comp()->fej9()->isLambdaFormGeneratedMethod(calltarget->_calleeMethod);
 
    // Don't peek adapter or LF methods, because peeking can't propagate object info in autos
-   if (!isMHGeneratedMethod &&
+   if (!isLambdaFormGeneratedMethod &&
        (nph.doPeeking() && recurseDown ||
        isCalleeMethodHandleThunkInFirstPass && mhInlineWithPeeking))
       {
@@ -1309,8 +1309,8 @@ TR_J9EstimateCodeSize::realEstimateCodeSize(TR_CallTarget *calltarget, TR_CallSt
       {
       bci.prepareToFindAndCreateCallsites(blocks, flags, callSites, &cfg, &newBCInfo, _recursionDepth, &callStack);
       bool hasMethodHandleInvoke = false; // Can't iterate with state for any method because InterpreterEmulator can't handle all bytecodes. hasMethodHandleInvokes(bci);
-      bool iteratorWithState = (isCalleeMethodHandleThunkInFirstPass && !mhInlineWithPeeking) || isMHGeneratedMethod || hasMethodHandleInvoke;
-      heuristicTrace(tracer(), "*** Depth %d: isMHGeneratedMethod %d hasMethodHandleInvoke %d iteratorWithState %d\n", _recursionDepth, isMHGeneratedMethod, hasMethodHandleInvoke, iteratorWithState);
+      bool iteratorWithState = (isCalleeMethodHandleThunkInFirstPass && !mhInlineWithPeeking) || isLambdaFormGeneratedMethod || hasMethodHandleInvoke;
+      heuristicTrace(tracer(), "*** Depth %d: isLambdaFormGeneratedMethod %d hasMethodHandleInvoke %d iteratorWithState %d\n", _recursionDepth, isLambdaFormGeneratedMethod, hasMethodHandleInvoke, iteratorWithState);
 
       if (!bci.findAndCreateCallsitesFromBytecodes(wasPeekingSuccessfull, iteratorWithState))
          {
