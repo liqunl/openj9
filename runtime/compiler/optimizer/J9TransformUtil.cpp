@@ -45,12 +45,16 @@
 #include "optimizer/OMROptimization_inlines.hpp"
 #include "optimizer/Structure.hpp"
 #include "optimizer/HCRGuardAnalysis.hpp"
+#include <vector>
 
 /**
  * Walks the TR_RegionStructure counting loops to get the nesting depth of the block
  */
 int32_t J9::TransformUtil::getLoopNestingDepth(TR::Compilation *comp, TR::Block *block)
    {
+   uint32_t num = 10;
+   std::vector<TR::KnownObjectTable::Index> tmp(num, TR::KnownObjectTable::UNKNOWN);
+
    TR_RegionStructure *region = block->getParentStructureIfExists(comp->getFlowGraph());
    int32_t nestingDepth = 0;
    while (region && region->isNaturalLoop())
