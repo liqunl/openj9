@@ -61,10 +61,11 @@ class IconstOperand;
 class KnownObjOperand;
 class MutableCallsiteTargetOperand;
 class FixedClassOperand;
-class PrexClassOperand;
-class ClassOperand;
+class PreexistentObjectOperand;
+class ObjectOperand;
 class TR_PrexArgument;
 
+enum KnowledgeLevel { NONE, OBJECT, MUTABLE_CALLSITE_TARGET, PREEXISTENT, FIXED_CLASS, KNOWN_OBJECT, ICONST }
 /*
  * \class Operand
  *
@@ -79,10 +80,9 @@ class Operand
       virtual IconstOperand *asIconst(){ return NULL;}
       virtual KnownObjOperand *asKnownObject(){ return NULL;}
       virtual FixedClassOperand *asFixedClassOperand(){ return NULL;}
-      virtual PrexClassOperand *asPrexClassOperand(){ return NULL;}
-      virtual ClassOperand *asClassOperand(){ return NULL;}
+      virtual PreexistentObjectOperand *asPreexistentObjectOperand(){ return NULL;}
+      virtual ObjectOperand *asObjectOperand(){ return NULL;}
       virtual MutableCallsiteTargetOperand* asMutableCallsiteTargetOperand(){ return NULL;}
-      virtual bool isUnkownOperand(){ return true;}
       virtual TR::KnownObjectTable::Index getKnownObjectIndex(){ return TR::KnownObjectTable::UNKNOWN;}
       //virtual TR_PrexArgument* asPrexArgument(){ return NULL;}
       virtual char* getSignature(TR::Compilation *comp, TR_Memory *trMemory) {return NULL;}
@@ -90,22 +90,14 @@ class Operand
          {
          sprintf(buffer, "(obj%d)", getKnownObjectIndex());
          }
+      virtual KnowledgeLevel getKnowledgeLevel() { return NONE; }
+      Operand* merge(const Operand* other);
+      virtual Operand* merge1(const Operand* other);
+
       virtual bool identicalTo(Operand* other) { return this == other; }
    };
 
-/*
- * \class KnownOperand
- *
- * \brief represent operands that can be reasoned about at compile time
- */
-class KnownOperand : public Operand
-   {
-   public:
-      TR_ALLOC(TR_Memory::EstimateCodeSize);
-      virtual bool isUnkownOperand(){ return false;}
-   };
-
-class IconstOperand : public KnownOperand
+class IconstOperand : public Operand
    {
    public:
       TR_ALLOC(TR_Memory::EstimateCodeSize);
@@ -117,6 +109,8 @@ class IconstOperand : public KnownOperand
          }
       int32_t intValue;
 
+      virtual KnowledgeLevel getKnowledgeLevel() { return ICONST; }
+      virtual Operand* merge1(const Operand* other);
       virtual bool identicalTo(Operand* other)
          {
          IconstOperand* otherIconst = other->asIconst();
@@ -124,65 +118,75 @@ class IconstOperand : public KnownOperand
          }
    };
 
-class KnownObjOperand : public KnownOperand
+
+class ObjectOperand : public Operand
+   {
+   public:
+      TR_ALLOC(TR_Memory::EstimateCodeSize);
+      ObjectOperand(TR_OpaqueClassBlock* clazz = NULL):
+                   _signature(NULL),_clazz(clazz) {}
+      virtual char* getSignature(TR::Compilation *comp, TR_Memory *trMemory);
+      virtual ObjectOperand *asObjectOperand(){ return this;}
+      TR_OpaqueClassBlock* getClass() { return _clazz;}
+      virtual KnowledgeLevel getKnowledgeLevel() { return OBJECT; }
+      virtual Operand* merge1(const Operand* other);
+
+      virtual bool identicalTo(Operand* other)
+         {
+         ObjectOperand* otherObject = other->asObjectOperand();
+         return otherObject && this->_clazz == otherObject->_clazz;
+         }
+   private:
+      char* _signature;
+      TR_OpaqueClassBlock* _clazz;
+   };
+
+class PreexistentObjectOperand : public ObjectOperand
+   {
+   public:
+      TR_ALLOC(TR_Memory::EstimateCodeSize);
+      PreexistentObjectOperand(TR_OpaqueClassBlock* clazz):ObjectOperand(clazz){ }
+      virtual PreexistentObjectOperand *asPreexistentObjectOperand(){ return this;}
+      virtual KnowledgeLevel getKnowledgeLevel() { return PREEXISTENT; }
+      virtual Operand* merge1(const Operand* other);
+
+      virtual bool identicalTo(Operand* other)
+         {
+         PreexistentObjectOperand* otherPreexistentObject = other->asPreexistentObjectOperand();
+         return otherPreexistentObject && this->_clazz == otherPreexistentObject->_clazz;
+         }
+   };
+
+class FixedClassOperand : public ObjectOperand
+   {
+   public:
+      TR_ALLOC(TR_Memory::EstimateCodeSize);
+      FixedClassOperand(TR_OpaqueClassBlock* clazz):ObjectOperand(clazz){ }
+      virtual FixedClassOperand *asFixedClassOperand(){ return this;}
+      virtual KnowledgeLevel getKnowledgeLevel() { return FIXED_CLASS; }
+      virtual Operand* merge1(const Operand* other);
+      virtual bool identicalTo(Operand* other)
+         {
+         FixedClassOperand* otherFixedClass = other->asFixedClassOperand();
+         return otherFixedClass && this->_clazz == otherFixedClass->_clazz;
+         }
+   };
+
+class KnownObjOperand : public FixedClassOperand
    {
    public:
       TR_ALLOC(TR_Memory::EstimateCodeSize);
       KnownObjOperand(TR::KnownObjectTable::Index koi):knownObjIndex(koi){ }
       virtual KnownObjOperand *asKnownObject(){ return this;}
       virtual TR::KnownObjectTable::Index getKnownObjectIndex(){ return knownObjIndex;}
+      virtual KnowledgeLevel getKnowledgeLevel() { return KNOWN_OBJECT; }
+      virtual Operand* merge1(const Operand* other);
       TR::KnownObjectTable::Index knownObjIndex;
 
       virtual bool identicalTo(Operand* other)
          {
          KnownObjOperand* otherObj = other->asKnownObject();
          return otherObj && this->knownObjIndex == otherObj->knownObjIndex;
-         }
-   };
-
-class ClassOperand : public Operand
-   {
-   public:
-      TR_ALLOC(TR_Memory::EstimateCodeSize);
-      virtual bool isUnkownOperand(){ return false;}
-      ClassOperand(TR_OpaqueClassBlock* clazz):_signature(NULL),_clazz(clazz){ }
-      TR_OpaqueClassBlock* _clazz;
-      // liqun: todo: to implement in cpp file
-      virtual char* getSignature(TR::Compilation *comp, TR_Memory *trMemory);
-      virtual ClassOperand *asClassOperand(){ return this;}
-      TR_OpaqueClassBlock* getClass() { return _clazz;}
-      virtual bool identicalTo(Operand* other)
-         {
-         ClassOperand* otherClass = other->asClassOperand();
-         return otherClass && this->_clazz == otherClass->_clazz;
-         }
-   private:
-      char* _signature;
-   };
-
-class PrexClassOperand : public ClassOperand
-   {
-   public:
-      TR_ALLOC(TR_Memory::EstimateCodeSize);
-      PrexClassOperand(TR_OpaqueClassBlock* clazz):ClassOperand(clazz){ }
-      virtual PrexClassOperand *asPrexClassOperand(){ return this;}
-      virtual bool identicalTo(Operand* other)
-         {
-         PrexClassOperand* otherPrexClass = other->asPrexClassOperand();
-         return otherPrexClass && this->_clazz == otherPrexClass->_clazz;
-         }
-   };
-
-class FixedClassOperand : public ClassOperand
-   {
-   public:
-      TR_ALLOC(TR_Memory::EstimateCodeSize);
-      FixedClassOperand(TR_OpaqueClassBlock* clazz):ClassOperand(clazz){ }
-      virtual FixedClassOperand *asFixedClassOperand(){ return this;}
-      virtual bool identicalTo(Operand* other)
-         {
-         FixedClassOperand* otherFixedClass = other->asFixedClassOperand();
-         return otherFixedClass && this->_clazz == otherFixedClass->_clazz;
          }
    };
 
@@ -198,21 +202,24 @@ class FixedClassOperand : public ClassOperand
  * \see refineResolvedCalleeForInvokestatic
  * \see visitInvokestatic
  */
-class MutableCallsiteTargetOperand : public KnownObjOperand
+class MutableCallsiteTargetOperand : public ObjectOperand
    {
    public:
       TR_ALLOC(TR_Memory::EstimateCodeSize);
       MutableCallsiteTargetOperand (TR::KnownObjectTable::Index methodHandleIndex, TR::KnownObjectTable::Index mutableCallsiteIndex):
-         KnownObjOperand(methodHandleIndex),
+         methodHandleIndex(methodHandleIndex),
          mutableCallsiteIndex(mutableCallsiteIndex){}
       virtual MutableCallsiteTargetOperand* asMutableCallsiteTargetOperand(){ return this; }
+      virtual Operand* merge1(const Operand* other);
       virtual void printToString(char *buffer)
          {
          sprintf(buffer, "(mh=%d, mcs=%d)", getMethodHandleIndex(), getMutableCallsiteIndex());
          }
-      TR::KnownObjectTable::Index getMethodHandleIndex(){ return knownObjIndex; }
+      virtual KnowledgeLevel getKnowledgeLevel() { return MUTABLE_CALLSITE_TARGET; }
+      TR::KnownObjectTable::Index getMethodHandleIndex(){ return methodHandleIndex; }
       TR::KnownObjectTable::Index getMutableCallsiteIndex() { return mutableCallsiteIndex; }
       TR::KnownObjectTable::Index mutableCallsiteIndex;
+      TR::KnownObjectTable::Index methodHandleIndex;
    };
 
 class InterpreterEmulator : public TR_ByteCodeIteratorWithState<TR_J9ByteCode, J9BCunknown, TR_J9ByteCodeIterator, Operand *>
@@ -367,7 +374,7 @@ class InterpreterEmulator : public TR_ByteCodeIteratorWithState<TR_J9ByteCode, J
       TR_PrexArgInfo* computePrexInfo(TR_CallSite *callsite);
       bool isCurrentCallUnresolvedOrCold(TR_ResolvedMethod *resolvedMethod, bool isUnresolvedInCP);
       void debugUnresolvedOrCold(TR_ResolvedMethod *resolvedMethod);
-      void maintainStackForStoreAuto(int slotIndex);
+      void maintainStackForAstore(int slotIndex);
       void maintainStackForldc(int32_t cpIndex);
       bool hasByteCodeRequireState();
 

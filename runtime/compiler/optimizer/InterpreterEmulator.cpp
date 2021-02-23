@@ -35,9 +35,9 @@
 #endif /* defined(J9VM_OPT_JITSERVER) */
 
 char*
-ClassOperand::getSignature(TR::Compilation *comp, TR_Memory *trMemory)
+ObjectOperand::getSignature(TR::Compilation *comp, TR_Memory *trMemory)
    {
-   if (!_signature)
+   if (!_signature && _clazz)
       _signature = TR::Compiler->cls.classSignature(comp, _clazz, trMemory);
    return _signature;
    }
@@ -58,6 +58,96 @@ InterpreterEmulator::printObjectInfo(ObjectInfo* objectInfo)
       }
    if (slotIndex > 0)
       traceMsg(comp(), "\n");
+   }
+
+Operand*
+Operand::merge(const Operand* other)
+   {
+   if (getKnowledgeLevel() > other->getKnowledgeLevel())
+      return other->merge1(this);
+   else
+      return merge1(other);
+   }
+
+Operand*
+Operand::merge1(const Operand* other)
+   {
+   if (this == other)
+      return this;
+   else
+      return NULL;
+   }
+
+Operand*
+IconstOperand::merge1(const Operand* other)
+   {
+   TR_ASSERT(other->getKnowledgeLevel() >= this->getKnowledgeLevel(), "Should be calling other->merge1(this)");
+   IconstOperand* otherIconst = other->asIconst();
+   if (otherIconst && this->intValue == otherIconst->intValue)
+      return this;
+   else
+      return NULL;
+   }
+
+// liqun: TODO: instanceOf relationship of _clazz?
+// If this clazz is more concrete? If same knowledge level, then return other
+// If other is higher knowledge level, return Operand(other->_clazz)
+Operand*
+ObjectOperand::merge1(const Operand* other)
+   {
+   TR_ASSERT(other->getKnowledgeLevel() >= this->getKnowledgeLevel(), "Should be calling other->merge1(this)");
+   ObjectOperand* otherObject = other->asObject();
+   if (otherObject && this->_clazz == otherObject->_clazz)
+      return this;
+   else
+      return NULL;
+   }
+
+// Both are preexistent objects
+Operand*
+PreExistentObjectOperand::merge1(const Operand* other)
+   {
+   TR_ASSERT(other->getKnowledgeLevel() >= this->getKnowledgeLevel(), "Should be calling other->merge1(this)");
+   PreExistentObjectOperand* otherPreExistentObjectOperand = other->asPreExistentObjectOperand();
+   if (otherPreExistentObjectOperand && this->_clazz == otherPreExistentObjectOperand->_clazz)
+      return this;
+   else
+      return NULL;
+   }
+
+Operand*
+FixedClassOperand::merge1(const Operand* other)
+   {
+   TR_ASSERT(other->getKnowledgeLevel() >= this->getKnowledgeLevel(), "Should be calling other->merge1(this)");
+   FixedClassOperand* otherFixedClass = other->asFixedClassOperand();
+   if (otherFixedClass && this->_clazz == otherFixedClass->_clazz)
+      return this;
+   else
+      return NULL;
+   }
+
+Operand*
+KnownObjOperand::merge1(const Operand* other)
+   {
+   TR_ASSERT(other->getKnowledgeLevel() >= this->getKnowledgeLevel(), "Should be calling other->merge1(this)");
+   KnownObjOperand* otherKnownObj = other->asKnownObjOperand();
+   if (otherKnownObj && this->knownObjIndex == otherKnownObj->knownObjIndex)
+      return this;
+   else
+      return NULL;
+   }
+
+Operand*
+MutableCallsiteTargetOperand::merge1(const Operand* other)
+   {
+   TR_ASSERT(other->getKnowledgeLevel() >= this->getKnowledgeLevel(), "Should be calling other->merge1(this)");
+   MutableCallsiteTargetOperand* otherMutableCallsiteTarget = other->asMutableCallsiteTargetOperand();
+   if (otherMutableCallsiteTarget &&
+       this->mutableCallsiteIndex== otherMutableCallsiteTarget->mutableCallsiteIndex &&
+       this->methodHandleIndex && otherMutableCallsiteTarget->methodHandleIndex)
+      return this;
+   else
+      return NULL;
    }
 
 // Merge second ObjectInfo into the first one
@@ -83,6 +173,11 @@ void InterpreterEmulator::mergeObjectInfo(ObjectInfo *first, ObjectInfo *second)
          (*first)[i] = _unknownOperand;
          }
 
+      firstObj = firstObj->merge(secondObj);
+      if (firstObj == NULL)
+         firstObj = _unknownOperand;
+
+      // TODO: overload operator !=
       if (firstObj != (*first)[i])
          changed = true;
       }
@@ -288,9 +383,11 @@ InterpreterEmulator::setupBBStartLocalObjectInfoFromPrexArg()
           int32_t ordinal = p->getOrdinal();
           int32_t slotIndex = p->getSlot();
           TR_PrexArgument *prexArgument = argInfo->get(ordinal);
-          if (!prexArgument) continue;
-
-          if (TR_PrexArgument::knowledgeLevel(prexArgument) == KNOWN_OBJECT)
+          if (!prexArgument)
+             {
+             (*_currentLocalObjectInfo)[slotIndex] = _unknownOperand;
+             }
+          else if (TR_PrexArgument::knowledgeLevel(prexArgument) == KNOWN_OBJECT)
              {
              debugTrace(tracer(), "aload known obj%d from slot %d\n", prexArgument->getKnownObjectIndex(), slotIndex);
              (*_currentLocalObjectInfo)[slotIndex] = new (trStackMemory()) KnownObjOperand(prexArgument->getKnownObjectIndex());
@@ -302,12 +399,12 @@ InterpreterEmulator::setupBBStartLocalObjectInfoFromPrexArg()
              }
           else if (TR_PrexArgument::knowledgeLevel(prexArgument) == PREEXISTENT)
              {
-             (*_currentLocalObjectInfo)[slotIndex] = new (trStackMemory()) PrexClassOperand(prexArgument->getClass());
+             (*_currentLocalObjectInfo)[slotIndex] = new (trStackMemory()) PreexistentObjectOperand(prexArgument->getClass());
              debugTrace(tracer(), "aload prex class %s from slot %d\n", (*_currentLocalObjectInfo)[slotIndex]->getSignature(comp(), this->trMemory()), slotIndex);
              }
           else if (prexArgument->getClass())
              {
-             (*_currentLocalObjectInfo)[slotIndex] = new (trStackMemory()) ClassOperand(prexArgument->getClass());
+             (*_currentLocalObjectInfo)[slotIndex] = new (trStackMemory()) ObjectOperand(prexArgument->getClass());
              debugTrace(tracer(), "aload class %s from slot %d\n", (*_currentLocalObjectInfo)[slotIndex]->getSignature(comp(), this->trMemory()), slotIndex);
              }
          }
@@ -322,7 +419,7 @@ InterpreterEmulator::setupBBStartLocalObjectInfo(int32_t index)
    // What if this block has been generated? No, it shouldn't, otherwise we don't need to visit it
    if (index == 0)
       {
-      _currentLocalObjectInfo = new (trStackMemory()) ObjectInfo(_numSlots, UNKNOWN, trStackMemory());
+      _currentLocalObjectInfo = new (comp()->trMemory()->currentStackRegion()) ObjectInfo(_numSlots, UNKNOWN, comp()->trMemory()->currentStackRegion());
       setupBBStartLocalObjectInfoFromPrexArg()
       }
    else
@@ -344,7 +441,7 @@ InterpreterEmulator::setupBBStartLocalObjectInfo(int32_t index)
 
       if (hasUnvisitedPred)
          {
-         _currentLocalObjectInfo = new (trStackMemory()) ObjectInfo(_numSlots, _unknownOperand, trStackMemory());
+         _currentLocalObjectInfo = new (comp()->trMemory()->currentStackRegion()) ObjectInfo(_numSlots, _unknownOperand, comp()->trMemory()->currentStackRegion());
          }
       else
          {
@@ -356,7 +453,7 @@ InterpreterEmulator::setupBBStartLocalObjectInfo(int32_t index)
             auto fromBlockNum = fromBlock->getNumber();
             ObjectInfo* predObjectInfo = (*_blockLocalObjectInfos)[fromBlockNum];
             if (!_currentLocalObjectInfo)
-               _currentLocalObjectInfo =  new (trStackMemory()) ObjectInfo(*predObjectInfo, trStackMemory());
+               _currentLocalObjectInfo =  new (comp()->trMemory()->currentStackRegion()) ObjectInfo(*predObjectInfo, comp()->trMemory()->currentStackRegion());
             else
                mergeObjectInfo(_currentLocalObjectInfo, predObjectInfo);
             }
@@ -422,18 +519,22 @@ InterpreterEmulator::maintainStack(TR_J9ByteCode bc)
          popn(2);
          pushUnknownOperand();
          break;
-      case J9BCistore: case J9BClstore: case J9BCfstore: case J9BCdstore: case J9BCastore:
-         maintainStackForStoreAuto(nextByte()); break;
-      case J9BCistorew: case J9BClstorew: case J9BCfstorew: case J9BCdstorew: case J9BCastorew:
-         maintainStackForStoreAuto(next2Bytes()); break;
-      case J9BCistore0: case J9BClstore0: case J9BCfstore0: case J9BCdstore0: case J9BCastore0:
-         maintainStackForStoreAuto(0); break;
-      case J9BCistore1: case J9BClstore1: case J9BCfstore1: case J9BCdstore1: case J9BCastore1:
-         maintainStackForStoreAuto(1); break;
-      case J9BCistore2: case J9BClstore2: case J9BCfstore2: case J9BCdstore2: case J9BCastore2:
-         maintainStackForStoreAuto(2); break;
-      case J9BCistore3: case J9BClstore3: case J9BCfstore3: case J9BCdstore3: case J9BCastore3:
-         maintainStackForStoreAuto(3); break;
+      case J9BCistore: case J9BClstore: case J9BCfstore: case J9BCdstore:
+      case J9BCistorew: case J9BClstorew: case J9BCfstorew: case J9BCdstorew:
+      case J9BCistore0: case J9BClstore0: case J9BCfstore0: case J9BCdstore0:
+      case J9BCistore1: case J9BClstore1: case J9BCfstore1: case J9BCdstore1:
+      case J9BCistore2: case J9BClstore2: case J9BCfstore2: case J9BCdstore2:
+      case J9BCistore3: case J9BClstore3: case J9BCfstore3: case J9BCdstore3:
+         pop();
+         break;
+      // Maintain stack for object store
+      case J9BCastorew: maintainStackForAstore(next2Bytes()); break;
+      case J9BCastore: maintainStackForAstore(nextByte()); break;
+      case J9BCastore0: maintainStackForAstore(0); break;
+      case J9BCastore1: maintainStackForAstore(1); break;
+      case J9BCastore2: maintainStackForAstore(2); break;
+      case J9BCastore3: maintainStackForAstore(3); break;
+
       // liqun: TODO: maintain stack for the following load auto
       case J9BCiload0: case J9BCiload1: case J9BCiload2: case J9BCiload3:
       case J9BCdload0: case J9BCdload1: case J9BCdload2: case J9BCdload3:
@@ -509,7 +610,7 @@ InterpreterEmulator::maintainStackForldc(int32_t cpIndex)
    }
 
 void
-InterpreterEmulator::maintainStackForStoreAuto(int slotIndex)
+InterpreterEmulator::maintainStackForAstore(int slotIndex)
    {
    TR_ASSERT_FATAL(_iteratorWithState, "has to be called when the iterator has state!");
    (*_currentLocalObjectInfo)[slotIndex] = pop();
@@ -1495,13 +1596,13 @@ InterpreterEmulator::createPrexArgFromOperand(Operand* operand)
       {
       return new (comp()->trHeapMemory()) TR_PrexArgument(operand->getKnownObjectIndex(), comp());
       }
-   else if (operand->asClassOperand())
+   else if (operand->asObjectOperand())
       {
-      TR_OpaqueClassBlock* clazz = operand->asClassOperand()->getClass();
+      TR_OpaqueClassBlock* clazz = operand->asObjectOperand()->getClass();
       TR_PrexArgument::ClassKind kind = TR_PrexArgument::ClassIsUnknown;
       if (operand->asFixedClassOperand())
          kind = TR_PrexArgument::ClassIsFixed;
-      else if (operand->asPrexClassOperand())
+      else if (operand->asPreexistentObjectOperand())
          kind = TR_PrexArgument::ClassIsPreexistent;
 
       return new (comp()->trHeapMemory()) TR_PrexArgument(kind, clazz);
