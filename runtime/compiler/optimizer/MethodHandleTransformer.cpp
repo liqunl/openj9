@@ -95,7 +95,7 @@ int32_t TR_MethodHandleTransformer::perform()
       {
       if (p->getDataType() == TR::Address)
          {
-         if (comp()->getOption(TR_TraceILGen))
+         if (trace())
             traceMsg(comp(), "Local #%2d is symbol %p <parm %d>\n", _numLocals, p, p->getSlot());
          p->setLocalIndex(_numLocals++);
          }
@@ -159,7 +159,7 @@ void TR_MethodHandleTransformer::collectLocals(TR_Array<List<TR::SymbolReference
          TR::AutomaticSymbol *p = symRef->getSymbol()->getAutoSymbol();
          if (p && p->getDataType() == TR::Address)
             {
-            if (comp()->getOption(TR_TraceILGen))
+            if (trace())
                traceMsg(comp(), "Local #%2d is symbol %p [#%d]\n", _numLocals, p, symRef->getReferenceNumber());
             p->setLocalIndex(_numLocals++);
             }
@@ -304,7 +304,8 @@ TR_MethodHandleTransformer::getObjectInfoOfNode(TR::Node* node)
    if (node->getOpCode().isLoadDirect() &&
        symbol->isAutoOrParm())
       {
-      traceMsg(comp(), "getObjectInfoOfNode n%dn is load from auto or parm, local #%d\n", node->getGlobalIndex(), symbol->getLocalIndex());
+      if (trace())
+         traceMsg(comp(), "getObjectInfoOfNode n%dn is load from auto or parm, local #%d\n", node->getGlobalIndex(), symbol->getLocalIndex());
       return (*_currentObjectInfo)[symbol->getLocalIndex()];
       }
 
@@ -399,6 +400,10 @@ void TR_MethodHandleTransformer::visitIndirectLoad(TR::TreeTop* tt, TR::Node* no
       auto knot = comp()->getKnownObjectTable();
       if (knot && isKnownObject(baseObj) && !knot->isNull(baseObj))
          {
+         // Since address node is not null, remove nullchk
+         if (tt->getNode()->getOpCode().isNullCheck())
+            TR::Node::recreate(tt->getNode(), TR::treetop);
+
          // Have to improve the regular array-shadow to immutable-array-shadow in order to fold it
          if (symbol->isArrayShadowSymbol() && knot->isArrayWithConstantElements(baseObj))
             {
@@ -408,9 +413,14 @@ void TR_MethodHandleTransformer::visitIndirectLoad(TR::TreeTop* tt, TR::Node* no
                traceMsg(comp(), "Improve regular array-shadow to immutable-array-shadow for n%dn\n", node->getGlobalIndex());
             }
 
-         bool succeed = TR::TransformUtil::transformIndirectLoadChain(comp(), node, baseNode, baseObj, NULL);
+         TR::Node* removedNode = NULL;
+         bool succeed = TR::TransformUtil::transformIndirectLoadChain(comp(), node, baseNode, baseObj, &removedNode);
          if (!succeed && trace())
             traceMsg(comp(), "Failed to fold indirect load n%dn from base object obj%d\n", node->getGlobalIndex(), baseObj);
+         else if (removedNode)
+            {
+            removedNode->recursivelyDecReferenceCount();
+            }
          }
       }
    }
