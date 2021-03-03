@@ -89,21 +89,22 @@ int32_t TR_MethodHandleTransformer::perform()
    if (trace())
       traceMsg(comp(), "Start transforming LambdaForm generated method %s\n", currentMethod->signature(trMemory()));
 
-   // Assign local index to parms and autos
-   ListIterator<TR::ParameterSymbol> parms(&comp()->getMethodSymbol()->getParameterList());
-   for (TR::ParameterSymbol * p = parms.getFirst(); p; p = parms.getNext())
-      {
-      if (p->getDataType() == TR::Address)
-         {
-         if (trace())
-            traceMsg(comp(), "Local #%2d is symbol %p <parm %d>\n", _numLocals, p, p->getSlot());
-         p->setLocalIndex(_numLocals++);
-         }
-      }
+//   // Assign local index to parms and autos
+//   ListIterator<TR::ParameterSymbol> parms(&comp()->getMethodSymbol()->getParameterList());
+//   for (TR::ParameterSymbol * p = parms.getFirst(); p; p = parms.getNext())
+//      {
+//      if (p->getDataType() == TR::Address)
+//         {
+//         if (trace())
+//            traceMsg(comp(), "Local #%2d is symbol %p <parm %d>\n", _numLocals, p, p->getSlot());
+//         p->setLocalIndex(_numLocals++);
+//         }
+//      }
+//
+//   collectLocals(comp()->getMethodSymbol()->getAutoSymRefs());
+//   collectLocals(comp()->getMethodSymbol()->getPendingPushSymRefs());
 
-   collectLocals(comp()->getMethodSymbol()->getAutoSymRefs());
-   collectLocals(comp()->getMethodSymbol()->getPendingPushSymRefs());
-
+   collectLocals();
    if (_numLocals == 0)
        return 0;
 
@@ -146,6 +147,33 @@ int32_t TR_MethodHandleTransformer::perform()
       ++blockIt;
       }
    return 0;
+   }
+
+void TR_MethodHandleTransformer::collectLocals()
+   {
+   // Assign local index to parms and autos
+   ListIterator<TR::ParameterSymbol> parms(&comp()->getMethodSymbol()->getParameterList());
+   for (TR::ParameterSymbol * p = parms.getFirst(); p; p = parms.getNext())
+      {
+      if (p->getDataType() == TR::Address)
+         {
+         if (trace())
+            traceMsg(comp(), "Local #%2d is symbol %p <parm %d>\n", _numLocals, p, p->getSlot());
+         p->setLocalIndex(_numLocals++);
+         }
+      }
+
+   ListIterator<TR::AutomaticSymbol> autos(&comp()->getMethodSymbol()->getAutomaticList());
+   for (auto p = autos.getFirst(); p; p = autos.getNext())
+      {
+      if (p->getDataType() == TR::Address)
+         {
+         const char* autoType = p->isPendingPush() ? "pending push temp" : "temp slot";
+         if (trace())
+            traceMsg(comp(), "Local #%2d is symbol %p %s\n", _numLocals, p, autoType);
+         p->setLocalIndex(_numLocals++);
+         }
+      }
    }
 
 void TR_MethodHandleTransformer::collectLocals(TR_Array<List<TR::SymbolReference>> *autosListArray)

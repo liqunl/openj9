@@ -99,6 +99,7 @@ class TR_MethodHandleTransformer : public TR::Optimization
    // Assign local index to autos
    //
    void collectLocals(TR_Array<List<TR::SymbolReference>> *autosListArray);
+   void collectLocals();
 
    // Given an address-typed node, try to figure out it's object info
    //
