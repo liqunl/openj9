@@ -1635,6 +1635,8 @@ TR_J9ByteCodeIlGenerator::stashArgumentsForOSR(TR_J9ByteCode byteCode)
 
    // Determine the symref to extract the number of arguments required by this bytecode
    TR::SymbolReference *symRef;
+   // Check if cp entry is resolved, used by invokedynamic and invokehandle in OpenJDK MethodHandle implementation
+   bool unresolvedInCP = false;
    switch (byteCode)
       {
       case J9BCinvokevirtual:
@@ -1653,11 +1655,11 @@ TR_J9ByteCodeIlGenerator::stashArgumentsForOSR(TR_J9ByteCode byteCode)
          symRef = symRefTab()->findOrCreateInterfaceMethodSymbol(_methodSymbol, next2Bytes(3));
          break;
       case J9BCinvokedynamic:
-         symRef = symRefTab()->findOrCreateDynamicMethodSymbol(_methodSymbol, next2Bytes());
+         symRef = symRefTab()->findOrCreateDynamicMethodSymbol(_methodSymbol, next2Bytes(), &unresolvedInCP);
          break;
       case J9BCinvokehandle:
       case J9BCinvokehandlegeneric:
-         symRef = symRefTab()->findOrCreateHandleMethodSymbol(_methodSymbol, next2Bytes());
+         symRef = symRefTab()->findOrCreateHandleMethodSymbol(_methodSymbol, next2Bytes(), &unresolvedInCP);
          break;
       case J9BCinvokestaticsplit:
          symRef = symRefTab()->findOrCreateStaticMethodSymbol(_methodSymbol, next2Bytes() | J9_STATIC_SPLIT_TABLE_INDEX_FLAG);
@@ -1671,6 +1673,36 @@ TR_J9ByteCodeIlGenerator::stashArgumentsForOSR(TR_J9ByteCode byteCode)
 
    TR::MethodSymbol *symbol = symRef->getSymbol()->castToMethodSymbol();
    int32_t numArgs = symbol->getMethod()->numberOfExplicitParameters() + (symbol->isStatic() ? 0 : 1);
+
+#if defined(J9VM_OPT_OPENJDK_METHODHANDLE)
+   // invokehandle/invokedynamic bytecode implicitly push an object from side
+   // table as the last argument of the call. This is part of the behavior of
+   // the bytecode in Openjdk MethodHandle implementation. The object should
+   // not be stashed.
+   // The unresolved case will have one more implicit argument pushed onto the stack,
+   // as the MemberName from side table is unknown, the target method is not known at
+   // compile time, thus, the JIT uses MethodHandle.linkToStatic to represent the call.
+   // MethodHandle.linkToStatic expects the last argument to be MemberName object
+   //
+   // Resolved case:
+   // adapter(arg1, arg2, ..., argN, appendixObject)
+   // Unresolved case:
+   // MethodHandle.linkToStatic(arg1, arg2, ..., argN, appendixObject, MemberName)
+   //
+   // Notice that we always generate a resolved call, thus we use unresolvedInCP to tell
+   // us whehter the side table entry is resolved
+   //
+   if (byteCode == J9BCinvokedynamic ||
+       byteCode == J9BCinvokehandle)
+      {
+      numArgs -= 1;
+      if (unresolvedInCP)
+         numArgs -= 1;
+
+      if (trace())
+         traceMsg(comp(), "Num args %d for invokedynamic/handle, stack size %d\n", numArgs, _stack->size());
+      }
+#endif
 
    TR_OSRMethodData *osrMethodData =
       comp()->getOSRCompilationData()->findOrCreateOSRMethodData(comp()->getCurrentInlinedSiteIndex(), _methodSymbol);
